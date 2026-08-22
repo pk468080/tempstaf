@@ -21,7 +21,15 @@ export default function BookingConfirmedScreen({ navigation }: Props) {
           <Text style={styles.id}>{bookingId}</Text>
         </View>
         {selectedWorker && <View style={styles.worker}><View style={styles.avatar}><Text style={styles.avatarText}>{selectedWorker.name[0]}</Text></View><View><Text style={styles.name}>{selectedWorker.name}</Text><Text style={styles.service}>{selectedWorker.service}</Text><Text style={styles.meta}>★ {selectedWorker.rating} · {selectedWorker.distance}</Text></View></View>}
-        <View style={styles.status}><Text style={styles.statusTitle}>{shiftEnded ? 'Shift completed' : shiftStarted ? 'Shift in progress' : 'Worker is on the way'}</Text><Text style={styles.text}>Track the worker and verify the shift OTP when they arrive.</Text></View>
+        <View style={styles.status}><Text style={styles.statusTitle}>
+                                      {shiftEnded
+                                        ? 'Shift completed'
+                                        : shiftStarted
+                                          ? 'Shift in progress'
+                                          : 'Worker assigned'}
+                                    </Text><Text style={styles.text}>
+                                             Your booking is confirmed. The worker will be notified and tracking will begin when they are on the way.
+                                           </Text></View>
         {!shiftEnded && <PrimaryButton title={shiftStarted ? 'Manage Shift' : 'Track Worker'} onPress={() => navigation.navigate('Tracking')} />}
         <PrimaryButton title="Back to Home" onPress={() => { resetBooking(); navigation.reset({ index: 0, routes: [{ name: 'Home' }] }) }} style={styles.secondary} />
       </ScrollView>

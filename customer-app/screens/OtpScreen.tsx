@@ -4,18 +4,42 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { COLORS, LOGO } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import PrimaryButton from '../components/PrimaryButton'
-import { verifyDevelopmentLoginOtp } from '../services/booking'
+import {
+  ensureDevelopmentSession,
+  verifyDevelopmentLoginOtp,
+} from '../services/booking'
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OTP'>
 
 export default function OtpScreen({ navigation, route }: Props) {
   const [otp, setOtp] = useState('')
-  const verify = () => {
+  const verify = async () => {
     if (!verifyDevelopmentLoginOtp(otp)) {
-      Alert.alert('Invalid OTP', 'Development OTP is 123456.')
+      Alert.alert(
+        'Invalid OTP',
+        'Development OTP is 123456.'
+      )
       return
     }
-    navigation.reset({ index: 0, routes: [{ name: 'Home' }] })
+
+    try {
+      await ensureDevelopmentSession()
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      })
+    } catch (error: any) {
+      console.error(
+        '[TempStaff] Development authentication failed:',
+        error
+      )
+
+      Alert.alert(
+        'Authentication Error',
+        error?.message || 'Unknown Supabase authentication error'
+      )
+    }
   }
 
   return (

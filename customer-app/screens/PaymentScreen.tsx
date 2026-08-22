@@ -5,16 +5,48 @@ import { RootStackParamList } from '../types'
 import { useBooking } from '../context/BookingContext'
 import Header from '../components/Header'
 import PrimaryButton from '../components/PrimaryButton'
-
+import { markBookingPaid } from '../services/booking'
 type Props = NativeStackScreenProps<RootStackParamList, 'Payment'>
 
 export default function PaymentScreen({ navigation }: Props) {
   const { total, selectedService, selectedDuration, bookingId, setPaymentDone } = useBooking()
   const pay = () => {
-    Alert.alert('Demo payment', 'No real money will be charged in development mode.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Pay Now', onPress: () => { setPaymentDone(true); navigation.reset({ index: 0, routes: [{ name: 'BookingConfirmed' }] }) } },
-    ])
+    Alert.alert(
+      'Demo payment',
+      'No real money will be charged in development mode.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Pay Now',
+          onPress: async () => {
+            try {
+              if (!bookingId) {
+                throw new Error('Booking ID is missing.')
+              }
+
+              await markBookingPaid(bookingId)
+
+              setPaymentDone(true)
+
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'BookingConfirmed' }],
+              })
+            } catch (error: any) {
+              console.error(
+                '[TempStaff] Payment update failed:',
+                error
+              )
+
+              Alert.alert(
+                'Payment failed',
+                error?.message || 'Unable to update payment status.'
+              )
+            }
+          },
+        },
+      ]
+    )
   }
   return (
     <SafeAreaView style={styles.container}>
