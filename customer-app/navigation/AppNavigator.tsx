@@ -1,7 +1,7 @@
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { RootStackParamList } from '../types'
-
+import CheckoutScreen from '../screens/CheckoutScreen'
 import SplashScreen from '../screens/SplashScreen'
 import LoginScreen from '../screens/LoginScreen'
 import OtpScreen from '../screens/OtpScreen'
@@ -75,6 +75,10 @@ export default function AppNavigator() {
           name="Payment"
           component={PaymentScreen}
         />
+        <Stack.Screen
+  name="Checkout"
+  component={CheckoutScreen}
+/>
 
         <Stack.Screen
           name="BookingConfirmed"

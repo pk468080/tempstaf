@@ -188,7 +188,7 @@ export default function PaymentScreen({
      * confirmation route so we can continue building
      * the flow one screen at a time.
      */
-    navigation.navigate('BookingConfirmed')
+    navigation.navigate('Checkout')
   }
 
   const scheduleBooking = () => {
