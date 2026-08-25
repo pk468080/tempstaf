@@ -31,11 +31,12 @@ export default function LocationScreen({
   navigation,
 }: Props) {
   const {
-    address,
-    coordinates,
-    setAddress,
-    setCoordinates,
-  } = useBooking()
+  address,
+  coordinates,
+  setAddress,
+  setAddressId,
+  setCoordinates,
+} = useBooking()
 
   const [houseNumber, setHouseNumber] = useState('')
   const [street, setStreet] = useState('')
@@ -204,11 +205,13 @@ export default function LocationScreen({
 
       setAddress(data.address_line)
 
-      setCoordinates(
-        `${data.latitude},${data.longitude}`
-      )
+setAddressId(data.id)
 
-      navigation.navigate('Payment')
+setCoordinates(
+  `${data.latitude},${data.longitude}`
+)
+
+navigation.navigate('Payment')
     } catch (error: any) {
       console.error(
         '[TempStaff] Address save failed:',

@@ -3,22 +3,19 @@ import { supabase } from '../lib/supabase'
 export function createDevelopmentBookingId() {
   return `TS-${Date.now().toString().slice(-8)}`
 }
+
 export function verifyDevelopmentLoginOtp(otp: string) {
   return otp === '123456'
 }
 
-
 export async function ensureDevelopmentSession(
   phone?: string
 ) {
-  // Check existing session first.
   const {
     data: { session },
   } = await supabase.auth.getSession()
 
   if (session?.user) {
-    // Make sure the existing session actually belongs
-    // to a customer account.
     const { data: profile, error: profileError } =
       await supabase
         .from('profiles')
@@ -32,16 +29,12 @@ export async function ensureDevelopmentSession(
       profile.role === 'customer' &&
       profile.is_active === true
     ) {
-      // Correct customer session.
       return session
     }
 
-    // Existing session is not a valid customer session.
-    // This prevents a worker session from being reused.
     await supabase.auth.signOut()
   }
 
-  // Create a fresh anonymous customer session.
   const { data, error } =
     await supabase.auth.signInAnonymously()
 
@@ -55,8 +48,6 @@ export async function ensureDevelopmentSession(
     )
   }
 
-  // Create/update the customer profile for this
-  // newly authenticated user.
   const { error: profileError } =
     await supabase
       .from('profiles')
@@ -85,6 +76,7 @@ export async function ensureDevelopmentSession(
 
   return data.session
 }
+
 export type CreateAddressInput = {
   label?: string
   addressLine: string
@@ -120,6 +112,7 @@ export async function createAddress(
       '[TempStaff] Failed to create address:',
       error
     )
+
     throw error
   }
 
@@ -150,6 +143,7 @@ export async function createBookingOtp(
       '[TempStaff] Failed to create OTP:',
       error
     )
+
     throw error
   }
 
@@ -193,6 +187,7 @@ export async function verifyBookingOtp(
       '[TempStaff] Failed to verify OTP:',
       error
     )
+
     throw error
   }
 
@@ -206,11 +201,15 @@ export async function verifyBookingOtp(
 }
 
 export type CreateBookingInput = {
-  workerId: string
+  workerId?: string | null
   serviceId: string
   addressId: string
   durationValue: number
-  durationUnit: 'day' | 'week' | 'month'
+  durationUnit:
+    | 'hour'
+    | 'day'
+    | 'week'
+    | 'month'
   scheduledStart: string
   scheduledEnd: string
   baseAmount: number
@@ -228,25 +227,35 @@ export async function createBooking(
   } = await supabase.auth.getUser()
 
   if (!user) {
-    throw new Error('Customer is not authenticated.')
+    throw new Error(
+      'Customer is not authenticated.'
+    )
   }
 
   const { data, error } = await supabase
     .from('bookings')
     .insert({
       customer_id: user.id,
-      worker_id: input.workerId,
+
+      // Worker is assigned later by TempStaff.
+      worker_id: input.workerId ?? null,
+
       service_id: input.serviceId,
       address_id: input.addressId,
+
       status: 'pending_payment',
+
       duration_value: input.durationValue,
       duration_unit: input.durationUnit,
+
       scheduled_start: input.scheduledStart,
       scheduled_end: input.scheduledEnd,
+
       base_amount: input.baseAmount,
       platform_fee: input.platformFee,
       tax_amount: input.taxAmount,
       total_amount: input.totalAmount,
+
       notes: input.notes ?? null,
     })
     .select()
@@ -257,34 +266,41 @@ export async function createBooking(
       '[TempStaff] Failed to create booking:',
       error
     )
+
     throw error
   }
 
   return data
 }
 
-export async function markBookingPaid(bookingId: string) {
+export async function markBookingPaid(
+  bookingId: string
+) {
   if (!bookingId) {
     throw new Error('Booking ID is required.')
   }
 
-  const { data, error } = await supabase.rpc(
-    'complete_test_payment',
-    {
-      p_booking_id: bookingId,
-    }
-  )
+  const { data, error } =
+    await supabase.rpc(
+      'complete_test_payment',
+      {
+        p_booking_id: bookingId,
+      }
+    )
 
   if (error) {
     console.error(
       '[TempStaff] Failed to complete payment:',
       error
     )
+
     throw error
   }
 
   if (!data) {
-    throw new Error('Payment was not completed.')
+    throw new Error(
+      'Payment was not completed.'
+    )
   }
 
   return data
