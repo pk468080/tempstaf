@@ -78,12 +78,12 @@ export default function ServicesScreen({
   }
 
   const handleContinue = () => {
-    if (!selectedService || !selectedPackage) {
-      return
-    }
-
-    navigation.navigate('Location')
+  if (!selectedService || !selectedPackage) {
+    return
   }
+
+  navigation.navigate('Summary')
+}
 
   const disabled =
     !selectedService ||
