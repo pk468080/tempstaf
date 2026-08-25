@@ -130,8 +130,6 @@ export default function LocationScreen({
     city.trim().length >= 2 &&
     pincode.trim().length === 6 &&
     /^\d{6}$/.test(pincode.trim()) &&
-    latitude !== null &&
-    longitude !== null &&
     !saving
 
   const saveAddress = async () => {
