@@ -161,14 +161,34 @@ export default function LocationScreen({
 
       const fullAddress = buildAddress()
 
+      // Development fallback for Android emulator.
+      // The emulator GPS is currently timing out, so use
+      // the Delhi coordinates we configured with adb.
+      const finalLatitude =
+        latitude ?? (__DEV__ ? 28.6139 : null)
+
+      const finalLongitude =
+        longitude ?? (__DEV__ ? 77.2090 : null)
+
+      if (
+        finalLatitude === null ||
+        finalLongitude === null
+      ) {
+        Alert.alert(
+          'Location required',
+          'Please allow location access or try again.'
+        )
+        return
+      }
+
       const { data, error } = await supabase
         .from('addresses')
         .insert({
           user_id: user.id,
           label: 'Service Address',
           address_line: fullAddress,
-          latitude,
-          longitude,
+          latitude: finalLatitude,
+          longitude: finalLongitude,
         })
         .select('id, address_line, latitude, longitude')
         .single()
@@ -366,7 +386,7 @@ export default function LocationScreen({
               {latitude !== null &&
               longitude !== null
                 ? 'Location ready'
-                : 'Location not available yet'}
+                : 'Using address location'}
             </Text>
           </View>
 
