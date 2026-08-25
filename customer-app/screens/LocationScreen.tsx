@@ -1,27 +1,64 @@
-import { useState } from 'react'
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { useEffect, useState } from 'react'
+import {
+  Alert,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
+
 import { COLORS } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import { getCurrentLocation } from '../services/location'
-import { useBooking } from '../context/BookingContext'
-import Header from '../components/Header'
-import PrimaryButton from '../components/PrimaryButton'
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Location'>
+type Props = NativeStackScreenProps<
+  RootStackParamList,
+  'Location'
+>
 
-export default function LocationScreen({ navigation }: Props) {
-  const { selectedService, selectedDuration, bookingMode, address, coordinates, setAddress, setCoordinates } = useBooking()
-  const [loading, setLoading] = useState(false)
+export default function LocationScreen({
+  navigation,
+}: Props) {
+  const [loading, setLoading] = useState(true)
 
-  const current = async () => {
-    setLoading(true)
+  useEffect(() => {
+    requestLocation()
+  }, [])
+
+  const requestLocation = async () => {
     try {
+      setLoading(true)
+
       const result = await getCurrentLocation()
-      setCoordinates(result.label)
-      setAddress('Current location')
-    } catch {
-      Alert.alert('Permission needed', 'Allow location access or enter the address manually.')
+
+      console.log(
+        '[TempStaff] Customer location:',
+        result
+      )
+
+      // Location successfully allowed.
+      // For now, continue to Home.
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      })
+    } catch (error) {
+      console.error(
+        '[TempStaff] Location permission failed:',
+        error
+      )
+
+      Alert.alert(
+        'Location permission needed',
+        'TempStaff needs your location to show services and workers available near you.',
+        [
+          {
+            text: 'Try Again',
+            onPress: requestLocation,
+          },
+        ]
+      )
     } finally {
       setLoading(false)
     }
@@ -29,65 +66,93 @@ export default function LocationScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.page}>
-        <Header onBack={() => navigation.goBack()} />
-        <Text style={styles.title}>Where do you need staff?</Text>
-        <Text style={styles.subtitle}>Choose your location so we can find nearby workers.</Text>
-
-        <TouchableOpacity style={styles.location} onPress={current}>
-          <View style={styles.icon}><Text style={{ fontSize: 20 }}>📍</Text></View>
-          <View style={styles.content}><Text style={styles.locationTitle}>{loading ? 'Getting location...' : 'Use my current location'}</Text><Text style={styles.description}>Allow location access on this device.</Text></View>
-        </TouchableOpacity>
-
-        <Text style={styles.or}>OR</Text>
-
-        <TextInput
-          style={styles.address}
-          placeholder="Enter full service address"
-          placeholderTextColor="#9CA3AF"
-          multiline
-          value={address === 'Current location' ? '' : address}
-          onChangeText={v => { setAddress(v); setCoordinates('') }}
-        />
-
-        {address === 'Current location' && (
-          <View style={styles.success}><Text style={styles.green}>✓ Current location selected</Text><Text style={styles.small}>{coordinates}</Text></View>
-        )}
-
-        <View style={styles.summary}>
-          <Text style={styles.label}>Service</Text><Text style={styles.value}>{selectedService}</Text>
-          <Text style={styles.label}>Duration</Text><Text style={styles.value}>{selectedDuration}</Text>
-          <Text style={styles.label}>Booking type</Text><Text style={styles.value}>{bookingMode}</Text>
+      <View style={styles.content}>
+        <View style={styles.icon}>
+          <Text style={styles.pin}>📍</Text>
         </View>
 
-        <PrimaryButton
-          title="Find Nearby Staff"
-          onPress={() => {
-            if (!address.trim()) { Alert.alert('Location required', 'Select your location or enter an address.'); return }
-            navigation.navigate('Workers')
-          }}
-        />
-      </ScrollView>
+        <Text style={styles.title}>
+          Allow your location
+        </Text>
+
+        <Text style={styles.subtitle}>
+          TempStaff uses your location to show nearby
+          services and workers available in your area.
+        </Text>
+
+        {loading && (
+          <Text style={styles.loading}>
+            Requesting location permission...
+          </Text>
+        )}
+
+        <Text style={styles.note}>
+          Your location is used only to provide
+          location-based services.
+        </Text>
+      </View>
     </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.light },
-  page: { padding: 22, paddingBottom: 45 },
-  title: { color: COLORS.navy, fontSize: 31, fontWeight: '800', marginBottom: 7 },
-  subtitle: { color: COLORS.gray, fontSize: 15, lineHeight: 22, marginBottom: 22 },
-  location: { width: '100%', flexDirection: 'row', backgroundColor: 'white', borderWidth: 1, borderColor: COLORS.border, borderRadius: 18, padding: 18 },
-  icon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFF1DF', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  content: { flex: 1, justifyContent: 'center' },
-  locationTitle: { color: COLORS.navy, fontSize: 16, fontWeight: '800', marginBottom: 5 },
-  description: { color: COLORS.gray, fontSize: 13, lineHeight: 19 },
-  or: { color: COLORS.gray, textAlign: 'center', fontSize: 12, fontWeight: '800', marginVertical: 12 },
-  address: { width: '100%', minHeight: 100, borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, backgroundColor: 'white', padding: 14, fontSize: 15, color: COLORS.navy, textAlignVertical: 'top' },
-  success: { backgroundColor: '#ECFDF3', borderRadius: 15, padding: 14, marginTop: 12 },
-  green: { color: COLORS.green, fontWeight: '800', marginBottom: 4 },
-  small: { color: COLORS.gray, fontSize: 12 },
-  summary: { width: '100%', backgroundColor: 'white', borderRadius: 18, padding: 18, borderWidth: 1, borderColor: COLORS.border, marginTop: 18, marginBottom: 16 },
-  label: { color: COLORS.gray, fontSize: 12, marginBottom: 3 },
-  value: { color: COLORS.navy, fontSize: 16, fontWeight: '800', marginBottom: 12 },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.light,
+  },
+
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+
+  icon: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#FFF1DF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 28,
+  },
+
+  pin: {
+    fontSize: 42,
+  },
+
+  title: {
+    color: COLORS.navy,
+    fontSize: 28,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+
+  subtitle: {
+    color: COLORS.gray,
+    fontSize: 15,
+    lineHeight: 23,
+    textAlign: 'center',
+    maxWidth: 330,
+  },
+
+  loading: {
+    color: COLORS.teal,
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 28,
+  },
+
+  note: {
+    position: 'absolute',
+    bottom: 35,
+    left: 30,
+    right: 30,
+    color: COLORS.gray,
+    fontSize: 11,
+    lineHeight: 17,
+    textAlign: 'center',
+  },
 })
