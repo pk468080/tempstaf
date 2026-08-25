@@ -13,6 +13,7 @@ export type BookingMode =
   | 'Recurring'
 
 export type RootStackParamList = {
+  Splash: undefined
   Login: undefined
   OTP: { phone: string }
   Home: undefined
