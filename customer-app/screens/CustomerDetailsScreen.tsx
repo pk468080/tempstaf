@@ -12,9 +12,10 @@ import {
 } from 'react-native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 
-import { COLORS, LOGO } from '../constants/theme'
+import { COLORS } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import PrimaryButton from '../components/PrimaryButton'
+import { saveCustomerProfile } from '../services/customer'
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -26,12 +27,14 @@ export default function CustomerDetailsScreen({
 }: Props) {
   const [fullName, setFullName] = useState('')
   const [companyName, setCompanyName] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const canContinue =
     fullName.trim().length >= 2 &&
-    companyName.trim().length >= 2
+    companyName.trim().length >= 2 &&
+    !saving
 
-  const continueToLocation = () => {
+  const continueToHome = async () => {
     if (!canContinue) {
       Alert.alert(
         'Complete your details',
@@ -40,10 +43,32 @@ export default function CustomerDetailsScreen({
       return
     }
 
-    navigation.reset({
-  index: 0,
-  routes: [{ name: 'Home' }],
-})
+    try {
+      setSaving(true)
+
+      await saveCustomerProfile({
+        fullName,
+        companyName,
+      })
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      })
+    } catch (error: any) {
+      console.error(
+        '[TempStaff] Customer profile save failed:',
+        error
+      )
+
+      Alert.alert(
+        'Unable to save details',
+        error?.message ||
+          'We could not save your details. Please try again.'
+      )
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -62,7 +87,14 @@ export default function CustomerDetailsScreen({
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <ImageLogo />
+            <View style={styles.logoContainer}>
+              <Text style={styles.logoPlaceholder}>
+                Temp
+                <Text style={styles.logoTeal}>
+                  Staff
+                </Text>
+              </Text>
+            </View>
           </View>
 
           <Text style={styles.title}>
@@ -86,7 +118,8 @@ export default function CustomerDetailsScreen({
               value={fullName}
               onChangeText={setFullName}
               autoCapitalize="words"
-              editable
+              autoCorrect={false}
+              editable={!saving}
             />
 
             <Text style={styles.label}>
@@ -100,14 +133,19 @@ export default function CustomerDetailsScreen({
               value={companyName}
               onChangeText={setCompanyName}
               autoCapitalize="words"
-              editable
+              autoCorrect={false}
+              editable={!saving}
             />
           </View>
 
           <View style={styles.bottom}>
             <PrimaryButton
-              title="Continue"
-              onPress={continueToLocation}
+              title={
+                saving
+                  ? 'Saving...'
+                  : 'Continue'
+              }
+              onPress={continueToHome}
               disabled={!canContinue}
             />
 
@@ -119,16 +157,6 @@ export default function CustomerDetailsScreen({
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
-  )
-}
-
-function ImageLogo() {
-  return (
-    <View style={styles.logoContainer}>
-      <Text style={styles.logoPlaceholder}>
-        Temp<Text style={styles.logoTeal}>Staff</Text>
-      </Text>
-    </View>
   )
 }
 
