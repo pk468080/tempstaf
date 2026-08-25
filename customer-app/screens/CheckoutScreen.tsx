@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Alert,
   SafeAreaView,
@@ -7,12 +8,14 @@ import {
   View,
 } from 'react-native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
+import RazorpayCheckout from 'react-native-razorpay'
 
 import { COLORS } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import { useBooking } from '../context/BookingContext'
 import Header from '../components/Header'
 import PrimaryButton from '../components/PrimaryButton'
+import { createRazorpayOrder } from '../services/payment'
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -30,11 +33,134 @@ export default function CheckoutScreen({
     bookingMode,
   } = useBooking()
 
-  const payNow = () => {
-    Alert.alert(
-      'Payment gateway',
-      'Payment gateway integration will be connected next.'
-    )
+  const [paying, setPaying] = useState(false)
+
+  const payNow = async () => {
+    if (!selectedPackage?.id) {
+      Alert.alert(
+        'Payment error',
+        'No service package has been selected.'
+      )
+      return
+    }
+
+    if (paying) {
+      return
+    }
+
+    try {
+      setPaying(true)
+
+      /*
+       * Ask our Supabase Edge Function to create
+       * the Razorpay order.
+       *
+       * The server gets the real package price
+       * directly from Supabase.
+       */
+      const order =
+        await createRazorpayOrder(
+          selectedPackage.id
+        )
+
+      if (
+        !order.orderId ||
+        !order.keyId
+      ) {
+        throw new Error(
+          'Invalid Razorpay order received.'
+        )
+      }
+
+      const options = {
+        description:
+          `TempStaff - ${selectedPackage.name}`,
+
+        image:
+          'https://your-tempstaff-logo-url.com/logo.png',
+
+        currency:
+          order.currency || 'INR',
+
+        key:
+          order.keyId,
+
+        amount:
+          String(order.amount),
+
+        name:
+          'TempStaff',
+
+        order_id:
+          order.orderId,
+
+        prefill: {
+          name: '',
+          email: '',
+          contact: '',
+        },
+
+        theme: {
+          color: '#0B1F3A',
+        },
+      }
+
+      const payment =
+        await RazorpayCheckout.open(
+          options
+        )
+
+      console.log(
+        '[TempStaff] Razorpay payment success:',
+        payment
+      )
+
+      /*
+       * IMPORTANT:
+       * We are NOT confirming the booking yet.
+       *
+       * Next step will verify the Razorpay
+       * signature on the Supabase server.
+       */
+
+      Alert.alert(
+        'Payment received',
+        'Test payment completed successfully.',
+        [
+          {
+            text: 'Continue',
+            onPress: () =>
+              navigation.navigate(
+                'BookingConfirmed'
+              ),
+          },
+        ]
+      )
+    } catch (error: any) {
+      console.error(
+        '[TempStaff] Razorpay payment failed:',
+        error
+      )
+
+      if (
+        error?.code ===
+        '2'
+      ) {
+        Alert.alert(
+          'Payment cancelled',
+          'You cancelled the payment.'
+        )
+      } else {
+        Alert.alert(
+          'Payment failed',
+          error?.description ||
+            error?.message ||
+            'Unable to complete payment.'
+        )
+      }
+    } finally {
+      setPaying(false)
+    }
   }
 
   return (
@@ -106,29 +232,40 @@ export default function CheckoutScreen({
           </Text>
 
           <Text style={styles.totalNote}>
-            Price is taken from the current
-            TempStaff database package price.
+            Final amount is verified from the
+            TempStaff database before the
+            Razorpay order is created.
           </Text>
         </View>
 
         <View style={styles.secureCard}>
           <Text style={styles.secureTitle}>
-            🔒 Secure payment
+            🔒 Secure Test Payment
           </Text>
 
           <Text style={styles.secureText}>
-            Your payment will be processed securely.
+            You are currently using Razorpay
+            Test Mode. No real money will be
+            charged.
           </Text>
         </View>
 
         <PrimaryButton
-          title={`Pay ₹${total.toLocaleString('en-IN')}`}
+          title={
+            paying
+              ? 'Opening payment...'
+              : `Pay ₹${total.toLocaleString(
+                  'en-IN'
+                )}`
+          }
           onPress={payNow}
+          disabled={paying}
         />
 
         <Text style={styles.note}>
-          Worker assignment is handled by TempStaff.
-          You do not need to select a worker.
+          TempStaff assigns the worker.
+          Customers cannot select individual
+          workers.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -259,6 +396,7 @@ const styles = StyleSheet.create({
   secureText: {
     color: COLORS.gray,
     fontSize: 12,
+    lineHeight: 18,
   },
 
   note: {
