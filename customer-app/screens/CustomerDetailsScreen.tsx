@@ -40,7 +40,10 @@ export default function CustomerDetailsScreen({
       return
     }
 
-    navigation.navigate('Location')
+    navigation.reset({
+  index: 0,
+  routes: [{ name: 'Home' }],
+})
   }
 
   return (
