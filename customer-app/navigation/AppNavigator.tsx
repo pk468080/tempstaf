@@ -5,6 +5,7 @@ import { RootStackParamList } from '../types'
 import SplashScreen from '../screens/SplashScreen'
 import LoginScreen from '../screens/LoginScreen'
 import OtpScreen from '../screens/OtpScreen'
+import CustomerDetailsScreen from '../screens/CustomerDetailsScreen'
 import HomeScreen from '../screens/HomeScreen'
 import ServicesScreen from '../screens/ServicesScreen'
 import LocationScreen from '../screens/LocationScreen'
@@ -25,7 +26,6 @@ export default function AppNavigator() {
         initialRouteName="Splash"
         screenOptions={{ headerShown: false }}
       >
-
         <Stack.Screen
           name="Splash"
           component={SplashScreen}
@@ -39,6 +39,11 @@ export default function AppNavigator() {
         <Stack.Screen
           name="OTP"
           component={OtpScreen}
+        />
+
+        <Stack.Screen
+          name="CustomerDetails"
+          component={CustomerDetailsScreen}
         />
 
         <Stack.Screen
@@ -90,7 +95,6 @@ export default function AppNavigator() {
           name="BookingDetails"
           component={BookingDetailsScreen}
         />
-
       </Stack.Navigator>
     </NavigationContainer>
   )
