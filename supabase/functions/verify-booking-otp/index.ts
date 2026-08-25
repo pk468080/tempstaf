@@ -487,12 +487,11 @@ Deno.serve(async (req) => {
     const {
       data: updatedBooking,
       error: statusError,
-    } = await supabase.rpc(
+    } = await authClient.rpc(
       'update_worker_booking_status',
       {
         p_booking_id: bookingId,
         p_status: nextStatus,
-        p_worker_id: user.id,
       }
     )
 

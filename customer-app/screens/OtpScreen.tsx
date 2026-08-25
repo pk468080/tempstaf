@@ -23,7 +23,7 @@ export default function OtpScreen({ navigation, route }: Props) {
     }
 
     try {
-      await ensureDevelopmentSession()
+     await ensureDevelopmentSession(route.params.phone) 
 
       navigation.reset({
         index: 0,

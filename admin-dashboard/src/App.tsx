@@ -9,8 +9,11 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Workers from './pages/Workers'
 import WorkerDetail from './pages/WorkerDetail'
-import Placeholder from './pages/Placeholder'
 import AdminLayout from './layouts/AdminLayout'
+import Bookings from './pages/Bookings'
+import Services from './pages/Services'
+import Customers from './pages/Customers'
+import Payments from './pages/Payments'
 
 export default function App() {
   return (
@@ -32,9 +35,10 @@ export default function App() {
           />
 
           <Route
-            path="/bookings"
-            element={<Placeholder />}
-          />
+  path="/bookings"
+  element={<Bookings />}
+  
+/>
 
           <Route
             path="/workers"
@@ -47,28 +51,28 @@ export default function App() {
           />
 
           <Route
-            path="/customers"
-            element={<Placeholder />}
-          />
+  path="/customers"
+  element={<Customers />}
+/>
 
-          <Route
-            path="/services"
-            element={<Placeholder />}
-          />
+<Route
+  path="/services"
+  element={<Services />}
+/>
 
           <Route
             path="/payments"
-            element={<Placeholder />}
+            element={<Payments />}
           />
 
           <Route
             path="/reviews"
-            element={<Placeholder />}
+            
           />
 
           <Route
             path="/notifications"
-            element={<Placeholder />}
+            
           />
 
         </Route>

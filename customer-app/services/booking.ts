@@ -8,15 +8,40 @@ export function verifyDevelopmentLoginOtp(otp: string) {
 }
 
 
-export async function ensureDevelopmentSession() {
+export async function ensureDevelopmentSession(
+  phone?: string
+) {
+  // Check existing session first.
   const {
     data: { session },
   } = await supabase.auth.getSession()
 
-  if (session) {
-    return session
+  if (session?.user) {
+    // Make sure the existing session actually belongs
+    // to a customer account.
+    const { data: profile, error: profileError } =
+      await supabase
+        .from('profiles')
+        .select('id, role, is_active')
+        .eq('id', session.user.id)
+        .maybeSingle()
+
+    if (
+      !profileError &&
+      profile &&
+      profile.role === 'customer' &&
+      profile.is_active === true
+    ) {
+      // Correct customer session.
+      return session
+    }
+
+    // Existing session is not a valid customer session.
+    // This prevents a worker session from being reused.
+    await supabase.auth.signOut()
   }
 
+  // Create a fresh anonymous customer session.
   const { data, error } =
     await supabase.auth.signInAnonymously()
 
@@ -24,15 +49,42 @@ export async function ensureDevelopmentSession() {
     throw error
   }
 
-  if (!data.session) {
+  if (!data.session || !data.user) {
     throw new Error(
       'Supabase did not return an authentication session.'
     )
   }
 
+  // Create/update the customer profile for this
+  // newly authenticated user.
+  const { error: profileError } =
+    await supabase
+      .from('profiles')
+      .upsert(
+        {
+          id: data.user.id,
+          phone: phone ?? null,
+          role: 'customer',
+          is_active: true,
+        },
+        {
+          onConflict: 'id',
+        }
+      )
+
+  if (profileError) {
+    console.error(
+      '[TempStaff] Failed to create customer profile:',
+      profileError
+    )
+
+    await supabase.auth.signOut()
+
+    throw profileError
+  }
+
   return data.session
 }
-
 export type CreateAddressInput = {
   label?: string
   addressLine: string
@@ -216,21 +268,23 @@ export async function markBookingPaid(bookingId: string) {
     throw new Error('Booking ID is required.')
   }
 
-  const { data, error } = await supabase
-    .from('bookings')
-    .update({
-      status: 'paid',
-    })
-    .eq('id', bookingId)
-    .select()
-    .single()
+  const { data, error } = await supabase.rpc(
+    'complete_test_payment',
+    {
+      p_booking_id: bookingId,
+    }
+  )
 
   if (error) {
     console.error(
-      '[TempStaff] Failed to mark booking as paid:',
+      '[TempStaff] Failed to complete payment:',
       error
     )
     throw error
+  }
+
+  if (!data) {
+    throw new Error('Payment was not completed.')
   }
 
   return data

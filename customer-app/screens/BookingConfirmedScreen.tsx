@@ -30,7 +30,7 @@ export default function BookingConfirmedScreen({ navigation }: Props) {
                                     </Text><Text style={styles.text}>
                                              Your booking is confirmed. The worker will be notified and tracking will begin when they are on the way.
                                            </Text></View>
-        {!shiftEnded && <PrimaryButton title={shiftStarted ? 'Manage Shift' : 'Track Worker'} onPress={() => navigation.navigate('Tracking')} />}
+        {!shiftEnded && <PrimaryButton title={shiftStarted ? 'Manage Shift' : 'Track Worker'} onPress={() => navigation.navigate('Tracking', { bookingId })} />}
         <PrimaryButton title="Back to Home" onPress={() => { resetBooking(); navigation.reset({ index: 0, routes: [{ name: 'Home' }] }) }} style={styles.secondary} />
       </ScrollView>
     </SafeAreaView>

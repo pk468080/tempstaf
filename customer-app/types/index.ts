@@ -7,7 +7,10 @@ export type Worker = {
   distance: string
 }
 
-export type BookingMode = 'Instant' | 'Scheduled' | 'Recurring'
+export type BookingMode =
+  | 'Instant'
+  | 'Scheduled'
+  | 'Recurring'
 
 export type RootStackParamList = {
   Login: undefined
@@ -19,5 +22,14 @@ export type RootStackParamList = {
   Summary: undefined
   Payment: undefined
   BookingConfirmed: undefined
-  Tracking: undefined
+
+  MyBookings: undefined
+
+  BookingDetails: {
+    bookingId: string
+  }
+
+  Tracking: {
+    bookingId?: string
+  }
 }
