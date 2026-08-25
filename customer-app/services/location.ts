@@ -8,8 +8,14 @@ export async function getCurrentLocation() {
     throw new Error('LOCATION_PERMISSION_DENIED')
   }
 
-  // First try the emulator/device's last known location.
-  // This prevents the app from waiting indefinitely for a fresh GPS fix.
+  const servicesEnabled =
+    await Location.hasServicesEnabledAsync()
+
+  if (!servicesEnabled) {
+    throw new Error('LOCATION_SERVICES_DISABLED')
+  }
+
+  // Try the emulator/device cached location first.
   const lastKnown =
     await Location.getLastKnownPositionAsync({
       maxAge: 5 * 60 * 1000,
@@ -24,11 +30,25 @@ export async function getCurrentLocation() {
     }
   }
 
-  // If there is no cached location, request a fresh location.
-  const current =
-    await Location.getCurrentPositionAsync({
+  // Request a fresh GPS location.
+  const locationPromise =
+    Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.Balanced,
     })
+
+  // Never allow the app to wait forever for GPS.
+  const timeoutPromise = new Promise<never>(
+    (_, reject) => {
+      setTimeout(() => {
+        reject(new Error('LOCATION_TIMEOUT'))
+      }, 15000)
+    }
+  )
+
+  const current = await Promise.race([
+    locationPromise,
+    timeoutPromise,
+  ])
 
   return {
     latitude: current.coords.latitude,
