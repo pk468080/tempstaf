@@ -13,6 +13,10 @@ type Worker = {
   service_radius_km: number
   current_location: unknown
 }
+type Service = {
+  id: string
+  name: string
+}
 
 const statuses = ['all', 'available', 'busy', 'offline', 'suspended']
 
@@ -22,7 +26,93 @@ export default function Workers() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showAddWorker, setShowAddWorker] = useState(false)
+const [services, setServices] = useState<Service[]>([])
+const [creatingWorker, setCreatingWorker] = useState(false)
 
+const [workerForm, setWorkerForm] = useState({
+  fullName: '',
+  email: '',
+  phone: '',
+  password: '',
+  serviceIds: [] as string[],
+})
+async function createWorker() {
+  setError('')
+
+  if (!workerForm.fullName.trim()) {
+    setError('Full name is required.')
+    return
+  }
+
+  if (!workerForm.email.trim()) {
+    setError('Email is required.')
+    return
+  }
+
+  if (workerForm.password.length < 8) {
+    setError('Password must contain at least 8 characters.')
+    return
+  }
+
+  if (workerForm.serviceIds.length === 0) {
+    setError('Select at least one service.')
+    return
+  }
+
+  setCreatingWorker(true)
+
+  const { data, error } =
+    await supabase.functions.invoke('create-worker', {
+      body: {
+        fullName: workerForm.fullName.trim(),
+        email: workerForm.email.trim().toLowerCase(),
+        phone: workerForm.phone.trim(),
+        password: workerForm.password,
+        serviceIds: workerForm.serviceIds,
+      },
+    })
+
+  setCreatingWorker(false)
+
+  if (error) {
+    console.error(error)
+    setError(error.message)
+    return
+  }
+
+  if (!data?.success) {
+    setError(data?.error || 'Unable to create worker.')
+    return
+  }
+
+  setWorkerForm({
+    fullName: '',
+    email: '',
+    phone: '',
+    password: '',
+    serviceIds: [],
+  })
+
+  setShowAddWorker(false)
+
+  await loadWorkers()
+}
+async function loadServices() {
+  const { data, error } = await supabase
+    .from('services')
+    .select('id, name')
+    .eq('is_active', true)
+    .order('name')
+
+  if (error) {
+    console.error(error)
+    setError(error.message)
+    return
+  }
+
+  setServices(data ?? [])
+}
   async function loadWorkers() {
     setLoading(true)
     setError('')
@@ -127,8 +217,9 @@ export default function Workers() {
   }
 
   useEffect(() => {
-    loadWorkers()
-  }, [])
+  loadWorkers()
+  loadServices()
+}, [])
 
   const normalizedSearch = search.trim().toLowerCase()
   const filteredWorkers = workers.filter((worker) => {
@@ -155,12 +246,21 @@ export default function Workers() {
           </p>
         </div>
 
-        <button
-          onClick={loadWorkers}
-          style={styles.refresh}
-        >
-          Refresh
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+  <button
+    onClick={loadWorkers}
+    style={styles.refresh}
+  >
+    Refresh
+  </button>
+
+  <button
+    onClick={() => setShowAddWorker(true)}
+    style={styles.addButton}
+  >
+    + Add Worker
+  </button>
+</div>
       </div>
 
       <div style={styles.toolbar}>
