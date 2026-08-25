@@ -1,4 +1,5 @@
 import {
+  ActivityIndicator,
   Image,
   SafeAreaView,
   ScrollView,
@@ -12,18 +13,43 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 
 import { COLORS, LOGO } from '../constants/theme'
 import { RootStackParamList } from '../types'
-import { SERVICES, iconFor } from '../data/catalog'
 import { useBooking } from '../context/BookingContext'
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>
 
+const iconForService = (service: string): string => {
+  const normalized = service.trim().toLowerCase()
+
+  if (normalized.includes('housekeeping')) return '🧹'
+  if (normalized.includes('pantry')) return '🍽️'
+  if (normalized.includes('office')) return '💼'
+  if (normalized.includes('helper')) return '👷'
+
+  return '👤'
+}
+
 export default function HomeScreen({ navigation }: Props) {
-  const { resetBooking, setSelectedService } = useBooking()
+  const {
+    resetBooking,
+    setSelectedService,
+    services,
+    catalogueLoading,
+    catalogueError,
+    refreshCatalogue,
+  } = useBooking()
+
+  const handleServicePress = (service: string) => {
+    resetBooking()
+    setSelectedService(service)
+    navigation.navigate('Services')
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.top}>
           <Image
             source={LOGO}
@@ -39,6 +65,7 @@ export default function HomeScreen({ navigation }: Props) {
           <TouchableOpacity
             style={styles.settingsButton}
             onPress={() => navigation.navigate('MyBookings')}
+            activeOpacity={0.85}
           >
             <Text style={styles.settingsIcon}>☰</Text>
           </TouchableOpacity>
@@ -59,6 +86,7 @@ export default function HomeScreen({ navigation }: Props) {
               resetBooking()
               navigation.navigate('Services')
             }}
+            activeOpacity={0.85}
           >
             <Text style={styles.buttonText}>
               Find Staff
@@ -69,6 +97,7 @@ export default function HomeScreen({ navigation }: Props) {
         <TouchableOpacity
           style={styles.bookingsButton}
           onPress={() => navigation.navigate('MyBookings')}
+          activeOpacity={0.85}
         >
           <View>
             <Text style={styles.bookingsTitle}>
@@ -80,37 +109,77 @@ export default function HomeScreen({ navigation }: Props) {
             </Text>
           </View>
 
-          <Text style={styles.arrow}>
-            →
-          </Text>
+          <Text style={styles.arrow}>→</Text>
         </TouchableOpacity>
 
         <Text style={styles.section}>
           Popular services
         </Text>
 
-        <View style={styles.grid}>
-          {SERVICES.map(service => (
-            <TouchableOpacity
-              key={service}
-              style={styles.card}
-              onPress={() => {
-                resetBooking()
-                setSelectedService(service)
-                navigation.navigate('Services')
-              }}
-            >
-              <Text style={styles.icon}>
-                {iconFor(service)}
-              </Text>
+        {catalogueLoading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator
+              size="small"
+              color={COLORS.orange}
+            />
 
-              <Text style={styles.cardText}>
-                {service}
+            <Text style={styles.loadingText}>
+              Loading services...
+            </Text>
+          </View>
+        ) : catalogueError ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>
+              {catalogueError}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={refreshCatalogue}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.retryText}>
+                Try Again
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          </View>
+        ) : services.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyText}>
+              No services are currently available.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.grid}>
+            {services.map(service => (
+              <TouchableOpacity
+                key={service.id}
+                style={styles.card}
+                onPress={() =>
+                  handleServicePress(service.name)
+                }
+                activeOpacity={0.85}
+              >
+                <Text style={styles.icon}>
+                  {iconForService(service.name)}
+                </Text>
 
+                <Text style={styles.cardText}>
+                  {service.name}
+                </Text>
+
+                {service.description ? (
+                  <Text
+                    style={styles.cardDescription}
+                    numberOfLines={2}
+                  >
+                    {service.description}
+                  </Text>
+                ) : null}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
@@ -267,5 +336,71 @@ const styles = StyleSheet.create({
     color: COLORS.navy,
     fontSize: 14,
     fontWeight: '800',
+  },
+
+  cardDescription: {
+    color: COLORS.gray,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 5,
+  },
+
+  loadingBox: {
+    minHeight: 110,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  loadingText: {
+    color: COLORS.gray,
+    fontSize: 13,
+    marginTop: 9,
+  },
+
+  errorBox: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 18,
+  },
+
+  errorText: {
+    color: COLORS.navy,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+
+  retryButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.orange,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+
+  retryText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  emptyBox: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 18,
+  },
+
+  emptyText: {
+    color: COLORS.gray,
+    fontSize: 13,
+    lineHeight: 19,
   },
 })

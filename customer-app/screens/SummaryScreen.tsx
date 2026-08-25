@@ -16,49 +16,130 @@ import { createAddress, createBooking } from '../services/booking'
 import Header from '../components/Header'
 import PrimaryButton from '../components/PrimaryButton'
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Summary'>
+type Props = NativeStackScreenProps<
+  RootStackParamList,
+  'Summary'
+>
 
-const SERVICE_IDS: Record<string, string> = {
-  'Pantry Staff':
-    '61b18f3a-f1a9-4418-913f-2de444841066',
-}
-
-function getDurationDetails(duration: string) {
-  switch (duration) {
-    case '1 Day':
-      return { value: 1, unit: 'day' as const }
-
-    case '2 Days':
-      return { value: 2, unit: 'day' as const }
-
-    case '1 Week':
-      return { value: 1, unit: 'week' as const }
-
-    case '1 Month':
-      return { value: 1, unit: 'month' as const }
-
-    default:
-      throw new Error(`Unsupported duration: ${duration}`)
+function getBookingDuration(
+  durationValue: number | null,
+  durationUnit: string | null
+) {
+  if (!durationValue || !durationUnit) {
+    throw new Error(
+      'The selected staffing package has no valid duration.'
+    )
   }
+
+  /*
+   * The service_variants table supports hour/day/etc.
+   * but bookings.duration_unit currently supports only:
+   * day | week | month
+   *
+   * Therefore hourly packages are stored as a 1-day booking
+   * while the original package remains visible in the notes.
+   */
+
+  if (durationUnit === 'hour') {
+    return {
+      value: 1,
+      unit: 'day' as const,
+    }
+  }
+
+  if (durationUnit === 'day') {
+    if (durationValue === 6) {
+      return {
+        value: 1,
+        unit: 'week' as const,
+      }
+    }
+
+    if (durationValue >= 26) {
+      return {
+        value: 1,
+        unit: 'month' as const,
+      }
+    }
+
+    return {
+      value: durationValue,
+      unit: 'day' as const,
+    }
+  }
+
+  if (durationUnit === 'week') {
+    return {
+      value: durationValue,
+      unit: 'week' as const,
+    }
+  }
+
+  if (durationUnit === 'month') {
+    return {
+      value: durationValue,
+      unit: 'month' as const,
+    }
+  }
+
+  throw new Error(
+    `Unsupported package duration unit: ${durationUnit}`
+  )
 }
 
-function getSchedule(duration: string) {
-  const start = new Date()
+function getSchedule(
+  durationValue: number | null,
+  durationUnit: string | null,
+  scheduledDate: string
+) {
+  /*
+   * The current app stores the date/time as text.
+   *
+   * If the customer has entered a valid date, use it.
+   * Otherwise use the current time.
+   */
 
-  const durationDetails = getDurationDetails(duration)
+  const parsedStart = scheduledDate
+    ? new Date(scheduledDate)
+    : new Date()
+
+  const start = Number.isNaN(
+    parsedStart.getTime()
+  )
+    ? new Date()
+    : parsedStart
 
   const end = new Date(start)
 
-  if (durationDetails.unit === 'day') {
-    end.setDate(end.getDate() + durationDetails.value)
+  if (!durationValue || !durationUnit) {
+    return {
+      scheduledStart: start.toISOString(),
+      scheduledEnd: end.toISOString(),
+    }
   }
 
-  if (durationDetails.unit === 'week') {
-    end.setDate(end.getDate() + durationDetails.value * 7)
+  if (durationUnit === 'hour') {
+    end.setHours(
+      end.getHours() + durationValue
+    )
   }
 
-  if (durationDetails.unit === 'month') {
-    end.setMonth(end.getMonth() + durationDetails.value)
+  if (durationUnit === 'day') {
+    end.setDate(
+      end.getDate() + durationValue
+    )
+  }
+
+  if (durationUnit === 'week') {
+    end.setDate(
+      end.getDate() + durationValue * 7
+    )
+  }
+
+  if (durationUnit === 'month') {
+    end.setMonth(
+      end.getMonth() + durationValue
+    )
   }
 
   return {
@@ -99,6 +180,7 @@ export default function SummaryScreen({
     selectedWorker,
     selectedService,
     selectedDuration,
+    selectedPackage,
     bookingMode,
     scheduledDate,
     address,
@@ -130,10 +212,10 @@ export default function SummaryScreen({
       return
     }
 
-    if (!selectedDuration) {
+    if (!selectedPackage) {
       Alert.alert(
-        'Duration required',
-        'Please select a duration.'
+        'Package required',
+        'Please select a staffing package.'
       )
       return
     }
@@ -149,34 +231,37 @@ export default function SummaryScreen({
     if (bookingMode !== 'Instant') {
       Alert.alert(
         'Coming next',
-        'Real Scheduled and Recurring booking dates will be connected after we add the proper date/time picker.'
+        'Scheduled and recurring booking support will be connected after the proper date/time picker is added.'
       )
       return
     }
 
-    const serviceId = SERVICE_IDS[selectedService]
-
-    if (!serviceId) {
+    if (total <= 0) {
       Alert.alert(
-        'Service unavailable',
-        `The service "${selectedService}" is not connected to the database yet.`
+        'Invalid price',
+        'The selected staffing package does not have a valid price.'
       )
       return
     }
 
-    const duration = getDurationDetails(
-      selectedDuration
+    const duration = getBookingDuration(
+      selectedPackage.duration_value,
+      selectedPackage.duration_unit
     )
 
     const schedule = getSchedule(
-      selectedDuration
+      selectedPackage.duration_value,
+      selectedPackage.duration_unit,
+      scheduledDate
     )
 
     let latitude = 0
     let longitude = 0
 
     if (address === 'Current location') {
-      const parsed = parseCoordinates(coordinates)
+      const parsed = parseCoordinates(
+        coordinates
+      )
 
       if (!parsed) {
         Alert.alert(
@@ -193,30 +278,66 @@ export default function SummaryScreen({
     setCreating(true)
 
     try {
-      const addressRow = await createAddress({
-        label: 'Booking location',
-        addressLine:
-          address === 'Current location'
-            ? coordinates
-            : address,
-        latitude,
-        longitude,
-      })
+      /*
+       * The service ID now comes directly from
+       * the selected Supabase package.
+       */
+      const serviceId =
+        selectedPackage.service_id
 
-      const booking = await createBooking({
-        workerId: selectedWorker.id,
-        serviceId,
-        addressId: addressRow.id,
-        durationValue: duration.value,
-        durationUnit: duration.unit,
-        scheduledStart: schedule.scheduledStart,
-        scheduledEnd: schedule.scheduledEnd,
-        baseAmount: total,
-        platformFee: 0,
-        taxAmount: 0,
-        totalAmount: total,
-        notes: `Booking mode: ${bookingMode}`,
-      })
+      const addressRow =
+        await createAddress({
+          label: 'Booking location',
+
+          addressLine:
+            address === 'Current location'
+              ? coordinates
+              : address,
+
+          latitude,
+          longitude,
+        })
+
+      const booking =
+        await createBooking({
+          workerId:
+            selectedWorker.id,
+
+          serviceId,
+
+          addressId:
+            addressRow.id,
+
+          durationValue:
+            duration.value,
+
+          durationUnit:
+            duration.unit,
+
+          scheduledStart:
+            schedule.scheduledStart,
+
+          scheduledEnd:
+            schedule.scheduledEnd,
+
+          /*
+           * IMPORTANT:
+           * This is the live Supabase package price.
+           */
+          baseAmount: total,
+
+          platformFee: 0,
+
+          taxAmount: 0,
+
+          totalAmount: total,
+
+          notes:
+            `Package: ${selectedPackage.name}. ` +
+            `Package duration: ${selectedPackage.duration_value} ` +
+            `${selectedPackage.duration_unit}. ` +
+            `Booking mode: ${bookingMode}`,
+        })
 
       setBookingId(booking.id)
 
@@ -239,8 +360,13 @@ export default function SummaryScreen({
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.page}>
-        <Header onBack={() => navigation.goBack()} />
+      <ScrollView
+        contentContainerStyle={styles.page}
+        showsVerticalScrollIndicator={false}
+      >
+        <Header
+          onBack={() => navigation.goBack()}
+        />
 
         <Text style={styles.title}>
           Review your booking
@@ -281,12 +407,26 @@ export default function SummaryScreen({
           </Text>
 
           <Text style={styles.label}>
-            Duration
+            Staffing package
           </Text>
 
           <Text style={styles.value}>
-            {selectedDuration}
+            {selectedPackage?.name ||
+              selectedDuration}
           </Text>
+
+          {selectedPackage && (
+            <>
+              <Text style={styles.label}>
+                Package duration
+              </Text>
+
+              <Text style={styles.value}>
+                {selectedPackage.duration_value}{' '}
+                {selectedPackage.duration_unit}
+              </Text>
+            </>
+          )}
 
           <Text style={styles.label}>
             Booking type
@@ -329,8 +469,8 @@ export default function SummaryScreen({
           </Text>
 
           <Text style={styles.note}>
-            Payment is required before the booking is
-            confirmed.
+            This price comes from the current
+            TempStaff database package price.
           </Text>
         </View>
 
@@ -340,7 +480,11 @@ export default function SummaryScreen({
               ? 'Creating booking...'
               : 'Continue to Payment'
           }
-          disabled={creating}
+          disabled={
+            creating ||
+            !selectedPackage ||
+            total <= 0
+          }
           onPress={continueToPayment}
         />
       </ScrollView>
