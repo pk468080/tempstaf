@@ -45,11 +45,11 @@ export default function OtpScreen({
 
     try {
       await ensureDevelopmentSession(route.params.phone)
-
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      })
+      
+navigation.reset({
+  index: 0,
+  routes: [{ name: 'CustomerDetails' }],
+})
     } catch (error: any) {
       console.error(
         '[TempStaff] Development authentication failed:',
