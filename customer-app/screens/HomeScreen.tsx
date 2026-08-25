@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   Image,
   SafeAreaView,
   ScrollView,
@@ -8,6 +10,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
+
+import * as Location from 'expo-location'
 
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 
@@ -38,6 +42,34 @@ export default function HomeScreen({ navigation }: Props) {
     refreshCatalogue,
   } = useBooking()
 
+  useEffect(() => {
+    requestLocationPermission()
+  }, [])
+
+  const requestLocationPermission = async () => {
+    try {
+      const permission =
+        await Location.requestForegroundPermissionsAsync()
+
+      if (permission.status === 'granted') {
+        console.log(
+          '[TempStaff] Location permission granted'
+        )
+
+        return
+      }
+
+      console.log(
+        '[TempStaff] Location permission denied'
+      )
+    } catch (error) {
+      console.error(
+        '[TempStaff] Location permission error:',
+        error
+      )
+    }
+  }
+
   const handleServicePress = (service: string) => {
     resetBooking()
     setSelectedService(service)
@@ -58,16 +90,25 @@ export default function HomeScreen({ navigation }: Props) {
           />
 
           <View style={styles.greeting}>
-            <Text style={styles.small}>Hello 👋</Text>
-            <Text style={styles.name}>Need staff today?</Text>
+            <Text style={styles.small}>
+              Hello 👋
+            </Text>
+
+            <Text style={styles.name}>
+              Need staff today?
+            </Text>
           </View>
 
           <TouchableOpacity
             style={styles.settingsButton}
-            onPress={() => navigation.navigate('MyBookings')}
+            onPress={() =>
+              navigation.navigate('MyBookings')
+            }
             activeOpacity={0.85}
           >
-            <Text style={styles.settingsIcon}>☰</Text>
+            <Text style={styles.settingsIcon}>
+              ☰
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -96,7 +137,9 @@ export default function HomeScreen({ navigation }: Props) {
 
         <TouchableOpacity
           style={styles.bookingsButton}
-          onPress={() => navigation.navigate('MyBookings')}
+          onPress={() =>
+            navigation.navigate('MyBookings')
+          }
           activeOpacity={0.85}
         >
           <View>
@@ -109,7 +152,9 @@ export default function HomeScreen({ navigation }: Props) {
             </Text>
           </View>
 
-          <Text style={styles.arrow}>→</Text>
+          <Text style={styles.arrow}>
+            →
+          </Text>
         </TouchableOpacity>
 
         <Text style={styles.section}>
