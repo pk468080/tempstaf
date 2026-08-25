@@ -16,6 +16,9 @@ export type RootStackParamList = {
   Splash: undefined
   Login: undefined
   OTP: { phone: string }
+
+  CustomerDetails: undefined
+
   Home: undefined
   Services: undefined
   Location: undefined
