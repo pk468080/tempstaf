@@ -1,21 +1,24 @@
 import {
+  ActivityIndicator,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from 'react-native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
+
 import { COLORS } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import { useBooking } from '../context/BookingContext'
 import Header from '../components/Header'
 import PrimaryButton from '../components/PrimaryButton'
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Services'>
+type Props = NativeStackScreenProps<
+  RootStackParamList,
+  'Services'
+>
 
 const iconForService = (service: string) => {
   const normalized = service.toLowerCase()
@@ -32,11 +35,12 @@ const formatPrice = (price: number) => {
   return `₹${price.toLocaleString('en-IN')}`
 }
 
-export default function ServicesScreen({ navigation }: Props) {
+export default function ServicesScreen({
+  navigation,
+}: Props) {
   const {
     selectedService,
     selectedDuration,
-    scheduledDate,
 
     services,
     packages,
@@ -46,7 +50,6 @@ export default function ServicesScreen({ navigation }: Props) {
 
     setSelectedService,
     setSelectedDuration,
-    setScheduledDate,
 
     refreshCatalogue,
   } = useBooking()
@@ -63,10 +66,28 @@ export default function ServicesScreen({ navigation }: Props) {
     )
     .sort((a, b) => a.sort_order - b.sort_order)
 
+  const selectedPackage = servicePackages.find(
+    item => item.name === selectedDuration
+  )
+
+  const handleServiceSelect = (serviceName: string) => {
+    setSelectedService(serviceName)
+
+    // Reset the package whenever the customer changes service.
+    setSelectedDuration('')
+  }
+
+  const handleContinue = () => {
+    if (!selectedService || !selectedPackage) {
+      return
+    }
+
+    navigation.navigate('Location')
+  }
+
   const disabled =
     !selectedService ||
-    !selectedDuration ||
-    !scheduledDate.trim()
+    !selectedPackage
 
   return (
     <SafeAreaView style={styles.container}>
@@ -74,15 +95,21 @@ export default function ServicesScreen({ navigation }: Props) {
         contentContainerStyle={styles.page}
         showsVerticalScrollIndicator={false}
       >
-        <Header onBack={() => navigation.goBack()} />
+        <Header
+          onBack={() => navigation.goBack()}
+        />
 
-        <Text style={styles.title}>Book Temporary Staff</Text>
-
-        <Text style={styles.subtitle}>
-          Choose the type of staff you need and how long you need them.
+        <Text style={styles.title}>
+          What do you need?
         </Text>
 
-        <Text style={styles.section}>Choose staff</Text>
+        <Text style={styles.subtitle}>
+          Choose the type of temporary staff you need.
+        </Text>
+
+        <Text style={styles.section}>
+          Staff type
+        </Text>
 
         {catalogueLoading ? (
           <View style={styles.loadingBox}>
@@ -92,7 +119,7 @@ export default function ServicesScreen({ navigation }: Props) {
             />
 
             <Text style={styles.loadingText}>
-              Loading available staff...
+              Loading services...
             </Text>
           </View>
         ) : catalogueError ? (
@@ -114,7 +141,7 @@ export default function ServicesScreen({ navigation }: Props) {
         ) : services.length === 0 ? (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyText}>
-              No temporary staff services are currently available.
+              No services are currently available.
             </Text>
           </View>
         ) : (
@@ -129,10 +156,13 @@ export default function ServicesScreen({ navigation }: Props) {
                   activeOpacity={0.85}
                   style={[
                     styles.service,
-                    isSelected && styles.selected,
+                    isSelected &&
+                      styles.selectedService,
                   ]}
                   onPress={() =>
-                    setSelectedService(service.name)
+                    handleServiceSelect(
+                      service.name
+                    )
                   }
                 >
                   <Text style={styles.icon}>
@@ -141,8 +171,9 @@ export default function ServicesScreen({ navigation }: Props) {
 
                   <Text
                     style={[
-                      styles.cardText,
-                      isSelected && styles.selectedText,
+                      styles.serviceName,
+                      isSelected &&
+                        styles.selectedText,
                     ]}
                   >
                     {service.name}
@@ -151,9 +182,9 @@ export default function ServicesScreen({ navigation }: Props) {
                   {service.description ? (
                     <Text
                       style={[
-                        styles.serviceDescription,
+                        styles.description,
                         isSelected &&
-                          styles.selectedServiceDescription,
+                          styles.selectedDescription,
                       ]}
                       numberOfLines={2}
                     >
@@ -172,10 +203,14 @@ export default function ServicesScreen({ navigation }: Props) {
               Choose staffing period
             </Text>
 
+            <Text style={styles.helper}>
+              Select how long you need the staff.
+            </Text>
+
             {servicePackages.length === 0 ? (
               <View style={styles.emptyBox}>
                 <Text style={styles.emptyText}>
-                  No staffing packages are currently available
+                  No packages are currently available
                   for {selectedService}.
                 </Text>
               </View>
@@ -195,7 +230,9 @@ export default function ServicesScreen({ navigation }: Props) {
                           styles.selectedPackage,
                       ]}
                       onPress={() =>
-                        setSelectedDuration(pkg.name)
+                        setSelectedDuration(
+                          pkg.name
+                        )
                       }
                     >
                       <View style={styles.packageLeft}>
@@ -213,10 +250,11 @@ export default function ServicesScreen({ navigation }: Props) {
                           style={[
                             styles.packageDescription,
                             isSelected &&
-                              styles.selectedSubText,
+                              styles.selectedDescription,
                           ]}
                         >
-                          {pkg.description || 'Temporary staffing package'}
+                          {pkg.description ||
+                            'Temporary staffing package'}
                         </Text>
                       </View>
 
@@ -237,48 +275,67 @@ export default function ServicesScreen({ navigation }: Props) {
           </>
         )}
 
-        <Text style={styles.section}>
-          When do you need the staff?
-        </Text>
+        {selectedService && selectedPackage && (
+          <View style={styles.summary}>
+            <Text style={styles.summaryTitle}>
+              Your selection
+            </Text>
 
-        <Text style={styles.helperText}>
-          Enter the date and time when the temporary staff
-          member should start.
-        </Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>
+                Staff
+              </Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. 25 Aug, 10:00 AM"
-          placeholderTextColor="#9CA3AF"
-          value={scheduledDate}
-          onChangeText={setScheduledDate}
-        />
+              <Text style={styles.summaryValue}>
+                {selectedService}
+              </Text>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>
+                Period
+              </Text>
+
+              <Text style={styles.summaryValue}>
+                {selectedPackage.name}
+              </Text>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>
+                Price
+              </Text>
+
+              <Text style={styles.summaryPrice}>
+                {formatPrice(
+                  selectedPackage.price
+                )}
+              </Text>
+            </View>
+          </View>
+        )}
 
         <View style={styles.infoBox}>
           <Text style={styles.infoTitle}>
-            How TempStaff works
+            No worker selection
           </Text>
 
           <Text style={styles.infoText}>
-            You choose the staff type and staffing period.
-            TempStaff will assign an available verified worker
-            for your booking.
+            You choose the service and staffing period.
+            TempStaff will handle worker assignment for
+            you.
           </Text>
         </View>
 
         <PrimaryButton
           title="Continue"
           disabled={disabled}
-          onPress={() =>
-            navigation.navigate('Location')
-          }
+          onPress={handleContinue}
         />
       </ScrollView>
     </SafeAreaView>
   )
 }
-
-
 
 const styles = StyleSheet.create({
   container: {
@@ -302,15 +359,21 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     fontSize: 15,
     lineHeight: 22,
-    marginBottom: 8,
   },
 
   section: {
     color: COLORS.navy,
     fontSize: 20,
     fontWeight: '800',
-    marginTop: 22,
-    marginBottom: 14,
+    marginTop: 24,
+    marginBottom: 12,
+  },
+
+  helper: {
+    color: COLORS.gray,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
   },
 
   grid: {
@@ -321,7 +384,7 @@ const styles = StyleSheet.create({
 
   service: {
     width: '48%',
-    minHeight: 108,
+    minHeight: 112,
     borderRadius: 18,
     backgroundColor: 'white',
     borderWidth: 1,
@@ -333,19 +396,28 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
 
+  selectedService: {
+    backgroundColor: COLORS.orange,
+    borderColor: COLORS.orange,
+  },
+
   icon: {
     fontSize: 27,
     marginBottom: 7,
   },
 
-  cardText: {
+  serviceName: {
     color: COLORS.navy,
     fontSize: 14,
     fontWeight: '800',
     textAlign: 'center',
   },
 
-  serviceDescription: {
+  selectedText: {
+    color: 'white',
+  },
+
+  description: {
     color: COLORS.gray,
     fontSize: 11,
     lineHeight: 15,
@@ -353,16 +425,7 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
 
-  selected: {
-    backgroundColor: COLORS.orange,
-    borderColor: COLORS.orange,
-  },
-
-  selectedText: {
-    color: 'white',
-  },
-
-  selectedServiceDescription: {
+  selectedDescription: {
     color: 'rgba(255,255,255,0.88)',
   },
 
@@ -371,7 +434,7 @@ const styles = StyleSheet.create({
   },
 
   package: {
-    minHeight: 76,
+    minHeight: 78,
     width: '100%',
     borderRadius: 16,
     backgroundColor: 'white',
@@ -407,34 +470,50 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
 
-  selectedSubText: {
-    color: 'rgba(255,255,255,0.88)',
-  },
-
   price: {
     color: COLORS.navy,
     fontSize: 17,
     fontWeight: '900',
   },
 
-  helperText: {
-    color: COLORS.gray,
-    fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 10,
+  summary: {
+    backgroundColor: COLORS.navy,
+    borderRadius: 18,
+    padding: 18,
+    marginTop: 24,
   },
 
-  input: {
-    width: '100%',
-    height: 56,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    backgroundColor: 'white',
-    paddingHorizontal: 16,
-    fontSize: 15,
-    color: COLORS.navy,
+  summaryTitle: {
+    color: 'white',
+    fontSize: 17,
+    fontWeight: '800',
     marginBottom: 14,
+  },
+
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+
+  summaryLabel: {
+    color: '#D8E4EF',
+    fontSize: 13,
+  },
+
+  summaryValue: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
+    maxWidth: '65%',
+    textAlign: 'right',
+  },
+
+  summaryPrice: {
+    color: COLORS.orange,
+    fontSize: 17,
+    fontWeight: '900',
   },
 
   infoBox: {
@@ -443,6 +522,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 16,
     padding: 16,
+    marginTop: 18,
     marginBottom: 20,
   },
 
@@ -467,7 +547,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
   },
 
   loadingText: {
@@ -482,7 +561,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 18,
-    marginBottom: 12,
   },
 
   errorText: {
@@ -512,7 +590,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 18,
-    marginBottom: 12,
   },
 
   emptyText: {
