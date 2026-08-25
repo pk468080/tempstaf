@@ -16,6 +16,7 @@ import BookingConfirmedScreen from '../screens/BookingConfirmedScreen'
 import TrackingScreen from '../screens/TrackingScreen'
 import MyBookingsScreen from '../screens/MyBookingsScreen'
 import BookingDetailsScreen from '../screens/BookingDetailsScreen'
+import ScheduleScreen from '../screens/ScheduleScreen'
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
 
@@ -75,7 +76,12 @@ export default function AppNavigator() {
           name="Payment"
           component={PaymentScreen}
         />
-        <Stack.Screen
+       <Stack.Screen
+  name="Schedule"
+  component={ScheduleScreen}
+/>
+
+<Stack.Screen
   name="Checkout"
   component={CheckoutScreen}
 />

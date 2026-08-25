@@ -24,9 +24,10 @@ export type RootStackParamList = {
   Location: undefined
   Workers: undefined
   Summary: undefined
-  Payment: undefined
+Payment: undefined
+Schedule: undefined
 Checkout: undefined
-  BookingConfirmed: undefined
+BookingConfirmed: undefined
 
   MyBookings: undefined
 

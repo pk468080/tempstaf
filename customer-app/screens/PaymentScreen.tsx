@@ -182,24 +182,14 @@ export default function PaymentScreen({
   }
 
   const continueToPayment = () => {
-    /*
-     * Payment will be connected properly in the
-     * next step. For now we move to the existing
-     * confirmation route so we can continue building
-     * the flow one screen at a time.
-     */
-    navigation.navigate('Checkout')
-  }
+  setBookingMode('Instant')
+  navigation.navigate('Checkout')
+}
 
-  const scheduleBooking = () => {
-    setBookingMode('Scheduled')
-
-    /*
-     * The next step will replace this route with
-     * the real scheduling screen.
-     */
-    navigation.navigate('BookingConfirmed')
-  }
+const scheduleBooking = () => {
+  setBookingMode('Scheduled')
+  navigation.navigate('Schedule')
+}
 
   return (
     <SafeAreaView style={styles.container}>
