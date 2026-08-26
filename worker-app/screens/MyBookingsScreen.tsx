@@ -110,7 +110,10 @@ export default function MyBookingsScreen({
 
   const updateBookingStatus = async (
     bookingId: string,
-    status: 'accepted' | 'declined'
+    status:
+  | 'accepted'
+  | 'declined'
+  | 'on_the_way'
   ) => {
     try {
       setUpdatingId(bookingId)
@@ -549,6 +552,26 @@ export default function MyBookingsScreen({
             )
           })
         )}
+        {booking.status === 'accepted' && (
+  <TouchableOpacity
+    style={styles.acceptButton}
+    onPress={() =>
+      updateBookingStatus(
+        booking.id,
+        'on_the_way'
+      )
+    }
+    disabled={updating}
+  >
+    {updating ? (
+      <ActivityIndicator color="white" />
+    ) : (
+      <Text style={styles.acceptText}>
+        On the Way
+      </Text>
+    )}
+  </TouchableOpacity>
+)}
       </ScrollView>
     </SafeAreaView>
   )
@@ -569,6 +592,8 @@ function getStatusStyle(
 
     case 'cancelled':
       return styles.cancelledBadge
+    case 'on_the_way':
+      return styles.onTheWayBadge  
 
     default:
       return styles.pendingBadge
@@ -590,6 +615,9 @@ function getStatusTextStyle(
 
     case 'cancelled':
       return styles.cancelledStatusText
+    case 'on_the_way':
+      return styles.onTheWayStatusText
+
 
     default:
       return styles.pendingStatusText
@@ -654,6 +682,14 @@ const styles = StyleSheet.create({
     fontSize: 36,
     marginBottom: 12,
   },
+
+  onTheWayBadge: {
+  backgroundColor: '#fff7ed',
+},
+
+onTheWayStatusText: {
+  color: '#ea580c',
+},
 
   emptyTitle: {
     fontSize: 19,
