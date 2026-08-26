@@ -16,6 +16,7 @@ import EarningsScreen from './screens/EarningsScreen'
 import MyBookingsScreen from './screens/MyBookingsScreen'
 import ProfileScreen from './screens/ProfileScreen'
 import EditProfileScreen from './screens/EditProfileScreen'
+import SettingsScreen from './screens/SettingsScreen'
 
 type Tab =
   | 'home'
@@ -41,6 +42,9 @@ export default function App() {
     useState<Tab>('home')
 
   const [showEditProfile, setShowEditProfile] =
+    useState(false)
+
+  const [showSettings, setShowSettings] =
     useState(false)
 
   useEffect(() => {
@@ -78,6 +82,7 @@ export default function App() {
             setAuthScreen('login')
             setActiveTab('home')
             setShowEditProfile(false)
+            setShowSettings(false)
           }
         }
       )
@@ -130,6 +135,7 @@ export default function App() {
         onLogin={() => {
           setLoggedIn(true)
           setActiveTab('home')
+          setShowSettings(false)
         }}
         onBecomeWorker={() =>
           setAuthScreen(
@@ -142,10 +148,26 @@ export default function App() {
 
   /*
    * ---------------------------------------------------------
+   * SETTINGS
+   * ---------------------------------------------------------
+   */
+
+  if (showSettings) {
+    return (
+      <SettingsScreen
+        onBack={() =>
+          setShowSettings(false)
+        }
+        onLogout={async () => {
+          await supabase.auth.signOut()
+        }}
+      />
+    )
+  }
+
+  /*
+   * ---------------------------------------------------------
    * EDIT PROFILE
-   *
-   * Edit Profile is a full-screen secondary page.
-   * When Back/Save is pressed it returns to Profile.
    * ---------------------------------------------------------
    */
 
@@ -165,10 +187,6 @@ export default function App() {
   /*
    * ---------------------------------------------------------
    * MAIN APPLICATION
-   *
-   * IMPORTANT:
-   * Profile is rendered INSIDE this layout.
-   * Therefore the footer navigation remains visible.
    * ---------------------------------------------------------
    */
 
@@ -215,6 +233,9 @@ export default function App() {
             onEditProfile={() =>
               setShowEditProfile(true)
             }
+            onSettings={() =>
+              setShowSettings(true)
+            }
           />
         )}
       </View>
@@ -243,6 +264,7 @@ export default function App() {
           }
           onPress={() => {
             setShowEditProfile(false)
+            setShowSettings(false)
             setActiveTab('home')
           }}
         />
@@ -255,6 +277,7 @@ export default function App() {
           }
           onPress={() => {
             setShowEditProfile(false)
+            setShowSettings(false)
             setActiveTab('bookings')
           }}
         />
@@ -267,6 +290,7 @@ export default function App() {
           }
           onPress={() => {
             setShowEditProfile(false)
+            setShowSettings(false)
             setActiveTab('earnings')
           }}
         />
@@ -279,6 +303,7 @@ export default function App() {
           }
           onPress={() => {
             setShowEditProfile(false)
+            setShowSettings(false)
             setActiveTab('profile')
           }}
         />
