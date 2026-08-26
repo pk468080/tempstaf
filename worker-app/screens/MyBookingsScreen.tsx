@@ -111,10 +111,16 @@ export default function MyBookingsScreen({
   const updateBookingStatus = async (
     bookingId: string,
     status:
-  | 'accepted'
-  | 'declined'
-  | 'on_the_way'
+      | 'accepted'
+      | 'declined'
+      | 'on_the_way'
   ) => {
+    // Prevent duplicate taps while an update
+    // for this booking is already running.
+    if (updatingId === bookingId) {
+      return
+    }
+
     try {
       setUpdatingId(bookingId)
 
@@ -125,6 +131,88 @@ export default function MyBookingsScreen({
       if (!user) {
         throw new Error(
           'Worker is not authenticated.'
+        )
+      }
+
+      /*
+       * Always read the latest status before
+       * attempting a transition.
+       */
+      const {
+        data: currentBooking,
+        error: currentBookingError,
+      } = await supabase
+        .from('bookings')
+        .select('id, status')
+        .eq('id', bookingId)
+        .eq('worker_id', user.id)
+        .maybeSingle()
+
+      if (currentBookingError) {
+        throw currentBookingError
+      }
+
+      if (!currentBooking) {
+        throw new Error(
+          'Booking was not found or is no longer assigned to you.'
+        )
+      }
+
+      /*
+       * If the requested status is already the
+       * database status, do nothing.
+       *
+       * This prevents:
+       * on_the_way -> on_the_way
+       */
+      if (
+        currentBooking.status === status
+      ) {
+        setBookings(current =>
+          current.map(booking =>
+            booking.id === bookingId
+              ? {
+                  ...booking,
+                  status:
+                    currentBooking.status,
+                }
+              : booking
+          )
+        )
+
+        return
+      }
+
+      /*
+       * On the Way is only valid immediately
+       * after the worker has accepted the booking.
+       */
+      if (
+        status === 'on_the_way' &&
+        currentBooking.status !== 'accepted'
+      ) {
+        throw new Error(
+          `This booking is already ${currentBooking.status.replace(
+            /_/g,
+            ' '
+          )}.`
+        )
+      }
+
+      /*
+       * Accept is only allowed for a booking
+       * that is still awaiting worker action.
+       */
+      if (
+        status === 'accepted' &&
+        currentBooking.status !== 'assigned' &&
+        currentBooking.status !== 'pending'
+      ) {
+        throw new Error(
+          `This booking cannot be accepted from ${currentBooking.status.replace(
+            /_/g,
+            ' '
+          )}.`
         )
       }
 
@@ -171,17 +259,17 @@ export default function MyBookingsScreen({
       )
 
       Alert.alert(
-  status === 'accepted'
-    ? 'Booking accepted'
-    : status === 'on_the_way'
-    ? 'You are on the way'
-    : 'Booking declined',
-  status === 'accepted'
-    ? 'The booking has been accepted successfully.'
-    : status === 'on_the_way'
-    ? 'The customer has been notified that you are on the way.'
-    : 'The booking has been declined.'
-)
+        status === 'accepted'
+          ? 'Booking accepted'
+          : status === 'on_the_way'
+          ? 'You are on the way'
+          : 'Booking declined',
+        status === 'accepted'
+          ? 'The booking has been accepted successfully.'
+          : status === 'on_the_way'
+          ? 'The customer has been notified that you are on the way.'
+          : 'The booking has been declined.'
+      )
     } catch (error: any) {
       console.error(
         '[TempStaff Worker] Failed to update booking:',
@@ -432,7 +520,9 @@ export default function MyBookingsScreen({
                 />
 
                 <View
-                  style={styles.detailRow}
+                  style={
+                    styles.detailRow
+                  }
                 >
                   <Text
                     style={styles.label}
@@ -450,7 +540,9 @@ export default function MyBookingsScreen({
                 </View>
 
                 <View
-                  style={styles.detailRow}
+                  style={
+                    styles.detailRow
+                  }
                 >
                   <Text
                     style={styles.label}
@@ -469,7 +561,9 @@ export default function MyBookingsScreen({
                 </View>
 
                 <View
-                  style={styles.detailRow}
+                  style={
+                    styles.detailRow
+                  }
                 >
                   <Text
                     style={styles.label}
@@ -552,31 +646,42 @@ export default function MyBookingsScreen({
                     </TouchableOpacity>
                   </View>
                 )}
-                {booking.status === 'accepted' && (
-  <TouchableOpacity
-    style={styles.acceptButton}
-    onPress={() =>
-      updateBookingStatus(
-        booking.id,
-        'on_the_way'
-      )
-    }
-    disabled={updating}
-  >
-    {updating ? (
-      <ActivityIndicator color="white" />
-    ) : (
-      <Text style={styles.acceptText}>
-        On the Way
-      </Text>
-    )}
-  </TouchableOpacity>
-)}
+
+                {booking.status ===
+                  'accepted' && (
+                  <TouchableOpacity
+                    style={
+                      styles.acceptButton
+                    }
+                    onPress={() =>
+                      updateBookingStatus(
+                        booking.id,
+                        'on_the_way'
+                      )
+                    }
+                    disabled={
+                      updating
+                    }
+                  >
+                    {updating ? (
+                      <ActivityIndicator
+                        color="white"
+                      />
+                    ) : (
+                      <Text
+                        style={
+                          styles.acceptText
+                        }
+                      >
+                        On the Way
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
             )
           })
         )}
-        
       </ScrollView>
     </SafeAreaView>
   )
@@ -597,8 +702,9 @@ function getStatusStyle(
 
     case 'cancelled':
       return styles.cancelledBadge
+
     case 'on_the_way':
-      return styles.onTheWayBadge  
+      return styles.onTheWayBadge
 
     default:
       return styles.pendingBadge
@@ -620,9 +726,9 @@ function getStatusTextStyle(
 
     case 'cancelled':
       return styles.cancelledStatusText
+
     case 'on_the_way':
       return styles.onTheWayStatusText
-
 
     default:
       return styles.pendingStatusText
@@ -689,12 +795,12 @@ const styles = StyleSheet.create({
   },
 
   onTheWayBadge: {
-  backgroundColor: '#fff7ed',
-},
+    backgroundColor: '#fff7ed',
+  },
 
-onTheWayStatusText: {
-  color: '#ea580c',
-},
+  onTheWayStatusText: {
+    color: '#ea580c',
+  },
 
   emptyTitle: {
     fontSize: 19,
