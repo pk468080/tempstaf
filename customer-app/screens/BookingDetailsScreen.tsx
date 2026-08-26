@@ -16,6 +16,7 @@ import {
   CustomerBooking,
   getCustomerBooking,
 } from '../services/customerBookings'
+import { useBooking } from '../context/BookingContext'
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -64,6 +65,8 @@ export default function BookingDetailsScreen({
   route,
 }: Props) {
   const { bookingId } = route.params
+
+  const { setBookingId } = useBooking()
 
   const [booking, setBooking] =
     useState<CustomerBooking | null>(null)
@@ -387,11 +390,21 @@ export default function BookingDetailsScreen({
         {canTrack && (
           <TouchableOpacity
             style={styles.trackButton}
-            onPress={() =>
+            onPress={() => {
+              /*
+               * Store the exact booking being viewed
+               * in BookingContext before opening Tracking.
+               */
+              setBookingId(booking.id)
+
+              /*
+               * Push a completely new Tracking screen
+               * with the exact booking ID.
+               */
               navigation.push('Tracking', {
-  bookingId: booking.id,
-})
-            }
+                bookingId: booking.id,
+              })
+            }}
           >
             <Text style={styles.trackButtonText}>
               Track Worker

@@ -107,8 +107,9 @@ export default function TrackingScreen({
    * for the existing booking flow.
    */
   const activeBookingId =
-    route.params?.bookingId ||
-    contextBookingId
+  route.params?.bookingId ||
+  contextBookingId ||
+  ''
 
   const [status, setStatus] =
     useState<BookingStatus | null>(null)
