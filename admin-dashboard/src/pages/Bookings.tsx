@@ -25,12 +25,21 @@ type Service = {
   name: string
 }
 
+type Worker = {
+  id: string
+  worker_status: string | null
+  is_verified: boolean
+}
+
 export default function Bookings() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [services, setServices] = useState<Service[]>([])
+  const [workers, setWorkers] = useState<Worker[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [assigningBookingId, setAssigningBookingId] =
+    useState<string | null>(null)
 
   async function loadBookings() {
     setLoading(true)
@@ -40,6 +49,7 @@ export default function Bookings() {
       bookingsResult,
       profilesResult,
       servicesResult,
+      workersResult,
     ] = await Promise.all([
       supabase
         .from('bookings')
@@ -73,6 +83,16 @@ export default function Bookings() {
           id,
           name
         `),
+
+      supabase
+        .from('worker_profiles')
+        .select(`
+          id,
+          worker_status,
+          is_verified
+        `)
+        .eq('is_verified', true)
+        .in('worker_status', ['available', 'busy']),
     ])
 
     if (bookingsResult.error) {
@@ -101,6 +121,13 @@ export default function Bookings() {
       )
     }
 
+    if (workersResult.error) {
+      console.error(
+        'Failed to load workers:',
+        workersResult.error
+      )
+    }
+
     setBookings(
       (bookingsResult.data || []) as Booking[]
     )
@@ -113,12 +140,47 @@ export default function Bookings() {
       (servicesResult.data || []) as Service[]
     )
 
+    setWorkers(
+      (workersResult.data || []) as Worker[]
+    )
+
     setLoading(false)
   }
 
   useEffect(() => {
     loadBookings()
   }, [])
+
+  async function assignWorker(
+    bookingId: string,
+    workerId: string
+  ) {
+    if (!workerId) return
+
+    setAssigningBookingId(bookingId)
+    setError(null)
+
+    const { error } = await supabase
+      .from('bookings')
+      .update({
+        worker_id: workerId,
+      })
+      .eq('id', bookingId)
+
+    setAssigningBookingId(null)
+
+    if (error) {
+      console.error(
+        'Failed to assign worker:',
+        error
+      )
+
+      setError(error.message)
+      return
+    }
+
+    await loadBookings()
+  }
 
   function getProfileName(id: string | null) {
     if (!id) return 'Unassigned'
@@ -128,6 +190,18 @@ export default function Bookings() {
     )
 
     return profile?.full_name || 'Unknown'
+  }
+
+  function getWorkerName(workerId: string) {
+    const worker = workers.find(
+      (item) => item.id === workerId
+    )
+
+    if (!worker) {
+      return getProfileName(workerId)
+    }
+
+    return getProfileName(worker.id)
   }
 
   function getServiceName(id: string) {
@@ -165,6 +239,7 @@ export default function Bookings() {
       <div className="page-heading">
         <div>
           <h1>Bookings</h1>
+
           <p>
             Manage all TempStaff bookings.
           </p>
@@ -263,15 +338,76 @@ export default function Bookings() {
 
                     <td>
                       {booking.worker_id ? (
-                        <strong>
-                          {getProfileName(
-                            booking.worker_id
-                          )}
-                        </strong>
+                        <div>
+                          <strong>
+                            {getWorkerName(
+                              booking.worker_id
+                            )}
+                          </strong>
+
+                          <div
+                            style={{
+                              fontSize: 12,
+                              marginTop: 4,
+                              opacity: 0.7,
+                            }}
+                          >
+                            Assigned
+                          </div>
+                        </div>
                       ) : (
-                        <span className="booking-id">
-                          Unassigned
-                        </span>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <select
+                            defaultValue=""
+                            disabled={
+                              assigningBookingId ===
+                              booking.id
+                            }
+                            onChange={(event) =>
+                              assignWorker(
+                                booking.id,
+                                event.target.value
+                              )
+                            }
+                          >
+                            <option
+                              value=""
+                              disabled
+                            >
+                              Select worker
+                            </option>
+
+                            {workers.map(
+                              (worker) => (
+                                <option
+                                  key={worker.id}
+                                  value={worker.id}
+                                >
+                                  {getProfileName(
+                                    worker.id
+                                  )}
+                                  {' — '}
+                                  {worker.worker_status ||
+                                    'available'}
+                                </option>
+                              )
+                            )}
+                          </select>
+
+                          {assigningBookingId ===
+                            booking.id && (
+                            <span>
+                              Assigning...
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
 
