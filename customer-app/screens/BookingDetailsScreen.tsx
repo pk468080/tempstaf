@@ -388,9 +388,9 @@ export default function BookingDetailsScreen({
           <TouchableOpacity
             style={styles.trackButton}
             onPress={() =>
-              navigation.navigate('Tracking', {
-                bookingId: booking.id,
-              })
+              navigation.push('Tracking', {
+  bookingId: booking.id,
+})
             }
           >
             <Text style={styles.trackButtonText}>
