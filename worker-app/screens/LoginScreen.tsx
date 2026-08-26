@@ -47,18 +47,32 @@ export default function LoginScreen({
       }
 
       if (!data.user) {
-        throw new Error('Authentication failed.')
+        throw new Error(
+          'Authentication failed.'
+        )
       }
 
-      const { data: profile, error: profileError } =
-        await supabase
-          .from('profiles')
-          .select('id, role, is_active')
-          .eq('id', data.user.id)
-          .single()
+      const {
+        data: profile,
+        error: profileError,
+      } = await supabase
+        .from('profiles')
+        .select(
+          'id, role, is_active'
+        )
+        .eq('id', data.user.id)
+        .maybeSingle()
 
       if (profileError) {
         throw profileError
+      }
+
+      if (!profile) {
+        await supabase.auth.signOut()
+
+        throw new Error(
+          'Your worker profile has not been created yet. Please create a new worker account or contact TempStaff.'
+        )
       }
 
       if (
@@ -93,7 +107,9 @@ export default function LoginScreen({
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.logo}>
-          <Text style={styles.logoText}>TS</Text>
+          <Text style={styles.logoText}>
+            TS
+          </Text>
         </View>
 
         <Text style={styles.title}>
@@ -117,6 +133,7 @@ export default function LoginScreen({
           autoCorrect={false}
           value={email}
           onChangeText={setEmail}
+          editable={!loading}
         />
 
         <Text style={styles.label}>
@@ -130,6 +147,7 @@ export default function LoginScreen({
           secureTextEntry
           value={password}
           onChangeText={setPassword}
+          editable={!loading}
         />
 
         <TouchableOpacity
@@ -162,14 +180,16 @@ export default function LoginScreen({
           disabled={loading}
           onPress={onBecomeWorker}
         >
-          <Text style={styles.registerButtonText}>
+          <Text
+            style={styles.registerButtonText}
+          >
             Become a Worker
           </Text>
         </TouchableOpacity>
 
         <Text style={styles.note}>
-          Already have a TempStaff worker account?
-          Sign in above.
+          Already have a TempStaff worker
+          account? Sign in above.
         </Text>
       </View>
     </SafeAreaView>
