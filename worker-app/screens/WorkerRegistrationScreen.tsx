@@ -88,12 +88,17 @@ export default function WorkerRegistrationScreen({
 
     setLoading(true)
 
-    let createdUserId: string | null = null
-
     try {
       /*
-       * 1. Create Supabase Auth account
+       * Worker records are created by the
+       * Supabase auth.users signup trigger.
+       *
+       * The trigger creates:
+       * - profiles
+       * - worker_profiles
+       * - worker_applications
        */
+
       const {
         data: authData,
         error: authError,
@@ -119,92 +124,16 @@ export default function WorkerRegistrationScreen({
         )
       }
 
-      createdUserId = authData.user.id
-
       /*
-       * Supabase may require email confirmation.
+       * Email confirmation may be enabled.
        *
-       * When confirmation is enabled, signUp can
-       * return a user without an active session.
-       *
-       * We still create the profile/application
-       * using the authenticated session when one
-       * exists. If confirmation is required, the
-       * profile/application creation is handled by
-       * the database trigger if configured.
-       */
-
-      /*
-       * 2. Create worker profile when a session
-       *    is immediately available.
-       */
-      if (authData.session) {
-        const { error: profileError } =
-          await supabase
-            .from('profiles')
-            .upsert(
-              {
-                id: createdUserId,
-                role: 'worker',
-                full_name: cleanName,
-                phone: cleanMobile,
-                is_active: true,
-              },
-              {
-                onConflict: 'id',
-              }
-            )
-
-        if (profileError) {
-          throw profileError
-        }
-
-        /*
-         * 3. Create worker profile
-         */
-        const { error: workerProfileError } =
-          await supabase
-            .from('worker_profiles')
-            .upsert(
-              {
-                id: createdUserId,
-                is_verified: false,
-                worker_status: 'offline',
-              },
-              {
-                onConflict: 'id',
-              }
-            )
-
-        if (workerProfileError) {
-          throw workerProfileError
-        }
-
-        /*
-         * 4. Create onboarding application
-         */
-        const { error: applicationError } =
-          await supabase
-            .from('worker_applications')
-            .insert({
-              worker_id: createdUserId,
-              onboarding_type:
-                'self_registered',
-              status: 'draft',
-            })
-
-        if (applicationError) {
-          throw applicationError
-        }
-      }
-
-      /*
-       * 5. Email confirmation flow
+       * If there is no session, the worker must
+       * confirm the email before continuing.
        */
       if (!authData.session) {
         Alert.alert(
           'Account created',
-          'Your account has been created. Please check your email and confirm your email address before continuing.',
+          'Your worker account has been created. Please check your email and confirm your email address before logging in.',
           [
             {
               text: 'Back to Login',
@@ -217,14 +146,12 @@ export default function WorkerRegistrationScreen({
       }
 
       /*
-       * 6. Continue to onboarding
-       *
-       * The next step will replace this callback
-       * with the actual onboarding flow.
+       * The database trigger has already created
+       * the worker profile and draft application.
        */
       Alert.alert(
         'Account created',
-        'Your worker account has been created. Next, you will complete your worker onboarding.',
+        'Your worker account has been created successfully. You can now continue with worker onboarding.',
         [
           {
             text: 'Continue',
@@ -238,15 +165,10 @@ export default function WorkerRegistrationScreen({
         error
       )
 
-      /*
-       * If the account was created but a later
-       * database step failed, don't expose technical
-       * database details to the worker.
-       */
       Alert.alert(
         'Registration failed',
         error?.message ||
-          'We could not complete your registration. Please try again.'
+          'We could not create your account. Please try again.'
       )
     } finally {
       setLoading(false)
@@ -388,10 +310,8 @@ export default function WorkerRegistrationScreen({
             </TouchableOpacity>
 
             <Text style={styles.footerText}>
-              By creating an account, you agree to
-              provide accurate information and
-              complete the required verification
-              documents.
+              Your information will be used to
+              create your TempStaff worker account.
             </Text>
           </View>
         </ScrollView>
