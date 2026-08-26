@@ -10,6 +10,7 @@ import {
 import { supabase } from './lib/supabase'
 
 import LoginScreen from './screens/LoginScreen'
+import WorkerRegistrationScreen from './screens/WorkerRegistrationScreen'
 import WorkerDashboard from './screens/WorkerDashboard'
 import EarningsScreen from './screens/EarningsScreen'
 import MyBookingsScreen from './screens/MyBookingsScreen'
@@ -18,12 +19,19 @@ import EditProfileScreen from './screens/EditProfileScreen'
 
 type Tab = 'home' | 'bookings' | 'earnings'
 
+type AuthScreen =
+  | 'login'
+  | 'registration'
+
 export default function App() {
   const [sessionReady, setSessionReady] =
     useState(false)
 
   const [loggedIn, setLoggedIn] =
     useState(false)
+
+  const [authScreen, setAuthScreen] =
+    useState<AuthScreen>('login')
 
   const [activeTab, setActiveTab] =
     useState<Tab>('home')
@@ -54,6 +62,10 @@ export default function App() {
           if (!mounted) return
 
           setLoggedIn(Boolean(session))
+
+          if (session) {
+            setAuthScreen('login')
+          }
         }
       )
 
@@ -77,10 +89,30 @@ export default function App() {
     )
   }
 
+  /*
+   * AUTH FLOW
+   */
+
   if (!loggedIn) {
+    if (authScreen === 'registration') {
+      return (
+        <WorkerRegistrationScreen
+          onBack={() =>
+            setAuthScreen('login')
+          }
+          onRegistered={() => {
+            setAuthScreen('login')
+          }}
+        />
+      )
+    }
+
     return (
       <LoginScreen
         onLogin={() => setLoggedIn(true)}
+        onBecomeWorker={() =>
+          setAuthScreen('registration')
+        }
       />
     )
   }
@@ -88,11 +120,16 @@ export default function App() {
   /*
    * EDIT PROFILE
    */
+
   if (showEditProfile) {
     return (
       <EditProfileScreen
-        onBack={() => setShowEditProfile(false)}
-        onSaved={() => setShowEditProfile(false)}
+        onBack={() =>
+          setShowEditProfile(false)
+        }
+        onSaved={() =>
+          setShowEditProfile(false)
+        }
       />
     )
   }
@@ -100,16 +137,23 @@ export default function App() {
   /*
    * PROFILE
    */
+
   if (showProfile) {
     return (
       <ProfileScreen
-        onBack={() => setShowProfile(false)}
+        onBack={() =>
+          setShowProfile(false)
+        }
         onEditProfile={() =>
           setShowEditProfile(true)
         }
       />
     )
   }
+
+  /*
+   * WORKER APP
+   */
 
   return (
     <View style={{ flex: 1 }}>
@@ -161,7 +205,9 @@ export default function App() {
         <TabButton
           label="My Bookings"
           icon="▣"
-          active={activeTab === 'bookings'}
+          active={
+            activeTab === 'bookings'
+          }
           onPress={() =>
             setActiveTab('bookings')
           }
@@ -170,7 +216,9 @@ export default function App() {
         <TabButton
           label="Earnings"
           icon="₹"
-          active={activeTab === 'earnings'}
+          active={
+            activeTab === 'earnings'
+          }
           onPress={() =>
             setActiveTab('earnings')
           }
