@@ -86,7 +86,7 @@ export default function MyBookingsScreen({
           error
         )
 
-       Alert.alert(
+      Alert.alert(
   status === 'accepted'
     ? 'Booking accepted'
     : status === 'on_the_way'
