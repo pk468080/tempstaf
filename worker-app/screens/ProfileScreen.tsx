@@ -648,6 +648,23 @@ export default function ProfileScreen({
           </View>
         </View>
 
+        {/* SETTINGS */}
+
+<TouchableOpacity
+  style={styles.settingsButton}
+  onPress={() => {
+    Alert.alert(
+      'Settings',
+      'Settings screen is ready. We will connect it to navigation next.'
+    )
+  }}
+  disabled={loggingOut}
+>
+  <Text style={styles.settingsButtonText}>
+    ⚙️ Settings
+  </Text>
+</TouchableOpacity>
+
         {/* EDIT PROFILE */}
 
         <TouchableOpacity
@@ -1015,4 +1032,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
+  settingsButton: {
+  backgroundColor: '#ffffff',
+  borderRadius: 15,
+  paddingVertical: 15,
+  alignItems: 'center',
+  marginTop: 12,
+  borderWidth: 1,
+  borderColor: '#d1d5db',
+},
+
+settingsButtonText: {
+  color: '#0b1f3a',
+  fontSize: 15,
+  fontWeight: '800',
+},
 })
