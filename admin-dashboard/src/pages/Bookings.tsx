@@ -161,11 +161,12 @@ export default function Bookings() {
     setError(null)
 
     const { error } = await supabase
-      .from('bookings')
-      .update({
-        worker_id: workerId,
-      })
-      .eq('id', bookingId)
+  .from('bookings')
+  .update({
+    worker_id: workerId,
+    status: 'assigned',
+  })
+  .eq('id', bookingId)
 
     setAssigningBookingId(null)
 
