@@ -13,9 +13,13 @@ import { supabase } from '../lib/supabase'
 
 type Props = {
   onLogin: () => void
+  onBecomeWorker: () => void
 }
 
-export default function LoginScreen({ onLogin }: Props) {
+export default function LoginScreen({
+  onLogin,
+  onBecomeWorker,
+}: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -34,7 +38,7 @@ export default function LoginScreen({ onLogin }: Props) {
     try {
       const { data, error } =
         await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           password,
         })
 
@@ -143,9 +147,29 @@ export default function LoginScreen({ onLogin }: Props) {
           </Text>
         </TouchableOpacity>
 
+        <View style={styles.dividerRow}>
+          <View style={styles.divider} />
+
+          <Text style={styles.dividerText}>
+            OR
+          </Text>
+
+          <View style={styles.divider} />
+        </View>
+
+        <TouchableOpacity
+          style={styles.registerButton}
+          disabled={loading}
+          onPress={onBecomeWorker}
+        >
+          <Text style={styles.registerButtonText}>
+            Become a Worker
+          </Text>
+        </TouchableOpacity>
+
         <Text style={styles.note}>
-          Worker accounts are verified through
-          Supabase authentication.
+          Already have a TempStaff worker account?
+          Sign in above.
         </Text>
       </View>
     </SafeAreaView>
@@ -229,6 +253,41 @@ const styles = StyleSheet.create({
 
   buttonText: {
     color: 'white',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 22,
+  },
+
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#D9DEE5',
+  },
+
+  dividerText: {
+    color: '#98A2B3',
+    fontSize: 11,
+    fontWeight: '800',
+    marginHorizontal: 12,
+  },
+
+  registerButton: {
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: 'white',
+    borderWidth: 1.5,
+    borderColor: '#0B1F33',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  registerButtonText: {
+    color: '#0B1F33',
     fontSize: 16,
     fontWeight: '800',
   },
