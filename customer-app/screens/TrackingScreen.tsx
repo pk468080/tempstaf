@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -18,7 +19,10 @@ import { createBookingOtp } from '../services/booking'
 import Header from '../components/Header'
 import PrimaryButton from '../components/PrimaryButton'
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Tracking'>
+type Props = NativeStackScreenProps<
+  RootStackParamList,
+  'Tracking'
+>
 
 type BookingStatus =
   | 'pending_payment'
@@ -33,7 +37,16 @@ type BookingStatus =
   | 'expired'
   | 'payment_failed'
 
-const STATUS_TEXT: Record<BookingStatus, string> = {
+type WorkerLocation = {
+  latitude: number
+  longitude: number
+  recorded_at: string
+}
+
+const STATUS_TEXT: Record<
+  BookingStatus,
+  string
+> = {
   pending_payment: 'Waiting for payment',
   paid: 'Payment received',
   searching_worker: 'Finding your worker',
@@ -47,174 +60,390 @@ const STATUS_TEXT: Record<BookingStatus, string> = {
   payment_failed: 'Payment failed',
 }
 
-const STATUS_DESCRIPTION: Record<BookingStatus, string> = {
-  pending_payment: 'Complete payment to confirm your booking.',
-  paid: 'Your booking is confirmed. The worker will be notified.',
-  searching_worker: 'We are finding an available worker for you.',
-  assigned: 'Your worker has accepted the booking.',
-  on_the_way: 'Your worker is travelling to your location.',
-  arrived: 'Your worker has arrived. Give them the Start OTP.',
-  in_progress: 'Your worker is currently working.',
-  completed: 'Your shift has been completed successfully.',
-  cancelled: 'This booking has been cancelled.',
-  expired: 'This booking has expired.',
-  payment_failed: 'The payment for this booking was unsuccessful.',
+const STATUS_DESCRIPTION: Record<
+  BookingStatus,
+  string
+> = {
+  pending_payment:
+    'Complete payment to confirm your booking.',
+  paid:
+    'Your booking is confirmed. The worker will be notified.',
+  searching_worker:
+    'We are finding an available worker for you.',
+  assigned:
+    'Your worker has accepted the booking.',
+  on_the_way:
+    'Your worker is travelling to your location.',
+  arrived:
+    'Your worker has arrived. Give them the Start OTP.',
+  in_progress:
+    'Your worker is currently working.',
+  completed:
+    'Your shift has been completed successfully.',
+  cancelled:
+    'This booking has been cancelled.',
+  expired:
+    'This booking has expired.',
+  payment_failed:
+    'The payment for this booking was unsuccessful.',
 }
 
-export default function TrackingScreen({ navigation }: Props) {
+export default function TrackingScreen({
+  navigation,
+  route,
+}: Props) {
   const {
-    bookingId,
+    bookingId: contextBookingId,
     selectedWorker,
     selectedService,
     resetBooking,
   } = useBooking()
 
-  const [status, setStatus] = useState<BookingStatus | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [startOtp, setStartOtp] = useState<string | null>(null)
-  const [endOtp, setEndOtp] = useState<string | null>(null)
-  const [otpLoading, setOtpLoading] = useState(false)
+  /*
+   * The Track Worker button passes bookingId
+   * through navigation. Use that first.
+   *
+   * Context bookingId remains as a fallback
+   * for the existing booking flow.
+   */
+  const activeBookingId =
+    route.params?.bookingId ||
+    contextBookingId
 
-  const loadBooking = useCallback(async () => {
-    if (!bookingId) {
-      setLoading(false)
-      return
-    }
+  const [status, setStatus] =
+    useState<BookingStatus | null>(null)
 
-    try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('status')
-        .eq('id', bookingId)
-        .single()
+  const [workerId, setWorkerId] =
+    useState<string | null>(null)
 
-      if (error) {
-        throw error
+  const [workerName, setWorkerName] =
+    useState<string | null>(
+      selectedWorker?.name || null
+    )
+
+  const [loading, setLoading] =
+    useState(true)
+
+  const [locationLoading, setLocationLoading] =
+    useState(false)
+
+  const [workerLocation, setWorkerLocation] =
+    useState<WorkerLocation | null>(null)
+
+  const [startOtp, setStartOtp] =
+    useState<string | null>(null)
+
+  const [endOtp, setEndOtp] =
+    useState<string | null>(null)
+
+  const [otpLoading, setOtpLoading] =
+    useState(false)
+
+  const loadWorkerLocation = useCallback(
+    async (bookingId: string) => {
+      try {
+        setLocationLoading(true)
+
+        const { data, error } =
+          await supabase
+            .from('worker_locations')
+            .select(
+              `
+                latitude,
+                longitude,
+                recorded_at
+              `
+            )
+            .eq('booking_id', bookingId)
+            .order('recorded_at', {
+              ascending: false,
+            })
+            .limit(1)
+            .maybeSingle()
+
+        if (error) {
+          throw error
+        }
+
+        setWorkerLocation(
+          data
+            ? {
+                latitude: Number(data.latitude),
+                longitude: Number(data.longitude),
+                recorded_at: data.recorded_at,
+              }
+            : null
+        )
+      } catch (error: any) {
+        console.error(
+          '[TempStaff] Failed to load worker location:',
+          error
+        )
+      } finally {
+        setLocationLoading(false)
+      }
+    },
+    []
+  )
+
+  const loadBooking = useCallback(
+    async () => {
+      if (!activeBookingId) {
+        setLoading(false)
+        return
       }
 
-      setStatus(data.status as BookingStatus)
-    } catch (error: any) {
-      console.error(
-        '[TempStaff] Failed to load booking status:',
-        error
-      )
+      try {
+        setLoading(true)
 
-      Alert.alert(
-        'Unable to load booking',
-        error?.message || 'Please try again.'
-      )
-    } finally {
-      setLoading(false)
-    }
-  }, [bookingId])
+        const { data, error } =
+          await supabase
+            .from('bookings')
+            .select(
+              `
+                status,
+                worker_id
+              `
+            )
+            .eq('id', activeBookingId)
+            .single()
+
+        if (error) {
+          throw error
+        }
+
+        setStatus(
+          data.status as BookingStatus
+        )
+
+        setWorkerId(
+          data.worker_id || null
+        )
+
+        if (data.worker_id) {
+          const {
+            data: profile,
+          } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', data.worker_id)
+            .maybeSingle()
+
+          if (profile?.full_name) {
+            setWorkerName(
+              profile.full_name
+            )
+          }
+        }
+
+        await loadWorkerLocation(
+          activeBookingId
+        )
+      } catch (error: any) {
+        console.error(
+          '[TempStaff] Failed to load booking:',
+          error
+        )
+
+        Alert.alert(
+          'Unable to load booking',
+          error?.message ||
+            'Please try again.'
+        )
+      } finally {
+        setLoading(false)
+      }
+    },
+    [
+      activeBookingId,
+      loadWorkerLocation,
+    ]
+  )
 
   useEffect(() => {
     loadBooking()
 
-    if (!bookingId) {
+    if (!activeBookingId) {
       return
     }
 
-    const channel = supabase
-      .channel(`booking-status-${bookingId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'bookings',
-          filter: `id=eq.${bookingId}`,
-        },
-        payload => {
-          const newStatus = payload.new.status as BookingStatus
+    const bookingChannel =
+      supabase
+        .channel(
+          `booking-status-${activeBookingId}`
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'bookings',
+            filter: `id=eq.${activeBookingId}`,
+          },
+          payload => {
+            const newStatus =
+              payload.new.status as BookingStatus
 
-          console.log(
-            '[TempStaff] Booking status changed:',
-            newStatus
-          )
+            setStatus(newStatus)
 
-          setStatus(newStatus)
-        }
-      )
-      .subscribe()
+            if (payload.new.worker_id) {
+              setWorkerId(
+                payload.new.worker_id
+              )
+            }
+          }
+        )
+        .subscribe()
+
+    const locationChannel =
+      supabase
+        .channel(
+          `worker-location-${activeBookingId}`
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'worker_locations',
+            filter: `booking_id=eq.${activeBookingId}`,
+          },
+          payload => {
+            const location =
+              payload.new
+
+            setWorkerLocation({
+              latitude:
+                Number(location.latitude),
+              longitude:
+                Number(location.longitude),
+              recorded_at:
+                location.recorded_at,
+            })
+          }
+        )
+        .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(
+        bookingChannel
+      )
+
+      supabase.removeChannel(
+        locationChannel
+      )
     }
-  }, [bookingId, loadBooking])
-const generateStartOtp = async () => {
-  if (!bookingId) {
-    return
+  }, [
+    activeBookingId,
+    loadBooking,
+  ])
+
+  const generateStartOtp =
+    async () => {
+      if (!activeBookingId) {
+        return
+      }
+
+      try {
+        setOtpLoading(true)
+
+        const result =
+          await createBookingOtp(
+            activeBookingId,
+            'start'
+          )
+
+        setStartOtp(result.otp)
+      } catch (error: any) {
+        console.error(
+          '[TempStaff] Failed to generate Start OTP:',
+          error
+        )
+
+        Alert.alert(
+          'Unable to generate OTP',
+          error?.message ||
+            'Please try again.'
+        )
+      } finally {
+        setOtpLoading(false)
+      }
+    }
+
+  const generateEndOtp =
+    async () => {
+      if (!activeBookingId) {
+        return
+      }
+
+      try {
+        setOtpLoading(true)
+
+        const result =
+          await createBookingOtp(
+            activeBookingId,
+            'end'
+          )
+
+        setEndOtp(result.otp)
+      } catch (error: any) {
+        console.error(
+          '[TempStaff] Failed to generate End OTP:',
+          error
+        )
+
+        Alert.alert(
+          'Unable to generate End OTP',
+          error?.message ||
+            'Please try again.'
+        )
+      } finally {
+        setOtpLoading(false)
+      }
+    }
+
+  const openWorkerLocation =
+    async () => {
+      if (!workerLocation) {
+        return
+      }
+
+      const url =
+        `https://www.google.com/maps/search/?api=1&query=` +
+        `${workerLocation.latitude},${workerLocation.longitude}`
+
+      try {
+        await Linking.openURL(url)
+      } catch (error) {
+        Alert.alert(
+          'Unable to open maps',
+          'Please try again.'
+        )
+      }
+    }
+
+  const finish = () => {
+    resetBooking()
+
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Home' }],
+    })
   }
-
-  try {
-    setOtpLoading(true)
-
-    const result = await createBookingOtp(
-      bookingId,
-      'start'
-    )
-
-    setStartOtp(result.otp)
-  } catch (error: any) {
-    console.error(
-      '[TempStaff] Failed to generate Start OTP:',
-      error
-    )
-
-    Alert.alert(
-      'Unable to generate OTP',
-      error?.message || 'Please try again.'
-    )
-  } finally {
-    setOtpLoading(false)
-  }
-}
-
-const generateEndOtp = async () => {
-  if (!bookingId) {
-    return
-  }
-
-  try {
-    setOtpLoading(true)
-
-    const result = await createBookingOtp(
-      bookingId,
-      'end'
-    )
-
-    setEndOtp(result.otp)
-  } catch (error: any) {
-    console.error(
-      '[TempStaff] Failed to generate End OTP:',
-      error
-    )
-
-    Alert.alert(
-      'Unable to generate End OTP',
-      error?.message || 'Please try again.'
-    )
-  } finally {
-    setOtpLoading(false)
-  }
-}
-
-const finish = () => {
-  resetBooking()
-
-  navigation.reset({
-    index: 0,
-    routes: [{ name: 'Home' }],
-  })
-}
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView
+        style={styles.container}
+      >
         <View style={styles.loading}>
-          <ActivityIndicator size="large" />
-          <Text style={styles.loadingText}>
+          <ActivityIndicator
+            size="large"
+          />
+
+          <Text
+            style={styles.loadingText}
+          >
             Loading booking status...
           </Text>
         </View>
@@ -222,9 +451,11 @@ const finish = () => {
     )
   }
 
-  if (!bookingId) {
+  if (!activeBookingId) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView
+        style={styles.container}
+      >
         <View style={styles.loading}>
           <Text style={styles.section}>
             No active booking
@@ -235,7 +466,9 @@ const finish = () => {
             onPress={() =>
               navigation.reset({
                 index: 0,
-                routes: [{ name: 'Home' }],
+                routes: [
+                  { name: 'Home' },
+                ],
               })
             }
           />
@@ -244,50 +477,209 @@ const finish = () => {
     )
   }
 
-  const currentStatus = status ?? 'pending_payment'
+  const currentStatus =
+    status ?? 'pending_payment'
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.page}>
-        <Header onBack={() => navigation.goBack()} />
+    <SafeAreaView
+      style={styles.container}
+    >
+      <ScrollView
+        contentContainerStyle={
+          styles.page
+        }
+      >
+        <Header
+          onBack={() =>
+            navigation.goBack()
+          }
+        />
 
         <Text style={styles.title}>
           Track your worker
         </Text>
 
         <Text style={styles.subtitle}>
-          Your booking status updates automatically.
+          Your booking status and worker
+          location update automatically.
         </Text>
 
         <View style={styles.map}>
-          <Text style={styles.pin}>📍</Text>
-
-          <Text style={styles.mapTitle}>
-            {selectedWorker?.name || 'Your worker'}
+          <Text style={styles.pin}>
+            📍
           </Text>
 
-          <Text style={styles.mapText}>
-            Service: {selectedService || 'Staff service'}
+          <Text
+            style={styles.mapTitle}
+          >
+            {workerName ||
+              'Your worker'}
           </Text>
 
-          <Text style={styles.mapText}>
-            Booking: #{bookingId.slice(0, 8)}
+          <Text
+            style={styles.mapText}
+          >
+            Service:{' '}
+            {selectedService ||
+              'Staff service'}
           </Text>
+
+          <Text
+            style={styles.mapText}
+          >
+            Booking: #
+            {activeBookingId.slice(
+              0,
+              8
+            )}
+          </Text>
+
+          {workerId && (
+            <Text
+              style={styles.mapText}
+            >
+              Worker assigned
+            </Text>
+          )}
         </View>
 
-        <View style={styles.statusCard}>
-          <View style={styles.statusDot} />
+        <View
+          style={styles.locationCard}
+        >
+          <Text
+            style={styles.locationTitle}
+          >
+            Live Worker Location
+          </Text>
 
-          <Text style={styles.statusTitle}>
-            {STATUS_TEXT[currentStatus]}
+          {locationLoading ? (
+            <View
+              style={styles.locationLoading}
+            >
+              <ActivityIndicator />
+
+              <Text
+                style={
+                  styles.locationText
+                }
+              >
+                Loading worker location...
+              </Text>
+            </View>
+          ) : workerLocation ? (
+            <>
+              <View
+                style={
+                  styles.locationStatus
+                }
+              >
+                <View
+                  style={
+                    styles.locationDot
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.locationStatusText
+                  }
+                >
+                  Location active
+                </Text>
+              </View>
+
+              <Text
+                style={
+                  styles.coordinates
+                }
+              >
+                {workerLocation.latitude.toFixed(
+                  6
+                )}
+                {' , '}
+                {workerLocation.longitude.toFixed(
+                  6
+                )}
+              </Text>
+
+              <Text
+                style={
+                  styles.locationText
+                }
+              >
+                Last updated:{' '}
+                {new Date(
+                  workerLocation.recorded_at
+                ).toLocaleTimeString(
+                  'en-IN',
+                  {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  }
+                )}
+              </Text>
+
+              <PrimaryButton
+                title="Open Worker Location in Maps"
+                onPress={
+                  openWorkerLocation
+                }
+              />
+            </>
+          ) : (
+            <>
+              <Text
+                style={
+                  styles.locationText
+                }
+              >
+                Waiting for the worker's
+                location.
+              </Text>
+
+              <Text
+                style={
+                  styles.locationHint
+                }
+              >
+                The location will appear
+                when the worker starts
+                sharing their position.
+              </Text>
+            </>
+          )}
+        </View>
+
+        <View
+          style={styles.statusCard}
+        >
+          <View
+            style={styles.statusDot}
+          />
+
+          <Text
+            style={styles.statusTitle}
+          >
+            {
+              STATUS_TEXT[
+                currentStatus
+              ]
+            }
           </Text>
 
           <Text style={styles.text}>
-            {STATUS_DESCRIPTION[currentStatus]}
+            {
+              STATUS_DESCRIPTION[
+                currentStatus
+              ]
+            }
           </Text>
         </View>
 
-        <View style={styles.timeline}>
+        <View
+          style={styles.timeline}
+        >
           <TimelineItem
             label="Worker assigned"
             active={[
@@ -296,7 +688,9 @@ const finish = () => {
               'arrived',
               'in_progress',
               'completed',
-            ].includes(currentStatus)}
+            ].includes(
+              currentStatus
+            )}
           />
 
           <TimelineItem
@@ -306,7 +700,9 @@ const finish = () => {
               'arrived',
               'in_progress',
               'completed',
-            ].includes(currentStatus)}
+            ].includes(
+              currentStatus
+            )}
           />
 
           <TimelineItem
@@ -315,7 +711,9 @@ const finish = () => {
               'arrived',
               'in_progress',
               'completed',
-            ].includes(currentStatus)}
+            ].includes(
+              currentStatus
+            )}
           />
 
           <TimelineItem
@@ -323,38 +721,65 @@ const finish = () => {
             active={[
               'in_progress',
               'completed',
-            ].includes(currentStatus)}
+            ].includes(
+              currentStatus
+            )}
           />
 
           <TimelineItem
             label="Shift completed"
-            active={currentStatus === 'completed'}
+            active={
+              currentStatus ===
+              'completed'
+            }
             last
           />
         </View>
 
-        {currentStatus === 'arrived' && (
-          <View style={styles.card}>
-            <Text style={styles.section}>
+        {currentStatus ===
+          'arrived' && (
+          <View
+            style={styles.card}
+          >
+            <Text
+              style={styles.section}
+            >
               Worker has arrived
             </Text>
 
-            <Text style={styles.text}>
-              Generate the Start OTP and give it to your worker.
+            <Text
+              style={styles.text}
+            >
+              Generate the Start OTP
+              and give it to your
+              worker.
             </Text>
 
             {startOtp ? (
-              <View style={styles.otpBox}>
-                <Text style={styles.otpLabel}>
+              <View
+                style={
+                  styles.otpBox
+                }
+              >
+                <Text
+                  style={
+                    styles.otpLabel
+                  }
+                >
                   START OTP
                 </Text>
 
-                <Text style={styles.otp}>
+                <Text
+                  style={styles.otp}
+                >
                   {startOtp}
                 </Text>
 
-                <Text style={styles.text}>
-                  Give this code to the worker.
+                <Text
+                  style={styles.text}
+                >
+                  Give this code to
+                  the worker.
                 </Text>
               </View>
             ) : (
@@ -364,34 +789,58 @@ const finish = () => {
                     ? 'Generating...'
                     : 'Generate Start OTP'
                 }
-                onPress={generateStartOtp}
+                onPress={
+                  generateStartOtp
+                }
               />
             )}
           </View>
         )}
 
-        {currentStatus === 'in_progress' && (
-          <View style={styles.card}>
-            <Text style={styles.section}>
+        {currentStatus ===
+          'in_progress' && (
+          <View
+            style={styles.card}
+          >
+            <Text
+              style={styles.section}
+            >
               Shift in progress
             </Text>
 
-            <Text style={styles.text}>
-              Your worker is currently working.
+            <Text
+              style={styles.text}
+            >
+              Your worker is
+              currently working.
             </Text>
 
             {endOtp ? (
-              <View style={styles.otpBox}>
-                <Text style={styles.otpLabel}>
+              <View
+                style={
+                  styles.otpBox
+                }
+              >
+                <Text
+                  style={
+                    styles.otpLabel
+                  }
+                >
                   END OTP
                 </Text>
 
-                <Text style={styles.otp}>
+                <Text
+                  style={styles.otp}
+                >
                   {endOtp}
                 </Text>
 
-                <Text style={styles.text}>
-                  Give this code to the worker when the shift is finished.
+                <Text
+                  style={styles.text}
+                >
+                  Give this code to the
+                  worker when the shift
+                  is finished.
                 </Text>
               </View>
             ) : (
@@ -401,22 +850,36 @@ const finish = () => {
                     ? 'Generating...'
                     : 'Generate End OTP'
                 }
-                onPress={generateEndOtp}
+                onPress={
+                  generateEndOtp
+                }
               />
             )}
           </View>
         )}
 
-        {currentStatus === 'completed' && (
-          <View style={styles.done}>
-            <Text style={styles.check}>✓</Text>
+        {currentStatus ===
+          'completed' && (
+          <View
+            style={styles.done}
+          >
+            <Text
+              style={styles.check}
+            >
+              ✓
+            </Text>
 
-            <Text style={styles.doneTitle}>
+            <Text
+              style={styles.doneTitle}
+            >
               Shift completed
             </Text>
 
-            <Text style={styles.text}>
-              The worker has completed this booking.
+            <Text
+              style={styles.text}
+            >
+              The worker has completed
+              this booking.
             </Text>
 
             <PrimaryButton
@@ -440,22 +903,34 @@ function TimelineItem({
   last?: boolean
 }) {
   return (
-    <View style={styles.timelineRow}>
-      <View style={styles.timelineLeft}>
+    <View
+      style={styles.timelineRow}
+    >
+      <View
+        style={styles.timelineLeft}
+      >
         <View
           style={[
             styles.timelineDot,
-            active && styles.timelineDotActive,
+            active &&
+              styles.timelineDotActive,
           ]}
         />
 
-        {!last && <View style={styles.timelineLine} />}
+        {!last && (
+          <View
+            style={
+              styles.timelineLine
+            }
+          />
+        )}
       </View>
 
       <Text
         style={[
           styles.timelineText,
-          active && styles.timelineTextActive,
+          active &&
+            styles.timelineTextActive,
         ]}
       >
         {label}
@@ -528,6 +1003,68 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     fontSize: 13,
     marginBottom: 3,
+  },
+
+  locationCard: {
+    width: '100%',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 18,
+  },
+
+  locationTitle: {
+    color: COLORS.navy,
+    fontSize: 20,
+    fontWeight: '900',
+    marginBottom: 12,
+  },
+
+  locationLoading: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+
+  locationStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  locationDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.teal,
+    marginRight: 8,
+  },
+
+  locationStatusText: {
+    color: COLORS.teal,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  coordinates: {
+    color: COLORS.navy,
+    fontSize: 18,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+
+  locationText: {
+    color: COLORS.gray,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+
+  locationHint: {
+    color: COLORS.gray,
+    fontSize: 13,
+    lineHeight: 19,
   },
 
   statusCard: {
@@ -649,27 +1186,28 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginVertical: 6,
   },
-otpBox: {
-  marginTop: 18,
-  padding: 20,
-  borderRadius: 16,
-  backgroundColor: '#F6F8FA',
-  alignItems: 'center',
-},
 
-otpLabel: {
-  color: COLORS.gray,
-  fontSize: 12,
-  fontWeight: '800',
-  letterSpacing: 1.5,
-  marginBottom: 8,
-},
+  otpBox: {
+    marginTop: 18,
+    padding: 20,
+    borderRadius: 16,
+    backgroundColor: '#F6F8FA',
+    alignItems: 'center',
+  },
 
-otp: {
-  color: COLORS.navy,
-  fontSize: 36,
-  fontWeight: '900',
-  letterSpacing: 8,
-  marginBottom: 8,
-},
+  otpLabel: {
+    color: COLORS.gray,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+
+  otp: {
+    color: COLORS.navy,
+    fontSize: 36,
+    fontWeight: '900',
+    letterSpacing: 8,
+    marginBottom: 8,
+  },
 })
