@@ -21,6 +21,7 @@ type Tab =
   | 'home'
   | 'bookings'
   | 'earnings'
+  | 'profile'
 
 type AuthScreen =
   | 'login'
@@ -39,9 +40,6 @@ export default function App() {
   const [activeTab, setActiveTab] =
     useState<Tab>('home')
 
-  const [showProfile, setShowProfile] =
-    useState(false)
-
   const [showEditProfile, setShowEditProfile] =
     useState(false)
 
@@ -53,7 +51,9 @@ export default function App() {
         const { data } =
           await supabase.auth.getSession()
 
-        if (!mounted) return
+        if (!mounted) {
+          return
+        }
 
         setLoggedIn(
           Boolean(data.session)
@@ -69,17 +69,15 @@ export default function App() {
     } =
       supabase.auth.onAuthStateChange(
         (_event, session) => {
-          if (!mounted) return
-
-          /*
-           * Do not automatically set loggedIn=true
-           * here. LoginScreen validates the worker
-           * profile before opening the dashboard.
-           */
+          if (!mounted) {
+            return
+          }
 
           if (!session) {
             setLoggedIn(false)
             setAuthScreen('login')
+            setActiveTab('home')
+            setShowEditProfile(false)
           }
         }
       )
@@ -104,6 +102,12 @@ export default function App() {
     )
   }
 
+  /*
+   * ---------------------------------------------------------
+   * AUTHENTICATION
+   * ---------------------------------------------------------
+   */
+
   if (!loggedIn) {
     if (
       authScreen ===
@@ -123,9 +127,10 @@ export default function App() {
 
     return (
       <LoginScreen
-        onLogin={() =>
+        onLogin={() => {
           setLoggedIn(true)
-        }
+          setActiveTab('home')
+        }}
         onBecomeWorker={() =>
           setAuthScreen(
             'registration'
@@ -134,6 +139,15 @@ export default function App() {
       />
     )
   }
+
+  /*
+   * ---------------------------------------------------------
+   * EDIT PROFILE
+   *
+   * Edit Profile is a full-screen secondary page.
+   * When Back/Save is pressed it returns to Profile.
+   * ---------------------------------------------------------
+   */
 
   if (showEditProfile) {
     return (
@@ -148,44 +162,66 @@ export default function App() {
     )
   }
 
-  if (showProfile) {
-    return (
-      <ProfileScreen
-        onBack={() =>
-          setShowProfile(false)
-        }
-        onEditProfile={() =>
-          setShowEditProfile(true)
-        }
-      />
-    )
-  }
+  /*
+   * ---------------------------------------------------------
+   * MAIN APPLICATION
+   *
+   * IMPORTANT:
+   * Profile is rendered INSIDE this layout.
+   * Therefore the footer navigation remains visible.
+   * ---------------------------------------------------------
+   */
 
   return (
-    <View style={{ flex: 1 }}>
-      {activeTab === 'home' && (
-        <WorkerDashboard
-          onOpenEarnings={() =>
-            setActiveTab('earnings')
-          }
-        />
-      )}
+    <View
+      style={{
+        flex: 1,
+      }}
+    >
+      <View
+        style={{
+          flex: 1,
+        }}
+      >
+        {activeTab === 'home' && (
+          <WorkerDashboard
+            onOpenEarnings={() =>
+              setActiveTab('earnings')
+            }
+          />
+        )}
 
-      {activeTab === 'bookings' && (
-        <MyBookingsScreen
-          onBack={() =>
-            setActiveTab('home')
-          }
-        />
-      )}
+        {activeTab === 'bookings' && (
+          <MyBookingsScreen
+            onBack={() =>
+              setActiveTab('home')
+            }
+          />
+        )}
 
-      {activeTab === 'earnings' && (
-        <EarningsScreen
-          onBack={() =>
-            setActiveTab('home')
-          }
-        />
-      )}
+        {activeTab === 'earnings' && (
+          <EarningsScreen
+            onBack={() =>
+              setActiveTab('home')
+            }
+          />
+        )}
+
+        {activeTab === 'profile' && (
+          <ProfileScreen
+            onBack={() =>
+              setActiveTab('home')
+            }
+            onEditProfile={() =>
+              setShowEditProfile(true)
+            }
+          />
+        )}
+      </View>
+
+      {/* ---------------------------------------------------
+          WORKER FOOTER NAVIGATION
+          --------------------------------------------------- */}
 
       <View
         style={{
@@ -205,9 +241,10 @@ export default function App() {
           active={
             activeTab === 'home'
           }
-          onPress={() =>
+          onPress={() => {
+            setShowEditProfile(false)
             setActiveTab('home')
-          }
+          }}
         />
 
         <TabButton
@@ -216,9 +253,10 @@ export default function App() {
           active={
             activeTab === 'bookings'
           }
-          onPress={() =>
+          onPress={() => {
+            setShowEditProfile(false)
             setActiveTab('bookings')
-          }
+          }}
         />
 
         <TabButton
@@ -227,23 +265,33 @@ export default function App() {
           active={
             activeTab === 'earnings'
           }
-          onPress={() =>
+          onPress={() => {
+            setShowEditProfile(false)
             setActiveTab('earnings')
-          }
+          }}
         />
 
         <TabButton
           label="Profile"
           icon="●"
-          active={false}
-          onPress={() =>
-            setShowProfile(true)
+          active={
+            activeTab === 'profile'
           }
+          onPress={() => {
+            setShowEditProfile(false)
+            setActiveTab('profile')
+          }}
         />
       </View>
     </View>
   )
 }
+
+/*
+ * ---------------------------------------------------------
+ * FOOTER TAB BUTTON
+ * ---------------------------------------------------------
+ */
 
 function TabButton({
   label,
@@ -259,6 +307,7 @@ function TabButton({
   return (
     <TouchableOpacity
       onPress={onPress}
+      activeOpacity={0.7}
       style={{
         alignItems: 'center',
         justifyContent: 'center',
