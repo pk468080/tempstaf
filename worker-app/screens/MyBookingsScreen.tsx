@@ -86,11 +86,18 @@ export default function MyBookingsScreen({
           error
         )
 
-        Alert.alert(
-          'Unable to load bookings',
-          error?.message ||
-            'Please try again.'
-        )
+       Alert.alert(
+  status === 'accepted'
+    ? 'Booking accepted'
+    : status === 'on_the_way'
+    ? 'You are on the way'
+    : 'Booking declined',
+  status === 'accepted'
+    ? 'The booking has been accepted successfully.'
+    : status === 'on_the_way'
+    ? 'The customer has been notified that you are on the way.'
+    : 'The booking has been declined.'
+)
       } finally {
         setLoading(false)
         setRefreshing(false)
