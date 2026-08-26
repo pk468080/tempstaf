@@ -552,11 +552,7 @@ export default function MyBookingsScreen({
                     </TouchableOpacity>
                   </View>
                 )}
-              </View>
-            )
-          })
-        )}
-        {booking.status === 'accepted' && (
+                {booking.status === 'accepted' && (
   <TouchableOpacity
     style={styles.acceptButton}
     onPress={() =>
@@ -576,6 +572,11 @@ export default function MyBookingsScreen({
     )}
   </TouchableOpacity>
 )}
+              </View>
+            )
+          })
+        )}
+        
       </ScrollView>
     </SafeAreaView>
   )
