@@ -17,7 +17,6 @@ import { supabase } from '../lib/supabase'
 type ProfileScreenProps = {
   onBack: () => void
   onEditProfile: () => void
-  onSettings: () => void
 }
 
 type WorkerStatus =
@@ -651,16 +650,7 @@ export default function ProfileScreen({
 
         {/* SETTINGS */}
 
-<TouchableOpacity
-  style={styles.settingsButton}
-  onPress={onSettings}
-  disabled={loggingOut}
-  activeOpacity={0.8}
->
-  <Text style={styles.settingsButtonText}>
-    ⚙️ Settings
-  </Text>
-</TouchableOpacity>
+
 
         {/* EDIT PROFILE */}
 
