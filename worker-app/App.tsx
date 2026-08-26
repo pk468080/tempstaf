@@ -17,7 +17,10 @@ import MyBookingsScreen from './screens/MyBookingsScreen'
 import ProfileScreen from './screens/ProfileScreen'
 import EditProfileScreen from './screens/EditProfileScreen'
 
-type Tab = 'home' | 'bookings' | 'earnings'
+type Tab =
+  | 'home'
+  | 'bookings'
+  | 'earnings'
 
 type AuthScreen =
   | 'login'
@@ -45,14 +48,21 @@ export default function App() {
   useEffect(() => {
     let mounted = true
 
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
+    const checkExistingSession =
+      async () => {
+        const { data } =
+          await supabase.auth.getSession()
+
         if (!mounted) return
 
-        setLoggedIn(Boolean(data.session))
+        setLoggedIn(
+          Boolean(data.session)
+        )
+
         setSessionReady(true)
-      })
+      }
+
+    checkExistingSession()
 
     const {
       data: { subscription },
@@ -61,9 +71,14 @@ export default function App() {
         (_event, session) => {
           if (!mounted) return
 
-          setLoggedIn(Boolean(session))
+          /*
+           * Do not automatically set loggedIn=true
+           * here. LoginScreen validates the worker
+           * profile before opening the dashboard.
+           */
 
-          if (session) {
+          if (!session) {
+            setLoggedIn(false)
             setAuthScreen('login')
           }
         }
@@ -89,37 +104,36 @@ export default function App() {
     )
   }
 
-  /*
-   * AUTH FLOW
-   */
-
   if (!loggedIn) {
-    if (authScreen === 'registration') {
+    if (
+      authScreen ===
+      'registration'
+    ) {
       return (
         <WorkerRegistrationScreen
           onBack={() =>
             setAuthScreen('login')
           }
-          onRegistered={() => {
+          onRegistered={() =>
             setAuthScreen('login')
-          }}
+          }
         />
       )
     }
 
     return (
       <LoginScreen
-        onLogin={() => setLoggedIn(true)}
+        onLogin={() =>
+          setLoggedIn(true)
+        }
         onBecomeWorker={() =>
-          setAuthScreen('registration')
+          setAuthScreen(
+            'registration'
+          )
         }
       />
     )
   }
-
-  /*
-   * EDIT PROFILE
-   */
 
   if (showEditProfile) {
     return (
@@ -134,10 +148,6 @@ export default function App() {
     )
   }
 
-  /*
-   * PROFILE
-   */
-
   if (showProfile) {
     return (
       <ProfileScreen
@@ -150,10 +160,6 @@ export default function App() {
       />
     )
   }
-
-  /*
-   * WORKER APP
-   */
 
   return (
     <View style={{ flex: 1 }}>
@@ -196,7 +202,9 @@ export default function App() {
         <TabButton
           label="Home"
           icon="⌂"
-          active={activeTab === 'home'}
+          active={
+            activeTab === 'home'
+          }
           onPress={() =>
             setActiveTab('home')
           }
