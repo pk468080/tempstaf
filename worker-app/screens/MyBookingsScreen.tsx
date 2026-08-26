@@ -86,18 +86,11 @@ export default function MyBookingsScreen({
           error
         )
 
-      Alert.alert(
-  status === 'accepted'
-    ? 'Booking accepted'
-    : status === 'on_the_way'
-    ? 'You are on the way'
-    : 'Booking declined',
-  status === 'accepted'
-    ? 'The booking has been accepted successfully.'
-    : status === 'on_the_way'
-    ? 'The customer has been notified that you are on the way.'
-    : 'The booking has been declined.'
-)
+        Alert.alert(
+          'Unable to load bookings',
+          error?.message ||
+            'Please try again.'
+        )
       } finally {
         setLoading(false)
         setRefreshing(false)
@@ -178,13 +171,17 @@ export default function MyBookingsScreen({
       )
 
       Alert.alert(
-        status === 'accepted'
-          ? 'Booking accepted'
-          : 'Booking declined',
-        status === 'accepted'
-          ? 'The booking has been accepted successfully.'
-          : 'The booking has been declined.'
-      )
+  status === 'accepted'
+    ? 'Booking accepted'
+    : status === 'on_the_way'
+    ? 'You are on the way'
+    : 'Booking declined',
+  status === 'accepted'
+    ? 'The booking has been accepted successfully.'
+    : status === 'on_the_way'
+    ? 'The customer has been notified that you are on the way.'
+    : 'The booking has been declined.'
+)
     } catch (error: any) {
       console.error(
         '[TempStaff Worker] Failed to update booking:',
