@@ -28,6 +28,11 @@ type MyBookingsScreenProps = {
   onBack: () => void
 }
 
+type WorkerBookingAction =
+  | 'accept'
+  | 'decline'
+  | 'on_the_way'
+
 export default function MyBookingsScreen({
   onBack,
 }: MyBookingsScreenProps) {
@@ -108,15 +113,18 @@ export default function MyBookingsScreen({
     loadBookings()
   }
 
-  const updateBookingStatus = async (
+  /**
+   * Worker actions are sent through a Supabase
+   * RPC instead of directly changing booking.status.
+   *
+   * This keeps the real state transition inside
+   * the database where authorization and race
+   * protection can be enforced.
+   */
+  const performBookingAction = async (
     bookingId: string,
-    status:
-      | 'accepted'
-      | 'declined'
-      | 'on_the_way'
+    action: WorkerBookingAction
   ) => {
-    // Prevent duplicate taps while an update
-    // for this booking is already running.
     if (updatingId === bookingId) {
       return
     }
@@ -134,153 +142,73 @@ export default function MyBookingsScreen({
         )
       }
 
-      /*
-       * Always read the latest status before
-       * attempting a transition.
-       */
-      const {
-        data: currentBooking,
-        error: currentBookingError,
-      } = await supabase
-        .from('bookings')
-        .select('id, status')
-        .eq('id', bookingId)
-        .eq('worker_id', user.id)
-        .maybeSingle()
-
-      if (currentBookingError) {
-        throw currentBookingError
-      }
-
-      if (!currentBooking) {
-        throw new Error(
-          'Booking was not found or is no longer assigned to you.'
-        )
-      }
-
-      /*
-       * If the requested status is already the
-       * database status, do nothing.
-       *
-       * This prevents:
-       * on_the_way -> on_the_way
-       */
-      if (
-        currentBooking.status === status
-      ) {
-        setBookings(current =>
-          current.map(booking =>
-            booking.id === bookingId
-              ? {
-                  ...booking,
-                  status:
-                    currentBooking.status,
-                }
-              : booking
-          )
-        )
-
-        return
-      }
-
-      /*
-       * On the Way is only valid immediately
-       * after the worker has accepted the booking.
-       */
-      if (
-        status === 'on_the_way' &&
-        currentBooking.status !== 'accepted'
-      ) {
-        throw new Error(
-          `This booking is already ${currentBooking.status.replace(
-            /_/g,
-            ' '
-          )}.`
-        )
-      }
-
-      /*
-       * Accept is only allowed for a booking
-       * that is still awaiting worker action.
-       */
-      if (
-        status === 'accepted' &&
-        currentBooking.status !== 'assigned' &&
-        currentBooking.status !== 'pending'
-      ) {
-        throw new Error(
-          `This booking cannot be accepted from ${currentBooking.status.replace(
-            /_/g,
-            ' '
-          )}.`
-        )
-      }
-
       const { data, error } =
-        await supabase
-          .from('bookings')
-          .update({
-            status,
-          })
-          .eq('id', bookingId)
-          .eq('worker_id', user.id)
-          .select(
-            `
-              id,
-              status,
-              duration_value,
-              duration_unit,
-              total_amount,
-              scheduled_start,
-              created_at
-            `
-          )
-          .maybeSingle()
+        await supabase.rpc(
+          'worker_booking_action',
+          {
+            p_booking_id: bookingId,
+            p_action: action,
+          }
+        )
 
       if (error) {
         throw error
       }
 
-      if (!data) {
+      if (!data?.success) {
         throw new Error(
-          'Booking was not updated. Please check your booking permissions.'
+          data?.error ||
+            'Booking action was rejected.'
         )
       }
+
+      const updatedStatus =
+        data.status
 
       setBookings(current =>
         current.map(booking =>
           booking.id === bookingId
             ? {
                 ...booking,
-                status: data.status,
+                status:
+                  updatedStatus ??
+                  booking.status,
               }
             : booking
         )
       )
 
-      Alert.alert(
-        status === 'accepted'
-          ? 'Booking accepted'
-          : status === 'on_the_way'
-          ? 'You are on the way'
-          : 'Booking declined',
-        status === 'accepted'
-          ? 'The booking has been accepted successfully.'
-          : status === 'on_the_way'
-          ? 'The customer has been notified that you are on the way.'
-          : 'The booking has been declined.'
-      )
+      if (action === 'accept') {
+        Alert.alert(
+          'Booking accepted',
+          'The booking has been accepted successfully.'
+        )
+      } else if (
+        action === 'decline'
+      ) {
+        Alert.alert(
+          'Booking declined',
+          'The booking has been declined.'
+        )
+      } else {
+        Alert.alert(
+          'You are on the way',
+          'The customer has been notified.'
+        )
+      }
     } catch (error: any) {
       console.error(
-        '[TempStaff Worker] Failed to update booking:',
+        '[TempStaff Worker] Booking action failed:',
         error
       )
 
       Alert.alert(
         'Unable to update booking',
         error?.message ||
-          'Please try again.'
+          'The booking may have changed. Refresh and try again.'
       )
+
+      await loadBookings()
     } finally {
       setUpdatingId(null)
     }
@@ -300,9 +228,9 @@ export default function MyBookingsScreen({
         {
           text: 'Accept',
           onPress: () =>
-            updateBookingStatus(
+            performBookingAction(
               bookingId,
-              'accepted'
+              'accept'
             ),
         },
       ]
@@ -324,9 +252,32 @@ export default function MyBookingsScreen({
           text: 'Decline',
           style: 'destructive',
           onPress: () =>
-            updateBookingStatus(
+            performBookingAction(
               bookingId,
-              'declined'
+              'decline'
+            ),
+        },
+      ]
+    )
+  }
+
+  const confirmOnTheWay = (
+    bookingId: string
+  ) => {
+    Alert.alert(
+      'Start travelling',
+      'Mark this booking as On the Way?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'On the Way',
+          onPress: () =>
+            performBookingAction(
+              bookingId,
+              'on_the_way'
             ),
         },
       ]
@@ -350,7 +301,18 @@ export default function MyBookingsScreen({
       return 'Date not available'
     }
 
-    return new Date(date).toLocaleString(
+    const parsed =
+      new Date(date)
+
+    if (
+      Number.isNaN(
+        parsed.getTime()
+      )
+    ) {
+      return 'Date not available'
+    }
+
+    return parsed.toLocaleString(
       'en-IN',
       {
         dateStyle: 'medium',
@@ -364,17 +326,19 @@ export default function MyBookingsScreen({
   ) => {
     return status
       .replace(/_/g, ' ')
-      .replace(/\b\w/g, letter =>
-        letter.toUpperCase()
+      .replace(
+        /\b\w/g,
+        letter =>
+          letter.toUpperCase()
       )
   }
 
-  const isPending = (
+  const isAwaitingWorkerAction = (
     status: string
   ) => {
     return (
-      status === 'pending' ||
-      status === 'assigned'
+      status === 'assigned' ||
+      status === 'pending'
     )
   }
 
@@ -406,25 +370,33 @@ export default function MyBookingsScreen({
           My Bookings
         </Text>
 
-        <Text style={styles.subtitle}>
+        <Text
+          style={styles.subtitle}
+        >
           View and manage your assigned
           bookings.
         </Text>
 
         {loading ? (
-          <View style={styles.loading}>
+          <View
+            style={styles.loading}
+          >
             <ActivityIndicator
               size="large"
             />
 
             <Text
-              style={styles.loadingText}
+              style={
+                styles.loadingText
+              }
             >
               Loading bookings...
             </Text>
           </View>
         ) : bookings.length === 0 ? (
-          <View style={styles.emptyCard}>
+          <View
+            style={styles.emptyCard}
+          >
             <Text
               style={styles.emptyIcon}
             >
@@ -440,19 +412,20 @@ export default function MyBookingsScreen({
             <Text
               style={styles.emptyText}
             >
-              New bookings assigned to you
-              will appear here.
+              New bookings assigned to
+              you will appear here.
             </Text>
           </View>
         ) : (
           bookings.map(booking => {
             const pending =
-              isPending(
+              isAwaitingWorkerAction(
                 booking.status
               )
 
             const updating =
-              updatingId === booking.id
+              updatingId ===
+              booking.id
 
             return (
               <View
@@ -654,9 +627,8 @@ export default function MyBookingsScreen({
                       styles.acceptButton
                     }
                     onPress={() =>
-                      updateBookingStatus(
-                        booking.id,
-                        'on_the_way'
+                      confirmOnTheWay(
+                        booking.id
                       )
                     }
                     disabled={
@@ -764,64 +736,63 @@ const styles = StyleSheet.create({
   },
 
   subtitle: {
-    color: '#6b7280',
+    color: '#64748b',
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 22,
   },
 
   loading: {
-    paddingVertical: 60,
     alignItems: 'center',
+    paddingVertical: 60,
   },
 
   loadingText: {
+    color: '#64748b',
     marginTop: 12,
-    color: '#6b7280',
+    fontSize: 15,
   },
 
   emptyCard: {
     backgroundColor: 'white',
-    borderRadius: 20,
+    borderRadius: 18,
     padding: 30,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    marginTop: 12,
   },
 
   emptyIcon: {
-    fontSize: 36,
-    marginBottom: 12,
-  },
-
-  onTheWayBadge: {
-    backgroundColor: '#fff7ed',
-  },
-
-  onTheWayStatusText: {
-    color: '#ea580c',
+    fontSize: 42,
+    marginBottom: 14,
   },
 
   emptyTitle: {
+    color: '#0b1f3a',
     fontSize: 19,
     fontWeight: '800',
-    color: '#111827',
-    marginBottom: 7,
+    marginBottom: 8,
   },
 
   emptyText: {
-    color: '#6b7280',
-    textAlign: 'center',
+    color: '#64748b',
+    fontSize: 14,
     lineHeight: 21,
+    textAlign: 'center',
   },
 
   bookingCard: {
     backgroundColor: 'white',
     borderRadius: 18,
-    padding: 19,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    padding: 18,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    elevation: 2,
   },
 
   headerRow: {
@@ -832,45 +803,25 @@ const styles = StyleSheet.create({
 
   headerLeft: {
     flex: 1,
+    paddingRight: 10,
   },
 
   jobTitle: {
-    color: '#111827',
-    fontSize: 16,
+    color: '#0b1f3a',
+    fontSize: 18,
     fontWeight: '800',
-    marginBottom: 5,
   },
 
   bookingId: {
-    color: '#9ca3af',
+    color: '#94a3b8',
     fontSize: 12,
+    marginTop: 4,
   },
 
   statusBadge: {
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    marginLeft: 10,
-  },
-
-  pendingBadge: {
-    backgroundColor: '#fff7ed',
-  },
-
-  acceptedBadge: {
-    backgroundColor: '#e8f7f1',
-  },
-
-  declinedBadge: {
-    backgroundColor: '#fef2f2',
-  },
-
-  completedBadge: {
-    backgroundColor: '#eff6ff',
-  },
-
-  cancelledBadge: {
-    backgroundColor: '#f3f4f6',
   },
 
   statusText: {
@@ -878,29 +829,57 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
+  pendingBadge: {
+    backgroundColor: '#fef3c7',
+  },
+
   pendingStatusText: {
-    color: '#c2410c',
+    color: '#92400e',
+  },
+
+  acceptedBadge: {
+    backgroundColor: '#dcfce7',
   },
 
   acceptedStatusText: {
-    color: '#0f766e',
+    color: '#166534',
+  },
+
+  declinedBadge: {
+    backgroundColor: '#fee2e2',
   },
 
   declinedStatusText: {
-    color: '#dc2626',
+    color: '#991b1b',
+  },
+
+  completedBadge: {
+    backgroundColor: '#dbeafe',
   },
 
   completedStatusText: {
-    color: '#2563eb',
+    color: '#1e40af',
+  },
+
+  cancelledBadge: {
+    backgroundColor: '#e2e8f0',
   },
 
   cancelledStatusText: {
-    color: '#6b7280',
+    color: '#475569',
+  },
+
+  onTheWayBadge: {
+    backgroundColor: '#ede9fe',
+  },
+
+  onTheWayStatusText: {
+    color: '#6d28d9',
   },
 
   divider: {
     height: 1,
-    backgroundColor: '#eef0f2',
+    backgroundColor: '#e2e8f0',
     marginVertical: 15,
   },
 
@@ -908,16 +887,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 11,
+    marginBottom: 9,
   },
 
   label: {
-    color: '#6b7280',
+    color: '#64748b',
     fontSize: 13,
   },
 
   value: {
-    color: '#374151',
+    color: '#334155',
     fontSize: 13,
     fontWeight: '600',
     maxWidth: '65%',
@@ -931,41 +910,43 @@ const styles = StyleSheet.create({
   },
 
   created: {
-    color: '#9ca3af',
+    color: '#94a3b8',
     fontSize: 11,
-    marginTop: 8,
+    marginTop: 5,
+    marginBottom: 15,
   },
 
   actionRow: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 18,
   },
 
   declineButton: {
     flex: 1,
     minHeight: 48,
-    borderRadius: 13,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#fecaca',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    paddingHorizontal: 12,
   },
 
   declineText: {
-    color: '#dc2626',
+    color: '#b91c1c',
     fontSize: 14,
     fontWeight: '800',
   },
 
   acceptButton: {
-    flex: 1.5,
+    flex: 1,
     minHeight: 48,
-    borderRadius: 13,
+    borderRadius: 12,
     backgroundColor: '#0f766e',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 12,
+    marginTop: 4,
   },
 
   acceptText: {

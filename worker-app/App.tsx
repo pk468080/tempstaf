@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import {
   ActivityIndicator,
+  Alert,
   Text,
   TouchableOpacity,
   View,
@@ -77,8 +78,11 @@ export default function App() {
             return
           }
 
+          setLoggedIn(
+            Boolean(session)
+          )
+
           if (!session) {
-            setLoggedIn(false)
             setAuthScreen('login')
             setActiveTab('home')
             setShowEditProfile(false)
@@ -92,6 +96,197 @@ export default function App() {
       subscription.unsubscribe()
     }
   }, [])
+
+  /*
+   * ---------------------------------------------------------
+   * REALTIME WORKER BOOKING LISTENER
+   * ---------------------------------------------------------
+   *
+   * Watches bookings belonging to the currently logged-in
+   * worker.
+   *
+   * Important:
+   * This is only the notification layer.
+   * Authorization remains in Supabase RLS/RPC.
+   */
+  useEffect(() => {
+    if (!loggedIn) {
+      return
+    }
+
+    let mounted = true
+    let channel:
+      ReturnType<
+        typeof supabase.channel
+      > | null = null
+
+    const subscribeToWorkerBookings =
+      async () => {
+        const {
+          data: { user },
+        } =
+          await supabase.auth.getUser()
+
+        if (!mounted || !user) {
+          return
+        }
+
+        channel =
+          supabase
+            .channel(
+              `worker-bookings-${user.id}`
+            )
+            .on(
+              'postgres_changes',
+              {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'bookings',
+                filter:
+                  `worker_id=eq.${user.id}`,
+              },
+              payload => {
+                if (!mounted) {
+                  return
+                }
+
+                const booking =
+                  payload.new as {
+                    id?: string
+                    status?: string
+                    fulfillment_type?: string
+                    scheduled_start?: string
+                    total_amount?: number
+                  }
+
+                if (
+                  booking.status !==
+                  'assigned'
+                ) {
+                  return
+                }
+
+                const mode =
+                  booking.fulfillment_type ===
+                  'instant'
+                    ? 'Instant'
+                    : 'Scheduled'
+
+                Alert.alert(
+                  'New TempStaff booking',
+                  `${mode} booking assigned to you.\n\n` +
+                    `Booking #${(
+                      booking.id ??
+                      ''
+                    ).slice(0, 8)}`,
+                  [
+                    {
+                      text: 'View booking',
+                      onPress: () => {
+                        setActiveTab(
+                          'bookings'
+                        )
+                      },
+                    },
+                    {
+                      text: 'Later',
+                      style: 'cancel',
+                    },
+                  ]
+                )
+              }
+            )
+            .on(
+              'postgres_changes',
+              {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'bookings',
+                filter:
+                  `worker_id=eq.${user.id}`,
+              },
+              payload => {
+                if (!mounted) {
+                  return
+                }
+
+                const oldBooking =
+                  payload.old as {
+                    status?: string
+                  }
+
+                const booking =
+                  payload.new as {
+                    id?: string
+                    status?: string
+                  }
+
+                /*
+                 * Notify when admin assigns a worker
+                 * to an existing booking.
+                 */
+                if (
+                  booking.status ===
+                    'assigned' &&
+                  oldBooking.status !==
+                    'assigned'
+                ) {
+                  Alert.alert(
+                    'New booking assigned',
+                    `Booking #${(
+                      booking.id ??
+                      ''
+                    ).slice(0, 8)} has been assigned to you.`,
+                    [
+                      {
+                        text: 'View',
+                        onPress: () =>
+                          setActiveTab(
+                            'bookings'
+                          ),
+                      },
+                      {
+                        text: 'Later',
+                        style: 'cancel',
+                      },
+                    ]
+                  )
+                }
+              }
+            )
+            .subscribe(status => {
+              if (
+                status ===
+                'CHANNEL_ERROR'
+              ) {
+                console.warn(
+                  '[TempStaff Worker] Booking realtime channel error'
+                )
+              }
+
+              if (
+                status ===
+                'TIMED_OUT'
+              ) {
+                console.warn(
+                  '[TempStaff Worker] Booking realtime channel timed out'
+                )
+              }
+            })
+      }
+
+    subscribeToWorkerBookings()
+
+    return () => {
+      mounted = false
+
+      if (channel) {
+        supabase.removeChannel(
+          channel
+        )
+      }
+    }
+  }, [loggedIn])
 
   if (!sessionReady) {
     return (
@@ -240,10 +435,6 @@ export default function App() {
         )}
       </View>
 
-      {/* ---------------------------------------------------
-          WORKER FOOTER NAVIGATION
-          --------------------------------------------------- */}
-
       <View
         style={{
           height: 76,
@@ -252,7 +443,8 @@ export default function App() {
           borderTopColor: '#e5e7eb',
           flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'space-around',
+          justifyContent:
+            'space-around',
           paddingBottom: 8,
         }}
       >
@@ -311,12 +503,6 @@ export default function App() {
     </View>
   )
 }
-
-/*
- * ---------------------------------------------------------
- * FOOTER TAB BUTTON
- * ---------------------------------------------------------
- */
 
 function TabButton({
   label,
