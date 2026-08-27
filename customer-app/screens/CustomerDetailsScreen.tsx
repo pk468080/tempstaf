@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -12,7 +13,7 @@ import {
 } from 'react-native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 
-import { COLORS } from '../constants/theme'
+import { COLORS, LOGO } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import PrimaryButton from '../components/PrimaryButton'
 import { saveCustomerProfile } from '../services/customer'
@@ -27,19 +28,34 @@ export default function CustomerDetailsScreen({
 }: Props) {
   const [fullName, setFullName] = useState('')
   const [companyName, setCompanyName] = useState('')
+  const [focusedField, setFocusedField] =
+    useState<'name' | 'company' | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const canContinue =
-    fullName.trim().length >= 2 &&
-    companyName.trim().length >= 2 &&
-    !saving
+  const canContinue = useMemo(() => {
+    return (
+      fullName.trim().length >= 2 &&
+      companyName.trim().length >= 2 &&
+      !saving
+    )
+  }, [fullName, companyName, saving])
 
   const continueToHome = async () => {
-    if (!canContinue) {
+    const trimmedName = fullName.trim()
+    const trimmedCompany = companyName.trim()
+
+    if (
+      trimmedName.length < 2 ||
+      trimmedCompany.length < 2
+    ) {
       Alert.alert(
         'Complete your details',
-        'Please enter your name and company name.'
+        'Please enter your full name and company or business name.'
       )
+      return
+    }
+
+    if (saving) {
       return
     }
 
@@ -47,8 +63,8 @@ export default function CustomerDetailsScreen({
       setSaving(true)
 
       await saveCustomerProfile({
-        fullName,
-        companyName,
+        fullName: trimmedName,
+        companyName: trimmedCompany,
       })
 
       navigation.reset({
@@ -86,56 +102,117 @@ export default function CustomerDetailsScreen({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <Text style={styles.logoPlaceholder}>
-                Temp
-                <Text style={styles.logoTeal}>
-                  Staff
-                </Text>
-              </Text>
+          <View style={styles.top}>
+            <Image
+              source={LOGO}
+              style={styles.logo}
+              resizeMode="contain"
+              accessibilityLabel="TempStaff logo"
+            />
+
+            <View style={styles.progressRow}>
+              <View
+                style={[
+                  styles.progressStep,
+                  styles.progressActive,
+                ]}
+              />
+
+              <View style={styles.progressStep} />
+
+              <View style={styles.progressStep} />
             </View>
+
+            <Text style={styles.progressText}>
+              Almost there
+            </Text>
           </View>
 
-          <Text style={styles.title}>
-            Tell us about yourself
-          </Text>
+          <View style={styles.header}>
+            <Text style={styles.title}>
+              Tell us about yourself
+            </Text>
 
-          <Text style={styles.subtitle}>
-            We just need a few basic details to set up
-            your TempStaff account.
-          </Text>
+            <Text style={styles.subtitle}>
+              We just need a few details to set up your
+              TempStaff account.
+            </Text>
+          </View>
 
           <View style={styles.form}>
             <Text style={styles.label}>
               Full name
             </Text>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your name"
-              placeholderTextColor="#9CA3AF"
-              value={fullName}
-              onChangeText={setFullName}
-              autoCapitalize="words"
-              autoCorrect={false}
-              editable={!saving}
-            />
+            <View
+              style={[
+                styles.inputContainer,
+                focusedField === 'name' &&
+                  styles.inputFocused,
+              ]}
+            >
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your full name"
+                placeholderTextColor="#9CA3AF"
+                value={fullName}
+                onChangeText={setFullName}
+                autoCapitalize="words"
+                autoCorrect={false}
+                editable={!saving}
+                returnKeyType="next"
+                onFocus={() =>
+                  setFocusedField('name')
+                }
+                onBlur={() =>
+                  setFocusedField(null)
+                }
+              />
+            </View>
 
             <Text style={styles.label}>
               Company / Business name
             </Text>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Enter company or business name"
-              placeholderTextColor="#9CA3AF"
-              value={companyName}
-              onChangeText={setCompanyName}
-              autoCapitalize="words"
-              autoCorrect={false}
-              editable={!saving}
-            />
+            <View
+              style={[
+                styles.inputContainer,
+                focusedField === 'company' &&
+                  styles.inputFocused,
+              ]}
+            >
+              <TextInput
+                style={styles.input}
+                placeholder="Enter company or business name"
+                placeholderTextColor="#9CA3AF"
+                value={companyName}
+                onChangeText={setCompanyName}
+                autoCapitalize="words"
+                autoCorrect={false}
+                editable={!saving}
+                returnKeyType="done"
+                onFocus={() =>
+                  setFocusedField('company')
+                }
+                onBlur={() =>
+                  setFocusedField(null)
+                }
+                onSubmitEditing={continueToHome}
+              />
+            </View>
+          </View>
+
+          <View style={styles.infoBox}>
+            <View style={styles.infoIcon}>
+              <Text style={styles.infoIconText}>
+                i
+              </Text>
+            </View>
+
+            <Text style={styles.infoText}>
+              These details help us identify your account
+              when you make and manage bookings.
+            </Text>
           </View>
 
           <View style={styles.bottom}>
@@ -150,7 +227,7 @@ export default function CustomerDetailsScreen({
             />
 
             <Text style={styles.note}>
-              You can update these details later from
+              You can update your details later from
               your profile.
             </Text>
           </View>
@@ -172,72 +249,137 @@ const styles = StyleSheet.create({
 
   content: {
     flexGrow: 1,
-    padding: 28,
-    paddingTop: 35,
-    paddingBottom: 35,
+    paddingHorizontal: 28,
+    paddingTop: 28,
+    paddingBottom: 30,
+  },
+
+  top: {
+    alignItems: 'center',
+  },
+
+  logo: {
+    width: 82,
+    height: 82,
+    marginBottom: 18,
+  },
+
+  progressRow: {
+    width: 150,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  progressStep: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#DDE2E8',
+  },
+
+  progressActive: {
+    backgroundColor: COLORS.teal,
+  },
+
+  progressText: {
+    color: COLORS.gray,
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '700',
+    marginTop: 7,
+    letterSpacing: 0.5,
   },
 
   header: {
-    alignItems: 'center',
-    marginBottom: 38,
-  },
-
-  logoContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  logoPlaceholder: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: COLORS.navy,
-  },
-
-  logoTeal: {
-    color: COLORS.teal,
+    marginTop: 35,
   },
 
   title: {
     color: COLORS.navy,
     fontSize: 28,
-    lineHeight: 34,
+    lineHeight: 35,
     fontWeight: '800',
-    marginBottom: 10,
+    marginBottom: 9,
   },
 
   subtitle: {
     color: COLORS.gray,
     fontSize: 15,
     lineHeight: 22,
-    marginBottom: 30,
   },
 
   form: {
-    width: '100%',
+    marginTop: 32,
   },
 
   label: {
     color: COLORS.navy,
     fontSize: 14,
+    lineHeight: 20,
     fontWeight: '700',
     marginBottom: 8,
   },
 
-  input: {
+  inputContainer: {
     width: '100%',
     height: 56,
-    backgroundColor: 'white',
+    backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: '#D9DEE5',
     borderRadius: 14,
+    marginBottom: 21,
+  },
+
+  inputFocused: {
+    borderColor: COLORS.teal,
+  },
+
+  input: {
+    flex: 1,
     paddingHorizontal: 16,
+    paddingVertical: 0,
     color: COLORS.navy,
     fontSize: 16,
-    marginBottom: 22,
+    fontWeight: '500',
+  },
+
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F6F6',
+    borderRadius: 13,
+    paddingVertical: 12,
+    paddingHorizontal: 13,
+    marginTop: 2,
+  },
+
+  infoIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: COLORS.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+  },
+
+  infoIconText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  infoText: {
+    flex: 1,
+    color: COLORS.navy,
+    fontSize: 11,
+    lineHeight: 16,
   },
 
   bottom: {
     marginTop: 'auto',
+    paddingTop: 30,
   },
 
   note: {
@@ -245,6 +387,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 17,
     textAlign: 'center',
-    marginTop: 14,
+    marginTop: 13,
+    paddingHorizontal: 10,
   },
 })

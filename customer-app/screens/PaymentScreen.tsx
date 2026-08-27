@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -23,12 +22,6 @@ type Props = NativeStackScreenProps<
   'Payment'
 >
 
-type AvailableSlot = {
-  slot_start: string
-  slot_end: string
-  worker_count: number
-}
-
 export default function PaymentScreen({
   navigation,
 }: Props) {
@@ -37,68 +30,22 @@ export default function PaymentScreen({
     selectedService,
     selectedPackage,
     address,
-    addressId,
     setBookingMode,
-    setScheduledDate,
     setSelectedWorker,
   } = useBooking()
 
   const [checking, setChecking] = useState(true)
-  const [availableNow, setAvailableNow] = useState(false)
-  const [slots, setSlots] = useState<AvailableSlot[]>([])
-  const [selectedSlot, setSelectedSlot] =
-    useState<AvailableSlot | null>(null)
+  const [available, setAvailable] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     checkAvailability()
-  }, [
-    selectedServiceId,
-    selectedPackage?.id,
-    addressId,
-  ])
+  }, [])
 
-  function getDurationMinutes() {
-    const value = Number(
-      selectedPackage?.duration_value ?? 1
-    )
-
-    switch (
-      String(
-        selectedPackage?.duration_unit ?? 'hour'
-      ).toLowerCase()
-    ) {
-      case 'minute':
-      case 'minutes':
-        return Math.max(value, 30)
-
-      case 'day':
-      case 'days':
-        return Math.max(value * 8 * 60, 30)
-
-      case 'week':
-      case 'weeks':
-        return Math.max(value * 5 * 8 * 60, 30)
-
-      case 'month':
-      case 'months':
-        return Math.max(value * 22 * 8 * 60, 30)
-
-      case 'hour':
-      case 'hours':
-      default:
-        return Math.max(value * 60, 30)
-    }
-  }
-
-  async function checkAvailability() {
+  const checkAvailability = async () => {
     try {
       setChecking(true)
       setError('')
-      setAvailableNow(false)
-      setSlots([])
-      setSelectedSlot(null)
-      setSelectedWorker(null)
 
       if (!selectedServiceId) {
         throw new Error(
@@ -106,157 +53,120 @@ export default function PaymentScreen({
         )
       }
 
-      if (!addressId) {
+      if (!address) {
         throw new Error(
           'Service address is missing.'
         )
       }
 
-      if (!selectedPackage) {
-        throw new Error(
-          'Selected service package is missing.'
+      const {
+        data: serviceWorkers,
+        error: serviceWorkerError,
+      } = await supabase
+        .from('worker_services')
+        .select('worker_id')
+        .eq(
+          'service_id',
+          selectedServiceId
         )
-      }
 
-      /*
-       * Pre-booking availability check.
-       *
-       * The current database RPC
-       * get_eligible_workers() requires a booking ID,
-       * so it cannot be called before a booking exists.
-       *
-       * We therefore check service + current worker
-       * availability here, then use the database slot
-       * function for fallback scheduling.
-       */
-
-      const now = new Date()
-      const nowIso = now.toISOString()
-
-      const serviceWorkersResult =
-        await supabase
-          .from('worker_services')
-          .select('worker_id')
-          .eq(
-            'service_id',
-            selectedServiceId
-          )
-
-      if (serviceWorkersResult.error) {
-        throw serviceWorkersResult.error
+      if (serviceWorkerError) {
+        throw serviceWorkerError
       }
 
       const workerIds =
-        (serviceWorkersResult.data ?? []).map(
-          row => row.worker_id
+        (serviceWorkers ?? []).map(
+          item => item.worker_id
         )
 
       if (workerIds.length === 0) {
-        await loadNextAvailableSlots()
+        setAvailable(false)
         return
       }
 
-      const durationMinutes =
-        getDurationMinutes()
+      const now =
+        new Date().toISOString()
 
-      const requiredEnd = new Date(
-        now.getTime() +
-          durationMinutes * 60 * 1000
-      ).toISOString()
-
-      const availabilityResult =
-        await supabase
-          .from('worker_availability')
-          .select(
-            `
-              worker_id,
-              available_from,
-              available_until,
-              is_available
-            `
-          )
-          .in(
-            'worker_id',
-            workerIds
-          )
-          .eq(
-            'is_available',
-            true
-          )
-          .lte(
-            'available_from',
-            nowIso
-          )
-          .gte(
-            'available_until',
-            requiredEnd
-          )
-
-      if (availabilityResult.error) {
-        throw availabilityResult.error
-      }
-
-      const availableIds =
-        (
-          availabilityResult.data ?? []
-        ).map(
-          row => row.worker_id
+      const {
+        data: availabilityRows,
+        error: availabilityError,
+      } = await supabase
+        .from('worker_availability')
+        .select(
+          'worker_id, available_from, available_until, is_available'
+        )
+        .in(
+          'worker_id',
+          workerIds
+        )
+        .eq(
+          'is_available',
+          true
+        )
+        .lte(
+          'available_from',
+          now
+        )
+        .gte(
+          'available_until',
+          now
         )
 
-      if (availableIds.length === 0) {
-        await loadNextAvailableSlots()
+      if (availabilityError) {
+        throw availabilityError
+      }
+
+      const currentlyAvailableIds =
+        (availabilityRows ?? []).map(
+          item => item.worker_id
+        )
+
+      if (
+        currentlyAvailableIds.length === 0
+      ) {
+        setAvailable(false)
         return
       }
 
-      const workerProfileResult =
-        await supabase
-          .from('worker_profiles')
-          .select(
-            `
-              id,
-              worker_status,
-              is_verified,
-              rating
-            `
-          )
-          .in(
-            'id',
-            availableIds
-          )
-          .eq(
-            'is_verified',
-            true
-          )
-          .eq(
-            'worker_status',
-            'available'
-          )
+      const {
+        data: workers,
+        error: workersError,
+      } = await supabase
+        .from('worker_profiles')
+        .select(
+          'id, worker_status, is_verified, rating, service_radius_km'
+        )
+        .in(
+          'id',
+          currentlyAvailableIds
+        )
+        .eq(
+          'is_verified',
+          true
+        )
 
-      if (workerProfileResult.error) {
-        throw workerProfileResult.error
+      if (workersError) {
+        throw workersError
       }
 
       const validWorkers =
-        workerProfileResult.data ?? []
+        workers ?? []
 
-      if (validWorkers.length === 0) {
-        await loadNextAvailableSlots()
+      if (
+        validWorkers.length === 0
+      ) {
+        setAvailable(false)
         return
       }
 
-      /*
-       * A worker is available now.
-       *
-       * Customer does not select the worker.
-       * We only carry the system decision forward.
-       */
       const worker =
         validWorkers[0]
 
       setSelectedWorker({
         id: worker.id,
         name: 'TempStaff Worker',
-        service: selectedService,
+        service:
+          selectedService,
         rating: Number(
           worker.rating ?? 0
         ),
@@ -264,8 +174,7 @@ export default function PaymentScreen({
         distance: 'Nearby',
       })
 
-      setBookingMode('Instant')
-      setAvailableNow(true)
+      setAvailable(true)
     } catch (err: any) {
       console.error(
         '[TempStaff] Availability check failed:',
@@ -273,7 +182,7 @@ export default function PaymentScreen({
       )
 
       setError(
-        err?.message ??
+        err?.message ||
           'We could not check worker availability.'
       )
     } finally {
@@ -281,161 +190,132 @@ export default function PaymentScreen({
     }
   }
 
-  async function loadNextAvailableSlots() {
-    if (!selectedServiceId) {
-      return
-    }
-
-    if (!addressId) {
-      return
-    }
-
-    const durationMinutes =
-      getDurationMinutes()
-
-    const {
-      data,
-      error: rpcError,
-    } = await supabase.rpc(
-      'get_next_available_worker_slots',
-      {
-        p_service_id:
-          selectedServiceId,
-        p_address_id:
-          addressId,
-        p_duration_minutes:
-          durationMinutes,
-        p_from:
-          new Date().toISOString(),
-        p_days: 3,
-      }
-    )
-
-    if (rpcError) {
-      throw rpcError
-    }
-
-    setAvailableNow(false)
-    setSlots(
-      (data ?? []) as AvailableSlot[]
-    )
-  }
-
-  function continueInstant() {
+  const chooseInstant = () => {
     setBookingMode('Instant')
-    setScheduledDate(
-      new Date().toISOString()
-    )
-
     navigation.navigate('Checkout')
   }
 
-  function chooseSlot(
-    slot: AvailableSlot
-  ) {
-    setSelectedSlot(slot)
-  }
-
-  function continueScheduled() {
-    if (!selectedSlot) {
-      Alert.alert(
-        'Select a time',
-        'Please choose an available time before continuing.'
-      )
-
-      return
-    }
-
+  const chooseScheduled = () => {
     setBookingMode('Scheduled')
-    setScheduledDate(
-      selectedSlot.slot_start
-    )
-
-    navigation.navigate('Checkout')
-  }
-
-  function formatDate(
-    value: string
-  ) {
-    const date = new Date(value)
-
-    if (
-      Number.isNaN(
-        date.getTime()
-      )
-    ) {
-      return 'Available'
-    }
-
-    return date.toLocaleDateString(
-      'en-IN',
-      {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-      }
-    )
-  }
-
-  function formatTime(
-    value: string
-  ) {
-    const date = new Date(value)
-
-    if (
-      Number.isNaN(
-        date.getTime()
-      )
-    ) {
-      return ''
-    }
-
-    return date.toLocaleTimeString(
-      'en-IN',
-      {
-        hour: 'numeric',
-        minute: '2-digit',
-      }
-    )
+    navigation.navigate('Schedule')
   }
 
   return (
     <SafeAreaView
       style={styles.container}
     >
-      <View style={styles.page}>
+      <ScrollView
+        contentContainerStyle={styles.page}
+        showsVerticalScrollIndicator={
+          false
+        }
+      >
         <Header
           onBack={() =>
             navigation.goBack()
           }
         />
 
-        <ScrollView
-          contentContainerStyle={
-            styles.scrollContent
-          }
-          showsVerticalScrollIndicator={
-            false
+        {/* Progress */}
+        <View
+          style={
+            styles.progressContainer
           }
         >
-          {checking ? (
-            <View style={styles.content}>
-              <View
-                style={
-                  styles.loaderCircle
-                }
-              >
-                <ActivityIndicator
-                  size="large"
-                  color={
-                    COLORS.teal
-                  }
-                />
-              </View>
+          <View
+            style={styles.progressTrack}
+          >
+            <View
+              style={styles.progressFill}
+            />
+          </View>
 
+          <Text
+            style={styles.progressText}
+          >
+            STEP 4 OF 4 · BOOKING TIME
+          </Text>
+        </View>
+
+        {/* Heading */}
+        <View
+          style={styles.heading}
+        >
+          <Text style={styles.title}>
+            When do you need the staff?
+          </Text>
+
+          <Text
+            style={styles.subtitle}
+          >
+            Choose an instant booking if you need
+            staff now, or schedule the service for
+            a future time.
+          </Text>
+        </View>
+
+        {/* Booking summary */}
+        <View
+          style={styles.summaryCard}
+        >
+          <Text
+            style={styles.summaryLabel}
+          >
+            YOUR BOOKING
+          </Text>
+
+          <Text
+            style={styles.summaryService}
+          >
+            {selectedService ||
+              'Staff service'}
+          </Text>
+
+          <Text
+            style={styles.summaryPackage}
+          >
+            {selectedPackage?.name ||
+              'Staffing package'}
+          </Text>
+
+          <View
+            style={styles.summaryDivider}
+          />
+
+          <Text
+            style={styles.addressLabel}
+          >
+            SERVICE LOCATION
+          </Text>
+
+          <Text
+            style={styles.address}
+            numberOfLines={3}
+          >
+            {address ||
+              'Service address'}
+          </Text>
+        </View>
+
+        {checking ? (
+          <View
+            style={styles.checkingCard}
+          >
+            <View
+              style={styles.loaderCircle}
+            >
+              <ActivityIndicator
+                size="small"
+                color={COLORS.teal}
+              />
+            </View>
+
+            <View
+              style={styles.checkingContent}
+            >
               <Text
                 style={
-                  styles.title
+                  styles.checkingTitle
                 }
               >
                 Checking availability
@@ -443,397 +323,361 @@ export default function PaymentScreen({
 
               <Text
                 style={
-                  styles.subtitle
+                  styles.checkingText
                 }
               >
-                We're checking whether TempStaff
-                can fulfil your request right now.
+                We're checking for verified
+                TempStaff workers available
+                for your service.
+              </Text>
+            </View>
+          </View>
+        ) : error ? (
+          <View
+            style={styles.errorCard}
+          >
+            <View
+              style={styles.errorIcon}
+            >
+              <Text
+                style={
+                  styles.errorIconText
+                }
+              >
+                !
+              </Text>
+            </View>
+
+            <Text
+              style={styles.errorTitle}
+            >
+              Availability check failed
+            </Text>
+
+            <Text
+              style={styles.errorText}
+            >
+              {error}
+            </Text>
+
+            <TouchableOpacity
+              style={
+                styles.retryButton
+              }
+              onPress={
+                checkAvailability
+              }
+              activeOpacity={0.85}
+            >
+              <Text
+                style={styles.retryText}
+              >
+                Try Again
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* Instant */}
+            <View
+              style={
+                styles.optionHeader
+              }
+            >
+              <Text
+                style={
+                  styles.optionSectionTitle
+                }
+              >
+                Booking options
               </Text>
 
-              <SummaryCard
-                service={
-                  selectedService
-                }
-                packageName={
-                  selectedPackage?.name
-                }
-                address={
-                  address
-                }
-              />
-            </View>
-          ) : error ? (
-            <View style={styles.content}>
-              <View
-                style={
-                  styles.errorCircle
-                }
-              >
-                <Text
+              {available ? (
+                <View
                   style={
-                    styles.errorIcon
+                    styles.availableBadge
                   }
                 >
-                  !
+                  <View
+                    style={
+                      styles.availableDot
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.availableText
+                    }
+                  >
+                    STAFF AVAILABLE
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.optionCard,
+                available &&
+                  styles.optionCardRecommended,
+              ]}
+              onPress={
+                available
+                  ? chooseInstant
+                  : undefined
+              }
+              disabled={!available}
+              activeOpacity={0.88}
+            >
+              <View
+                style={[
+                  styles.optionIcon,
+                  available &&
+                    styles.optionIconRecommended,
+                ]}
+              >
+                <Text
+                  style={styles.optionEmoji}
+                >
+                  ⚡
                 </Text>
               </View>
 
-              <Text
-                style={
-                  styles.title
-                }
-              >
-                Unable to check
-              </Text>
-
-              <Text
-                style={
-                  styles.subtitle
-                }
-              >
-                {error}
-              </Text>
-
-              <PrimaryButton
-                title="Try Again"
-                onPress={
-                  checkAvailability
-                }
-              />
-            </View>
-          ) : availableNow ? (
-            <View style={styles.content}>
               <View
                 style={
-                  styles.successCircle
+                  styles.optionContent
                 }
               >
-                <Text
+                <View
                   style={
-                    styles.successIcon
+                    styles.optionTitleRow
                   }
                 >
-                  ✓
+                  <Text
+                    style={[
+                      styles.optionTitle,
+                      available &&
+                        styles.optionTitleRecommended,
+                    ]}
+                  >
+                    Instant
+                  </Text>
+
+                  {available ? (
+                    <View
+                      style={
+                        styles.recommendedBadge
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.recommendedText
+                        }
+                      >
+                        AVAILABLE NOW
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <Text
+                  style={
+                    styles.optionDescription
+                  }
+                >
+                  {available
+                    ? 'Book now and TempStaff will assign an available worker.'
+                    : 'No suitable worker is currently available for instant booking.'}
                 </Text>
+
+                {available ? (
+                  <Text
+                    style={
+                      styles.optionAction
+                    }
+                  >
+                    Continue with Instant →
+                  </Text>
+                ) : null}
               </View>
+            </TouchableOpacity>
 
-              <Text
-                style={
-                  styles.title
-                }
-              >
-                Staff available now
-              </Text>
-
-              <Text
-                style={
-                  styles.subtitle
-                }
-              >
-                A verified TempStaff worker is
-                available for this service now.
-              </Text>
-
+            {/* Scheduled */}
+            <TouchableOpacity
+              style={styles.optionCard}
+              onPress={
+                chooseScheduled
+              }
+              activeOpacity={0.88}
+            >
               <View
-                style={
-                  styles.instantCard
-                }
+                style={styles.optionIcon}
               >
                 <Text
-                  style={
-                    styles.instantTitle
-                  }
-                >
-                  Instant booking
-                </Text>
-
-                <Text
-                  style={
-                    styles.instantText
-                  }
-                >
-                  Continue to checkout. TempStaff
-                  will handle the worker assignment.
-                </Text>
-              </View>
-
-              <SummaryCard
-                service={
-                  selectedService
-                }
-                packageName={
-                  selectedPackage?.name
-                }
-                address={
-                  address
-                }
-              />
-
-              <PrimaryButton
-                title="Continue"
-                onPress={
-                  continueInstant
-                }
-              />
-
-              <Text
-                style={
-                  styles.smallNote
-                }
-              >
-                You do not choose the worker.
-                TempStaff assigns the worker.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.content}>
-              <View
-                style={
-                  styles.scheduleCircle
-                }
-              >
-                <Text
-                  style={
-                    styles.scheduleIcon
-                  }
+                  style={styles.optionEmoji}
                 >
                   📅
                 </Text>
               </View>
 
-              <Text
+              <View
                 style={
-                  styles.title
+                  styles.optionContent
                 }
               >
-                No worker available now
-              </Text>
+                <Text
+                  style={styles.optionTitle}
+                >
+                  Schedule
+                </Text>
 
-              <Text
+                <Text
+                  style={
+                    styles.optionDescription
+                  }
+                >
+                  Choose a future date and time.
+                  TempStaff will arrange the worker
+                  for your booking.
+                </Text>
+
+                <Text
+                  style={
+                    styles.optionAction
+                  }
+                >
+                  Choose date & time →
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Recurring */}
+            <View
+              style={
+                styles.recurringCard
+              }
+            >
+              <View
                 style={
-                  styles.subtitle
+                  styles.recurringTop
                 }
               >
-                Choose the next available time and
-                we'll create a scheduled booking.
-              </Text>
-
-              <SummaryCard
-                service={
-                  selectedService
-                }
-                packageName={
-                  selectedPackage?.name
-                }
-                address={
-                  address
-                }
-              />
-
-              {slots.length > 0 ? (
                 <View
                   style={
-                    styles.slotsContainer
+                    styles.recurringIcon
                   }
                 >
                   <Text
                     style={
-                      styles.slotsTitle
+                      styles.recurringEmoji
                     }
                   >
-                    Next available times
+                    🔁
                   </Text>
-
-                  {slots.map(
-                    (slot) => {
-                      const isSelected =
-                        selectedSlot?.slot_start ===
-                        slot.slot_start
-
-                      return (
-                        <TouchableOpacity
-                          key={
-                            slot.slot_start
-                          }
-                          activeOpacity={
-                            0.8
-                          }
-                          onPress={() =>
-                            chooseSlot(
-                              slot
-                            )
-                          }
-                          style={[
-                            styles.slotCard,
-                            isSelected &&
-                              styles.slotCardSelected,
-                          ]}
-                        >
-                          <View
-                            style={
-                              styles.slotInfo
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.slotDate
-                              }
-                            >
-                              {formatDate(
-                                slot.slot_start
-                              )}
-                            </Text>
-
-                            <Text
-                              style={
-                                styles.slotTime
-                              }
-                            >
-                              {formatTime(
-                                slot.slot_start
-                              )}
-                            </Text>
-                          </View>
-
-                          <View
-                            style={
-                              styles.slotRight
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.workerCount
-                              }
-                            >
-                              {slot.worker_count}{' '}
-                              {slot.worker_count ===
-                              1
-                                ? 'worker'
-                                : 'workers'}
-                            </Text>
-
-                            <View
-                              style={[
-                                styles.radio,
-                                isSelected &&
-                                  styles.radioSelected,
-                              ]}
-                            >
-                              {isSelected && (
-                                <View
-                                  style={
-                                    styles.radioDot
-                                  }
-                                />
-                              )}
-                            </View>
-                          </View>
-                        </TouchableOpacity>
-                      )
-                    }
-                  )}
                 </View>
-              ) : (
+
                 <View
                   style={
-                    styles.noSlotsCard
+                    styles.recurringContent
                   }
                 >
-                  <Text
+                  <View
                     style={
-                      styles.noSlotsTitle
+                      styles.recurringTitleRow
                     }
                   >
-                    No upcoming slots found
-                  </Text>
+                    <Text
+                      style={
+                        styles.recurringTitle
+                      }
+                    >
+                      Recurring
+                    </Text>
+
+                    <View
+                      style={
+                        styles.comingBadge
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.comingText
+                        }
+                      >
+                        COMING SOON
+                      </Text>
+                    </View>
+                  </View>
 
                   <Text
                     style={
-                      styles.noSlotsText
+                      styles.recurringText
                     }
                   >
-                    No matching worker availability
-                    was found in the next three days.
+                    Set up regular staffing for
+                    repeated dates. This feature will
+                    be enabled in a later release.
                   </Text>
                 </View>
-              )}
-
-              {selectedSlot && (
-                <PrimaryButton
-                  title="Continue with selected time"
-                  onPress={
-                    continueScheduled
-                  }
-                />
-              )}
-
-              <Text
-                style={
-                  styles.smallNote
-                }
-              >
-                Future bookings go to the TempStaff
-                admin team for worker assignment.
-              </Text>
+              </View>
             </View>
-          )}
-        </ScrollView>
-      </View>
+          </>
+        )}
+
+        {/* Assignment note */}
+        <View
+          style={styles.infoCard}
+        >
+          <View
+            style={styles.infoIcon}
+          >
+            <Text
+              style={styles.infoIconText}
+            >
+              ✓
+            </Text>
+          </View>
+
+          <View
+            style={styles.infoContent}
+          >
+            <Text
+              style={styles.infoTitle}
+            >
+              TempStaff assigns the worker
+            </Text>
+
+            <Text
+              style={styles.infoText}
+            >
+              Customers don't select individual
+              workers. Our system handles worker
+              assignment based on availability.
+            </Text>
+          </View>
+        </View>
+
+        {/* Payment placeholder */}
+        <View
+          style={styles.paymentNotice}
+        >
+          <Text
+            style={styles.paymentNoticeTitle}
+          >
+            Payment
+          </Text>
+
+          <Text
+            style={styles.paymentNoticeText}
+          >
+            Real payment processing is not enabled
+            yet. The checkout step is currently kept
+            separate so it can be connected when
+            payment integration is ready.
+          </Text>
+        </View>
+      </ScrollView>
     </SafeAreaView>
-  )
-}
-
-function SummaryCard({
-  service,
-  packageName,
-  address,
-}: {
-  service: string
-  packageName?: string
-  address?: string
-}) {
-  return (
-    <View
-      style={
-        styles.summaryCard
-      }
-    >
-      <Text
-        style={
-          styles.summaryLabel
-        }
-      >
-        YOUR BOOKING
-      </Text>
-
-      <Text
-        style={
-          styles.summaryService
-        }
-      >
-        {service}
-      </Text>
-
-      {packageName ? (
-        <Text
-          style={
-            styles.summaryPackage
-          }
-        >
-          {packageName}
-        </Text>
-      ) : null}
-
-      {address ? (
-        <Text
-          style={
-            styles.address
-          }
-        >
-          {address}
-        </Text>
-      ) : null}
-    </View>
   )
 }
 
@@ -844,258 +688,446 @@ const styles = StyleSheet.create({
   },
 
   page: {
-    flex: 1,
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 45,
   },
 
-  scrollContent: {
-    paddingBottom: 40,
+  progressContainer: {
+    marginTop: 5,
+    marginBottom: 20,
   },
 
-  content: {
-    alignItems: 'center',
-    paddingTop: 35,
-    paddingBottom: 30,
+  progressTrack: {
+    height: 4,
+    width: '100%',
+    backgroundColor: '#DDE3E9',
+    borderRadius: 3,
+    overflow: 'hidden',
   },
 
-  loaderCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#E8F8F7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 25,
+  progressFill: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: COLORS.teal,
+    borderRadius: 3,
   },
 
-  successCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#E7F8EF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 25,
+  progressText: {
+    color: COLORS.gray,
+    fontSize: 9,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+    marginTop: 7,
   },
 
-  errorCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#FDECEC',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 25,
-  },
-
-  scheduleCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#FFF1DD',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 25,
-  },
-
-  successIcon: {
-    color: COLORS.teal,
-    fontSize: 45,
-    fontWeight: '900',
-  },
-
-  errorIcon: {
-    color: '#D64545',
-    fontSize: 45,
-    fontWeight: '900',
-  },
-
-  scheduleIcon: {
-    fontSize: 38,
+  heading: {
+    marginBottom: 18,
   },
 
   title: {
     color: COLORS.navy,
     fontSize: 28,
-    fontWeight: '900',
-    textAlign: 'center',
-    marginBottom: 10,
+    lineHeight: 35,
+    fontWeight: '800',
   },
 
   subtitle: {
     color: COLORS.gray,
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-    maxWidth: 350,
-    marginBottom: 24,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 7,
   },
 
   summaryCard: {
-    width: '100%',
-    backgroundColor: 'white',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 18,
+    backgroundColor: COLORS.navy,
+    borderRadius: 20,
+    padding: 17,
     marginBottom: 16,
   },
 
   summaryLabel: {
-    color: COLORS.gray,
-    fontSize: 10,
+    color: '#B9C9D8',
+    fontSize: 9,
     fontWeight: '900',
-    letterSpacing: 1,
-    marginBottom: 7,
+    letterSpacing: 0.8,
   },
 
   summaryService: {
-    color: COLORS.navy,
-    fontSize: 20,
+    color: COLORS.white,
+    fontSize: 19,
+    lineHeight: 25,
     fontWeight: '900',
+    marginTop: 5,
   },
 
   summaryPackage: {
-    color: COLORS.teal,
-    fontSize: 14,
+    color: '#9FE0DE',
+    fontSize: 12,
+    lineHeight: 17,
     fontWeight: '700',
-    marginTop: 4,
+    marginTop: 2,
+  },
+
+  summaryDivider: {
+    height: 1,
+    backgroundColor:
+      'rgba(255,255,255,0.14)',
+    marginVertical: 13,
+  },
+
+  addressLabel: {
+    color: '#B9C9D8',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
 
   address: {
-    color: COLORS.gray,
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 10,
+    color: COLORS.white,
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 4,
   },
 
-  instantCard: {
-    width: '100%',
-    backgroundColor: '#E8F8F7',
-    borderRadius: 18,
-    padding: 17,
-    marginBottom: 15,
-  },
-
-  instantTitle: {
-    color: COLORS.teal,
-    fontSize: 16,
-    fontWeight: '900',
-    marginBottom: 6,
-  },
-
-  instantText: {
-    color: COLORS.navy,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-
-  slotsContainer: {
-    width: '100%',
-    marginBottom: 18,
-  },
-
-  slotsTitle: {
-    color: COLORS.navy,
-    fontSize: 17,
-    fontWeight: '900',
-    marginBottom: 10,
-  },
-
-  slotCard: {
-    width: '100%',
-    backgroundColor: 'white',
-    borderRadius: 16,
+  checkingCard: {
+    backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 15,
-    marginBottom: 10,
+    borderRadius: 18,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
 
-  slotCardSelected: {
-    borderColor: COLORS.teal,
-    borderWidth: 2,
+  loaderCircle: {
+    width: 45,
+    height: 45,
+    borderRadius: 23,
+    backgroundColor: '#E8F6F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
 
-  slotInfo: {
+  checkingContent: {
     flex: 1,
   },
 
-  slotDate: {
+  checkingTitle: {
     color: COLORS.navy,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
   },
 
-  slotTime: {
-    color: COLORS.teal,
-    fontSize: 18,
-    fontWeight: '900',
+  checkingText: {
+    color: COLORS.gray,
+    fontSize: 10.5,
+    lineHeight: 16,
     marginTop: 3,
   },
 
-  slotRight: {
-    flexDirection: 'row',
+  errorCard: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: '#F0D4D4',
+    borderRadius: 18,
+    padding: 19,
     alignItems: 'center',
   },
 
-  workerCount: {
-    color: COLORS.gray,
-    fontSize: 11,
-    marginRight: 10,
-  },
-
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: COLORS.border,
+  errorIcon: {
+    width: 45,
+    height: 45,
+    borderRadius: 23,
+    backgroundColor: '#FDECEC',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 11,
   },
 
-  radioSelected: {
-    borderColor: COLORS.teal,
-  },
-
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: COLORS.teal,
-  },
-
-  noSlotsCard: {
-    width: '100%',
-    backgroundColor: '#FFF7EA',
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 20,
-  },
-
-  noSlotsTitle: {
-    color: COLORS.navy,
-    fontSize: 16,
+  errorIconText: {
+    color: '#D64545',
+    fontSize: 21,
     fontWeight: '900',
-    marginBottom: 6,
   },
 
-  noSlotsText: {
-    color: COLORS.gray,
-    fontSize: 13,
-    lineHeight: 19,
+  errorTitle: {
+    color: COLORS.navy,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
   },
 
-  smallNote: {
+  errorText: {
     color: COLORS.gray,
     fontSize: 11,
     lineHeight: 17,
     textAlign: 'center',
+    marginTop: 5,
+  },
+
+  retryButton: {
+    backgroundColor: COLORS.orange,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     marginTop: 14,
-    marginBottom: 10,
+  },
+
+  retryText: {
+    color: COLORS.white,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  optionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 11,
+  },
+
+  optionSectionTitle: {
+    color: COLORS.navy,
+    fontSize: 19,
+    lineHeight: 25,
+    fontWeight: '800',
+  },
+
+  availableBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E7F8EF',
+    borderRadius: 15,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+
+  availableDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.teal,
+    marginRight: 5,
+  },
+
+  availableText: {
+    color: COLORS.teal,
+    fontSize: 7,
+    fontWeight: '900',
+  },
+
+  optionCard: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 11,
+  },
+
+  optionCardRecommended: {
+    borderColor: COLORS.orange,
+    borderWidth: 1.5,
+  },
+
+  optionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    backgroundColor: '#F2F6F8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  optionIconRecommended: {
+    backgroundColor: '#FFF1DD',
+  },
+
+  optionEmoji: {
+    fontSize: 24,
+  },
+
+  optionContent: {
+    flex: 1,
+  },
+
+  optionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+
+  optionTitle: {
+    color: COLORS.navy,
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: '900',
+  },
+
+  optionTitleRecommended: {
+    color: COLORS.orange,
+  },
+
+  recommendedBadge: {
+    backgroundColor: '#FFF1DD',
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    marginLeft: 7,
+  },
+
+  recommendedText: {
+    color: COLORS.orange,
+    fontSize: 6.5,
+    fontWeight: '900',
+  },
+
+  optionDescription: {
+    color: COLORS.gray,
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+
+  optionAction: {
+    color: COLORS.teal,
+    fontSize: 10.5,
+    lineHeight: 16,
+    fontWeight: '800',
+    marginTop: 7,
+  },
+
+  recurringCard: {
+    backgroundColor: '#F5F7F9',
+    borderWidth: 1,
+    borderColor: '#E2E7EC',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 11,
+  },
+
+  recurringTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+
+  recurringIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    backgroundColor: '#E8EDF1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  recurringEmoji: {
+    fontSize: 22,
+  },
+
+  recurringContent: {
+    flex: 1,
+  },
+
+  recurringTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+
+  recurringTitle: {
+    color: COLORS.navy,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  comingBadge: {
+    backgroundColor: '#E3E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    marginLeft: 7,
+  },
+
+  comingText: {
+    color: COLORS.gray,
+    fontSize: 6.5,
+    fontWeight: '900',
+  },
+
+  recurringText: {
+    color: COLORS.gray,
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+
+  infoCard: {
+    backgroundColor: '#E8F6F6',
+    borderRadius: 17,
+    padding: 14,
+    marginTop: 5,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+
+  infoIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: COLORS.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  infoIconText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  infoContent: {
+    flex: 1,
+  },
+
+  infoTitle: {
+    color: COLORS.navy,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '800',
+  },
+
+  infoText: {
+    color: COLORS.gray,
+    fontSize: 10.5,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+
+  paymentNotice: {
+    backgroundColor: '#FFF7EA',
+    borderRadius: 17,
+    padding: 14,
+    marginTop: 12,
+  },
+
+  paymentNoticeTitle: {
+    color: COLORS.orange,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  paymentNoticeText: {
+    color: COLORS.gray,
+    fontSize: 10.5,
+    lineHeight: 16,
+    marginTop: 3,
   },
 })

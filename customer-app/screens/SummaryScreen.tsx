@@ -3,6 +3,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
@@ -18,6 +19,50 @@ type Props = NativeStackScreenProps<
   'Summary'
 >
 
+const formatPrice = (price: number) =>
+  `₹${price.toLocaleString('en-IN')}`
+
+const iconForService = (service: string) => {
+  const name = service.toLowerCase()
+
+  if (
+    name.includes('clean') ||
+    name.includes('housekeeping')
+  ) {
+    return '🧹'
+  }
+
+  if (
+    name.includes('pantry') ||
+    name.includes('kitchen')
+  ) {
+    return '🍽️'
+  }
+
+  if (
+    name.includes('security') ||
+    name.includes('guard')
+  ) {
+    return '🛡️'
+  }
+
+  if (
+    name.includes('driver') ||
+    name.includes('delivery')
+  ) {
+    return '🚗'
+  }
+
+  if (
+    name.includes('office') ||
+    name.includes('admin')
+  ) {
+    return '💼'
+  }
+
+  return '👷'
+}
+
 export default function SummaryScreen({
   navigation,
 }: Props) {
@@ -29,8 +74,28 @@ export default function SummaryScreen({
   } = useBooking()
 
   const continueToAddress = () => {
+    if (!selectedPackage) {
+      return
+    }
+
     navigation.navigate('Location')
   }
+
+  const editSelection = () => {
+    navigation.goBack()
+  }
+
+  const serviceName =
+    selectedService || 'Staff service'
+
+  const packageName =
+    selectedPackage?.name ||
+    selectedDuration ||
+    'Staffing package'
+
+  const durationText = selectedPackage
+    ? `${selectedPackage.duration_value} ${selectedPackage.duration_unit}`
+    : 'Not selected'
 
   return (
     <SafeAreaView style={styles.container}>
@@ -42,122 +107,241 @@ export default function SummaryScreen({
           onBack={() => navigation.goBack()}
         />
 
-        <Text style={styles.title}>
-          Your booking
-        </Text>
-
-        <Text style={styles.subtitle}>
-          Review your selected service before
-          continuing.
-        </Text>
-
-        <View style={styles.card}>
-          <View style={styles.iconBox}>
-            <Text style={styles.icon}>
-              👷
-            </Text>
+        {/* Progress */}
+        <View style={styles.progressContainer}>
+          <View style={styles.progressTrack}>
+            <View style={styles.progressFill} />
           </View>
 
-          <View style={styles.cardContent}>
-            <Text style={styles.cardLabel}>
-              SERVICE
-            </Text>
-
-            <Text style={styles.serviceName}>
-              {selectedService || 'Staff service'}
-            </Text>
-
-            <Text style={styles.package}>
-              {selectedPackage?.name ||
-                selectedDuration ||
-                'Staffing package'}
-            </Text>
-          </View>
+          <Text style={styles.progressText}>
+            STEP 2 OF 4 · REVIEW
+          </Text>
         </View>
 
-        {selectedPackage && (
-          <View style={styles.detailsCard}>
-            <Text style={styles.detailsTitle}>
-              Package details
-            </Text>
+        {/* Heading */}
+        <View style={styles.heading}>
+          <Text style={styles.title}>
+            Review your booking
+          </Text>
 
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>
-                Staffing period
-              </Text>
+          <Text style={styles.subtitle}>
+            Check the details below before choosing
+            your service location.
+          </Text>
+        </View>
 
-              <Text style={styles.rowValue}>
-                {selectedPackage.name}
-              </Text>
-            </View>
-
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>
-                Duration
-              </Text>
-
-              <Text style={styles.rowValue}>
-                {selectedPackage.duration_value}{' '}
-                {selectedPackage.duration_unit}
+        {/* Main booking card */}
+        <View style={styles.bookingCard}>
+          <View style={styles.bookingHeader}>
+            <View style={styles.serviceIcon}>
+              <Text style={styles.serviceEmoji}>
+                {iconForService(serviceName)}
               </Text>
             </View>
 
-            {selectedPackage.description ? (
-              <View style={styles.descriptionBox}>
-                <Text style={styles.description}>
-                  {selectedPackage.description}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        )}
+            <View style={styles.serviceContent}>
+              <Text style={styles.smallLabel}>
+                STAFF SERVICE
+              </Text>
 
-        <View style={styles.priceCard}>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>
-              Service
-            </Text>
+              <Text
+                style={styles.serviceName}
+                numberOfLines={2}
+              >
+                {serviceName}
+              </Text>
 
-            <Text style={styles.priceValue}>
-              ₹{total.toLocaleString('en-IN')}
-            </Text>
+              <Text
+                style={styles.packageName}
+                numberOfLines={2}
+              >
+                {packageName}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={editSelection}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.editText}>
+                Edit
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.divider} />
 
+          <View style={styles.detailGrid}>
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>
+                Staffing period
+              </Text>
+
+              <Text
+                style={styles.detailValue}
+                numberOfLines={2}
+              >
+                {packageName}
+              </Text>
+            </View>
+
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>
+                Duration
+              </Text>
+
+              <Text style={styles.detailValue}>
+                {durationText}
+              </Text>
+            </View>
+          </View>
+
+          {selectedPackage?.description ? (
+            <>
+              <View style={styles.divider} />
+
+              <Text style={styles.description}>
+                {selectedPackage.description}
+              </Text>
+            </>
+          ) : null}
+        </View>
+
+        {/* Price */}
+        <View style={styles.priceCard}>
+          <Text style={styles.priceHeading}>
+            Booking estimate
+          </Text>
+
           <View style={styles.priceRow}>
-            <Text style={styles.totalLabel}>
-              Total
+            <Text style={styles.priceLabel}>
+              {serviceName}
             </Text>
 
+            <Text style={styles.priceValue}>
+              {formatPrice(total)}
+            </Text>
+          </View>
+
+          <View style={styles.priceDivider} />
+
+          <View style={styles.totalRow}>
+            <View>
+              <Text style={styles.totalLabel}>
+                Total
+              </Text>
+
+              <Text style={styles.taxNote}>
+                Final amount shown before payment
+              </Text>
+            </View>
+
             <Text style={styles.totalValue}>
-              ₹{total.toLocaleString('en-IN')}
+              {formatPrice(total)}
             </Text>
           </View>
         </View>
 
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>
+        {/* Booking process */}
+        <View style={styles.processCard}>
+          <Text style={styles.processTitle}>
             What happens next?
           </Text>
 
-          <Text style={styles.infoText}>
-            First, we'll ask for the service address.
-            Then TempStaff will check whether a worker
-            is available for your requested service.
-          </Text>
+          <View style={styles.processStep}>
+            <View style={styles.stepCircle}>
+              <Text style={styles.stepNumber}>
+                1
+              </Text>
+            </View>
 
-          <Text style={styles.infoText}>
-            You will never need to choose a worker.
-            TempStaff will handle worker assignment.
-          </Text>
+            <View style={styles.processContent}>
+              <Text style={styles.processStepTitle}>
+                Add service location
+              </Text>
+
+              <Text style={styles.processText}>
+                Tell us where the staff is needed.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.processLine} />
+
+          <View style={styles.processStep}>
+            <View style={styles.stepCircle}>
+              <Text style={styles.stepNumber}>
+                2
+              </Text>
+            </View>
+
+            <View style={styles.processContent}>
+              <Text style={styles.processStepTitle}>
+                Choose your schedule
+              </Text>
+
+              <Text style={styles.processText}>
+                Select when you need the staff.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.processLine} />
+
+          <View style={styles.processStep}>
+            <View style={styles.stepCircle}>
+              <Text style={styles.stepNumber}>
+                3
+              </Text>
+            </View>
+
+            <View style={styles.processContent}>
+              <Text style={styles.processStepTitle}>
+                TempStaff assigns a worker
+              </Text>
+
+              <Text style={styles.processText}>
+                We handle worker availability and
+                assignment.
+              </Text>
+            </View>
+          </View>
         </View>
 
-        <PrimaryButton
-          title="Continue to Address"
-          disabled={!selectedPackage}
-          onPress={continueToAddress}
-        />
+        {/* Important information */}
+        <View style={styles.infoCard}>
+          <View style={styles.infoIcon}>
+            <Text style={styles.infoIconText}>
+              ✓
+            </Text>
+          </View>
+
+          <View style={styles.infoContent}>
+            <Text style={styles.infoTitle}>
+              You don't need to choose a worker
+            </Text>
+
+            <Text style={styles.infoText}>
+              TempStaff will assign a suitable
+              available worker based on your booking.
+            </Text>
+          </View>
+        </View>
+
+        {/* Continue */}
+        <View style={styles.bottom}>
+          <PrimaryButton
+            title="Continue to Address"
+            disabled={!selectedPackage}
+            onPress={continueToAddress}
+          />
+
+          <Text style={styles.bottomText}>
+            Next, you'll add the location where the
+            staff is required.
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   )
@@ -170,183 +354,345 @@ const styles = StyleSheet.create({
   },
 
   page: {
-    padding: 22,
+    paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 45,
+  },
+
+  progressContainer: {
+    marginTop: 5,
+    marginBottom: 21,
+  },
+
+  progressTrack: {
+    height: 4,
+    width: '100%',
+    backgroundColor: '#DDE3E9',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+
+  progressFill: {
+    width: '50%',
+    height: '100%',
+    backgroundColor: COLORS.teal,
+    borderRadius: 3,
+  },
+
+  progressText: {
+    color: COLORS.gray,
+    fontSize: 9,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+    marginTop: 7,
+  },
+
+  heading: {
+    marginBottom: 21,
   },
 
   title: {
     color: COLORS.navy,
-    fontSize: 31,
+    fontSize: 29,
+    lineHeight: 35,
     fontWeight: '800',
-    marginBottom: 7,
   },
 
   subtitle: {
     color: COLORS.gray,
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 22,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 7,
   },
 
-  card: {
-    backgroundColor: 'white',
-    borderRadius: 20,
+  bookingCard: {
+    backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
+    borderRadius: 20,
+    padding: 17,
   },
 
-  iconBox: {
-    width: 62,
-    height: 62,
-    borderRadius: 18,
+  bookingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  serviceIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: 17,
     backgroundColor: '#FFF1DD',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 15,
+    marginRight: 12,
   },
 
-  icon: {
-    fontSize: 30,
+  serviceEmoji: {
+    fontSize: 29,
   },
 
-  cardContent: {
+  serviceContent: {
     flex: 1,
+    paddingRight: 6,
   },
 
-  cardLabel: {
+  smallLabel: {
     color: COLORS.gray,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 4,
+    fontSize: 8,
+    lineHeight: 13,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
 
   serviceName: {
     color: COLORS.navy,
-    fontSize: 20,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  packageName: {
+    color: COLORS.teal,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  editButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 15,
+    backgroundColor: '#E8F6F6',
+  },
+
+  editText: {
+    color: COLORS.teal,
+    fontSize: 10,
     fontWeight: '900',
   },
 
-  package: {
-    color: COLORS.teal,
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 4,
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 15,
   },
 
-  detailsCard: {
-    backgroundColor: 'white',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 18,
-    marginBottom: 14,
-  },
-
-  detailsTitle: {
-    color: COLORS.navy,
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 15,
-  },
-
-  row: {
+  detailGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
   },
 
-  rowLabel: {
+  detailItem: {
+    width: '48%',
+  },
+
+  detailLabel: {
     color: COLORS.gray,
-    fontSize: 13,
+    fontSize: 10,
+    lineHeight: 15,
   },
 
-  rowValue: {
+  detailValue: {
     color: COLORS.navy,
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '800',
-    maxWidth: '55%',
-    textAlign: 'right',
-  },
-
-  descriptionBox: {
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    marginTop: 8,
-    paddingTop: 12,
+    marginTop: 3,
   },
 
   description: {
     color: COLORS.gray,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 12,
+    lineHeight: 18,
   },
 
   priceCard: {
     backgroundColor: COLORS.navy,
     borderRadius: 20,
-    padding: 20,
+    padding: 18,
+    marginTop: 14,
+  },
+
+  priceHeading: {
+    color: '#D8E4EF',
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '800',
+    letterSpacing: 0.8,
     marginBottom: 14,
   },
 
   priceRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
   priceLabel: {
     color: '#D8E4EF',
-    fontSize: 14,
+    fontSize: 12,
+    maxWidth: '65%',
   },
 
   priceValue: {
-    color: 'white',
-    fontSize: 16,
+    color: COLORS.white,
+    fontSize: 15,
     fontWeight: '800',
   },
 
-  divider: {
+  priceDivider: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    marginVertical: 15,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    marginVertical: 14,
+  },
+
+  totalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
   totalLabel: {
-    color: 'white',
-    fontSize: 16,
+    color: COLORS.white,
+    fontSize: 15,
     fontWeight: '800',
+  },
+
+  taxNote: {
+    color: '#AEBECD',
+    fontSize: 9,
+    lineHeight: 14,
+    marginTop: 2,
   },
 
   totalValue: {
     color: COLORS.orange,
-    fontSize: 25,
+    fontSize: 23,
+    lineHeight: 28,
     fontWeight: '900',
   },
 
-  infoCard: {
-    backgroundColor: '#FFF7EA',
-    borderRadius: 18,
+  processCard: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 20,
     padding: 17,
-    marginBottom: 20,
+    marginTop: 14,
+  },
+
+  processTitle: {
+    color: COLORS.navy,
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: '800',
+    marginBottom: 16,
+  },
+
+  processStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  stepCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#E8F6F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  stepNumber: {
+    color: COLORS.teal,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  processContent: {
+    flex: 1,
+  },
+
+  processStepTitle: {
+    color: COLORS.navy,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '800',
+  },
+
+  processText: {
+    color: COLORS.gray,
+    fontSize: 10.5,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+
+  processLine: {
+    width: 1,
+    height: 17,
+    backgroundColor: '#DCE3E8',
+    marginLeft: 14.5,
+    marginVertical: 3,
+  },
+
+  infoCard: {
+    backgroundColor: '#E8F6F6',
+    borderRadius: 17,
+    padding: 14,
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+
+  infoIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: COLORS.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  infoIconText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  infoContent: {
+    flex: 1,
   },
 
   infoTitle: {
     color: COLORS.navy,
-    fontSize: 15,
+    fontSize: 12,
+    lineHeight: 17,
     fontWeight: '800',
-    marginBottom: 8,
   },
 
   infoText: {
     color: COLORS.gray,
-    fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 8,
+    fontSize: 10.5,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+
+  bottom: {
+    marginTop: 20,
+  },
+
+  bottomText: {
+    color: COLORS.gray,
+    fontSize: 10.5,
+    lineHeight: 16,
+    textAlign: 'center',
+    marginTop: 10,
+    paddingHorizontal: 15,
   },
 })

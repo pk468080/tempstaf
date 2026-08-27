@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -27,16 +27,21 @@ type Props = NativeStackScreenProps<
   'Location'
 >
 
+type FieldName =
+  | 'house'
+  | 'street'
+  | 'area'
+  | 'city'
+  | 'pincode'
+
 export default function LocationScreen({
   navigation,
 }: Props) {
   const {
-  address,
-  coordinates,
-  setAddress,
-  setAddressId,
-  setCoordinates,
-} = useBooking()
+    setAddress,
+    setAddressId,
+    setCoordinates,
+  } = useBooking()
 
   const [houseNumber, setHouseNumber] = useState('')
   const [street, setStreet] = useState('')
@@ -44,17 +49,16 @@ export default function LocationScreen({
   const [city, setCity] = useState('')
   const [pincode, setPincode] = useState('')
 
-  const [latitude, setLatitude] = useState<number | null>(
-    null
-  )
-  const [longitude, setLongitude] = useState<number | null>(
-    null
-  )
+  const [latitude, setLatitude] =
+    useState<number | null>(null)
+  const [longitude, setLongitude] =
+    useState<number | null>(null)
 
   const [gettingLocation, setGettingLocation] =
     useState(false)
-
   const [saving, setSaving] = useState(false)
+  const [focusedField, setFocusedField] =
+    useState<FieldName | null>(null)
 
   useEffect(() => {
     loadCurrentLocation()
@@ -68,18 +72,14 @@ export default function LocationScreen({
 
       setLatitude(result.latitude)
       setLongitude(result.longitude)
-
       setCoordinates(
         `${result.latitude},${result.longitude}`
       )
-    } catch (error: any) {
+    } catch (error) {
       console.warn(
         '[TempStaff] Could not fetch current location:',
         error
       )
-
-      // Do not block the customer.
-      // They can still enter their service address manually.
     } finally {
       setGettingLocation(false)
     }
@@ -100,12 +100,12 @@ export default function LocationScreen({
 
       Alert.alert(
         'Location updated',
-        'Your current location has been added.'
+        'Your current location is ready for this booking.'
       )
-    } catch (error: any) {
+    } catch (error) {
       Alert.alert(
         'Location unavailable',
-        'We could not get your current location. You can still enter your address manually.'
+        'We could not get your current location. You can continue by entering the address manually.'
       )
     } finally {
       setGettingLocation(false)
@@ -124,20 +124,29 @@ export default function LocationScreen({
       .join(', ')
   }
 
-  const canContinue =
-    houseNumber.trim().length >= 1 &&
-    street.trim().length >= 2 &&
-    area.trim().length >= 2 &&
-    city.trim().length >= 2 &&
-    pincode.trim().length === 6 &&
-    /^\d{6}$/.test(pincode.trim()) &&
-    !saving
+  const canContinue = useMemo(() => {
+    return (
+      houseNumber.trim().length >= 1 &&
+      street.trim().length >= 2 &&
+      area.trim().length >= 2 &&
+      city.trim().length >= 2 &&
+      /^\d{6}$/.test(pincode.trim()) &&
+      !saving
+    )
+  }, [
+    houseNumber,
+    street,
+    area,
+    city,
+    pincode,
+    saving,
+  ])
 
   const saveAddress = async () => {
     if (!canContinue) {
       Alert.alert(
         'Complete your address',
-        'Please enter your house number, street, area, city and a valid 6-digit PIN code.'
+        'Please enter your house/office number, street, area, city and a valid 6-digit PIN code.'
       )
       return
     }
@@ -162,14 +171,18 @@ export default function LocationScreen({
 
       const fullAddress = buildAddress()
 
-      // Development fallback for Android emulator.
-      // The emulator GPS is currently timing out, so use
-      // the Delhi coordinates we configured with adb.
+      /*
+       * Development fallback:
+       * Android emulator GPS can time out.
+       * Keep the existing Delhi development
+       * coordinates until real location handling
+       * is finalized.
+       */
       const finalLatitude =
         latitude ?? (__DEV__ ? 28.6139 : null)
 
       const finalLongitude =
-        longitude ?? (__DEV__ ? 77.2090 : null)
+        longitude ?? (__DEV__ ? 77.209 : null)
 
       if (
         finalLatitude === null ||
@@ -191,27 +204,22 @@ export default function LocationScreen({
           latitude: finalLatitude,
           longitude: finalLongitude,
         })
-        .select('id, address_line, latitude, longitude')
+        .select(
+          'id, address_line, latitude, longitude'
+        )
         .single()
 
       if (error) {
-        console.error(
-          '[TempStaff] Failed to save service address:',
-          error
-        )
-
         throw error
       }
 
       setAddress(data.address_line)
+      setAddressId(data.id)
+      setCoordinates(
+        `${data.latitude},${data.longitude}`
+      )
 
-setAddressId(data.id)
-
-setCoordinates(
-  `${data.latitude},${data.longitude}`
-)
-
-navigation.navigate('Payment')
+      navigation.navigate('Payment')
     } catch (error: any) {
       console.error(
         '[TempStaff] Address save failed:',
@@ -226,6 +234,54 @@ navigation.navigate('Payment')
     } finally {
       setSaving(false)
     }
+  }
+
+  const renderInput = (
+    field: FieldName,
+    label: string,
+    value: string,
+    onChangeText: (value: string) => void,
+    placeholder: string,
+    options?: {
+      keyboardType?: 'default' | 'number-pad'
+      maxLength?: number
+      autoCapitalize?: 'none' | 'sentences' | 'words'
+    }
+  ) => {
+    const isFocused = focusedField === field
+
+    return (
+      <View style={styles.field}>
+        <Text style={styles.label}>
+          {label}
+        </Text>
+
+        <TextInput
+          style={[
+            styles.input,
+            isFocused && styles.inputFocused,
+          ]}
+          placeholder={placeholder}
+          placeholderTextColor="#9CA3AF"
+          value={value}
+          onChangeText={onChangeText}
+          editable={!saving}
+          keyboardType={
+            options?.keyboardType || 'default'
+          }
+          maxLength={options?.maxLength}
+          autoCapitalize={
+            options?.autoCapitalize || 'sentences'
+          }
+          onFocus={() =>
+            setFocusedField(field)
+          }
+          onBlur={() =>
+            setFocusedField(null)
+          }
+        />
+      </View>
+    )
   }
 
   return (
@@ -247,166 +303,226 @@ navigation.navigate('Payment')
             onBack={() => navigation.goBack()}
           />
 
-          <Text style={styles.title}>
-            Where do you need the staff?
-          </Text>
+          {/* Progress */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressTrack}>
+              <View style={styles.progressFill} />
+            </View>
 
-          <Text style={styles.subtitle}>
-            Enter the address where the TempStaff worker
-            will provide the service.
-          </Text>
+            <Text style={styles.progressText}>
+              STEP 3 OF 4 · LOCATION
+            </Text>
+          </View>
 
+          {/* Heading */}
+          <View style={styles.heading}>
+            <Text style={styles.title}>
+              Where do you need the staff?
+            </Text>
+
+            <Text style={styles.subtitle}>
+              Add the exact service address so we can
+              match your booking with an available
+              worker.
+            </Text>
+          </View>
+
+          {/* Current location */}
           <TouchableOpacity
-            style={styles.locationButton}
+            style={[
+              styles.locationCard,
+              gettingLocation &&
+                styles.locationCardLoading,
+            ]}
             onPress={useMyLocation}
             disabled={gettingLocation || saving}
-            activeOpacity={0.85}
+            activeOpacity={0.86}
           >
-            {gettingLocation ? (
-              <ActivityIndicator
-                size="small"
-                color={COLORS.teal}
-              />
-            ) : (
-              <Text style={styles.locationIcon}>
-                📍
-              </Text>
-            )}
+            <View style={styles.locationIcon}>
+              {gettingLocation ? (
+                <ActivityIndicator
+                  size="small"
+                  color={COLORS.teal}
+                />
+              ) : (
+                <Text style={styles.locationEmoji}>
+                  📍
+                </Text>
+              )}
+            </View>
 
             <View style={styles.locationContent}>
               <Text style={styles.locationTitle}>
                 {gettingLocation
-                  ? 'Getting your location...'
+                  ? 'Getting your location'
                   : 'Use my current location'}
               </Text>
 
-              <Text style={styles.locationText}>
-                We will use it to locate the service
-                address.
+              <Text style={styles.locationSubtitle}>
+                {gettingLocation
+                  ? 'Please wait a moment...'
+                  : 'Quickly set your service location'}
               </Text>
             </View>
+
+            <Text style={styles.locationArrow}>
+              →
+            </Text>
           </TouchableOpacity>
 
-          <Text style={styles.section}>
-            Service address
-          </Text>
+          <View style={styles.orRow}>
+            <View style={styles.orLine} />
 
-          <Text style={styles.label}>
-            House / Flat / Office number
-          </Text>
+            <Text style={styles.orText}>
+              OR ENTER MANUALLY
+            </Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. 24A"
-            placeholderTextColor="#9CA3AF"
-            value={houseNumber}
-            onChangeText={setHouseNumber}
-            editable={!saving}
-          />
+            <View style={styles.orLine} />
+          </View>
 
-          <Text style={styles.label}>
-            Street / Road
-          </Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. MG Road"
-            placeholderTextColor="#9CA3AF"
-            value={street}
-            onChangeText={setStreet}
-            autoCapitalize="words"
-            editable={!saving}
-          />
-
-          <Text style={styles.label}>
-            Area / Locality
-          </Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Connaught Place"
-            placeholderTextColor="#9CA3AF"
-            value={area}
-            onChangeText={setArea}
-            autoCapitalize="words"
-            editable={!saving}
-          />
-
-          <View style={styles.row}>
-            <View style={styles.cityContainer}>
-              <Text style={styles.label}>
-                City
+          {/* Address fields */}
+          <View style={styles.addressHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>
+                Service address
               </Text>
 
-              <TextInput
-                style={styles.input}
-                placeholder="City"
-                placeholderTextColor="#9CA3AF"
-                value={city}
-                onChangeText={setCity}
-                autoCapitalize="words"
-                editable={!saving}
-              />
+              <Text style={styles.sectionSubtitle}>
+                Where the worker should report
+              </Text>
             </View>
 
-            <View style={styles.pinContainer}>
-              <Text style={styles.label}>
-                PIN code
+            <View style={styles.requiredBadge}>
+              <Text style={styles.requiredText}>
+                REQUIRED
               </Text>
-
-              <TextInput
-                style={styles.input}
-                placeholder="110001"
-                placeholderTextColor="#9CA3AF"
-                value={pincode}
-                onChangeText={value =>
-                  setPincode(
-                    value.replace(/\D/g, '')
-                  )
-                }
-                keyboardType="number-pad"
-                maxLength={6}
-                editable={!saving}
-              />
             </View>
           </View>
 
-          <View style={styles.locationStatus}>
+          {renderInput(
+            'house',
+            'House / Flat / Office number',
+            houseNumber,
+            setHouseNumber,
+            'e.g. 24A'
+          )}
+
+          {renderInput(
+            'street',
+            'Street / Road',
+            street,
+            setStreet,
+            'e.g. MG Road'
+          )}
+
+          {renderInput(
+            'area',
+            'Area / Locality',
+            area,
+            setArea,
+            'e.g. Connaught Place'
+          )}
+
+          <View style={styles.row}>
+            <View style={styles.cityField}>
+              {renderInput(
+                'city',
+                'City',
+                city,
+                setCity,
+                'e.g. Delhi'
+              )}
+            </View>
+
+            <View style={styles.pinField}>
+              {renderInput(
+                'pincode',
+                'PIN code',
+                pincode,
+                value =>
+                  setPincode(
+                    value.replace(/\D/g, '')
+                  ),
+                '110001',
+                {
+                  keyboardType: 'number-pad',
+                  maxLength: 6,
+                  autoCapitalize: 'none',
+                }
+              )}
+            </View>
+          </View>
+
+          {/* Location status */}
+          <View style={styles.statusCard}>
             <View
               style={[
-                styles.statusDot,
-                {
-                  backgroundColor:
-                    latitude !== null &&
-                    longitude !== null
-                      ? COLORS.teal
-                      : COLORS.orange,
-                },
+                styles.statusIcon,
+                latitude !== null &&
+                longitude !== null
+                  ? styles.statusIconReady
+                  : styles.statusIconManual,
               ]}
-            />
+            >
+              <Text style={styles.statusIconText}>
+                {latitude !== null &&
+                longitude !== null
+                  ? '✓'
+                  : '•'}
+              </Text>
+            </View>
 
-            <Text style={styles.statusText}>
-              {latitude !== null &&
-              longitude !== null
-                ? 'Location ready'
-                : 'Using address location'}
+            <View style={styles.statusContent}>
+              <Text style={styles.statusTitle}>
+                {latitude !== null &&
+                longitude !== null
+                  ? 'Location coordinates ready'
+                  : 'Address location will be used'}
+              </Text>
+
+              <Text style={styles.statusText}>
+                {latitude !== null &&
+                longitude !== null
+                  ? 'Your location can be used for worker matching.'
+                  : 'Your address will be saved with the booking.'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Privacy note */}
+          <View style={styles.privacyRow}>
+            <Text style={styles.lockIcon}>
+              🔒
+            </Text>
+
+            <Text style={styles.privacyText}>
+              Your service address is used for this
+              booking and worker assignment.
             </Text>
           </View>
 
-          <Text style={styles.note}>
-            Your address is used only for this service
-            booking and location-based worker matching.
-          </Text>
+          {/* Continue */}
+          <View style={styles.bottom}>
+            <PrimaryButton
+              title={
+                saving
+                  ? 'Saving address...'
+                  : 'Continue'
+              }
+              disabled={!canContinue}
+              onPress={saveAddress}
+            />
 
-          <PrimaryButton
-            title={
-              saving
-                ? 'Saving address...'
-                : 'Continue'
-            }
-            disabled={!canContinue}
-            onPress={saveAddress}
-          />
+            {!canContinue && !saving ? (
+              <Text style={styles.bottomHint}>
+                Complete all address fields to continue.
+              </Text>
+            ) : (
+              <Text style={styles.bottomHint}>
+                Next: choose your payment method.
+              </Text>
+            )}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -424,39 +540,84 @@ const styles = StyleSheet.create({
   },
 
   page: {
-    padding: 22,
+    paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 45,
+  },
+
+  progressContainer: {
+    marginTop: 5,
+    marginBottom: 20,
+  },
+
+  progressTrack: {
+    height: 4,
+    width: '100%',
+    backgroundColor: '#DDE3E9',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+
+  progressFill: {
+    width: '75%',
+    height: '100%',
+    backgroundColor: COLORS.teal,
+    borderRadius: 3,
+  },
+
+  progressText: {
+    color: COLORS.gray,
+    fontSize: 9,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+    marginTop: 7,
+  },
+
+  heading: {
+    marginBottom: 20,
   },
 
   title: {
     color: COLORS.navy,
-    fontSize: 29,
+    fontSize: 28,
     lineHeight: 35,
     fontWeight: '800',
-    marginBottom: 8,
   },
 
   subtitle: {
     color: COLORS.gray,
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 22,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 7,
   },
 
-  locationButton: {
-    backgroundColor: 'white',
+  locationCard: {
+    backgroundColor: '#E8F6F6',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 17,
-    padding: 15,
+    borderColor: '#CBEAEA',
+    borderRadius: 18,
+    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 22,
+  },
+
+  locationCardLoading: {
+    opacity: 0.75,
   },
 
   locationIcon: {
-    fontSize: 25,
-    marginRight: 13,
+    width: 45,
+    height: 45,
+    borderRadius: 14,
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  locationEmoji: {
+    fontSize: 23,
   },
 
   locationContent: {
@@ -465,41 +626,108 @@ const styles = StyleSheet.create({
 
   locationTitle: {
     color: COLORS.navy,
-    fontSize: 15,
+    fontSize: 14,
+    lineHeight: 19,
     fontWeight: '800',
-    marginBottom: 4,
   },
 
-  locationText: {
+  locationSubtitle: {
     color: COLORS.gray,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 10.5,
+    lineHeight: 16,
+    marginTop: 2,
   },
 
-  section: {
+  locationArrow: {
+    color: COLORS.teal,
+    fontSize: 22,
+    fontWeight: '800',
+    marginLeft: 7,
+  },
+
+  orRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 21,
+  },
+
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.border,
+  },
+
+  orText: {
+    color: COLORS.gray,
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+    marginHorizontal: 9,
+  },
+
+  addressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 17,
+  },
+
+  sectionTitle: {
     color: COLORS.navy,
     fontSize: 19,
+    lineHeight: 25,
     fontWeight: '800',
-    marginBottom: 15,
+  },
+
+  sectionSubtitle: {
+    color: COLORS.gray,
+    fontSize: 10.5,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+
+  requiredBadge: {
+    backgroundColor: '#FFF3E5',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+
+  requiredText: {
+    color: COLORS.orange,
+    fontSize: 7.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+
+  field: {
+    width: '100%',
   },
 
   label: {
     color: COLORS.navy,
-    fontSize: 13,
+    fontSize: 12.5,
+    lineHeight: 18,
     fontWeight: '700',
     marginBottom: 7,
   },
 
   input: {
-    height: 54,
-    backgroundColor: 'white',
+    width: '100%',
+    height: 53,
+    backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 13,
-    paddingHorizontal: 15,
+    paddingHorizontal: 14,
     color: COLORS.navy,
-    fontSize: 15,
-    marginBottom: 16,
+    fontSize: 14.5,
+    marginBottom: 15,
+  },
+
+  inputFocused: {
+    borderColor: COLORS.teal,
+    borderWidth: 1.5,
   },
 
   row: {
@@ -507,39 +735,97 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
 
-  cityContainer: {
+  cityField: {
     width: '57%',
   },
 
-  pinContainer: {
+  pinField: {
     width: '39%',
   },
 
-  locationStatus: {
+  statusCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
-    marginBottom: 12,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 15,
+    padding: 12,
+    marginTop: 1,
   },
 
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
+  statusIcon: {
+    width: 31,
+    height: 31,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  statusIconReady: {
+    backgroundColor: '#E8F6F6',
+  },
+
+  statusIconManual: {
+    backgroundColor: '#FFF3E5',
+  },
+
+  statusIconText: {
+    color: COLORS.teal,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  statusContent: {
+    flex: 1,
+  },
+
+  statusTitle: {
+    color: COLORS.navy,
+    fontSize: 11.5,
+    lineHeight: 16,
+    fontWeight: '800',
   },
 
   statusText: {
     color: COLORS.gray,
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 9.5,
+    lineHeight: 14,
+    marginTop: 1,
   },
 
-  note: {
+  privacyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    marginTop: 14,
+  },
+
+  lockIcon: {
+    fontSize: 12,
+    marginRight: 6,
+  },
+
+  privacyText: {
     color: COLORS.gray,
-    fontSize: 11,
-    lineHeight: 17,
+    fontSize: 9.5,
+    lineHeight: 15,
     textAlign: 'center',
-    marginBottom: 18,
+    flex: 1,
+  },
+
+  bottom: {
+    marginTop: 19,
+  },
+
+  bottomHint: {
+    color: COLORS.gray,
+    fontSize: 10,
+    lineHeight: 15,
+    textAlign: 'center',
+    marginTop: 9,
+    paddingHorizontal: 12,
   },
 })

@@ -1,6 +1,8 @@
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
+
 import { RootStackParamList } from '../types'
+
 import CheckoutScreen from '../screens/CheckoutScreen'
 import SplashScreen from '../screens/SplashScreen'
 import LoginScreen from '../screens/LoginScreen'
@@ -17,16 +19,19 @@ import TrackingScreen from '../screens/TrackingScreen'
 import MyBookingsScreen from '../screens/MyBookingsScreen'
 import BookingDetailsScreen from '../screens/BookingDetailsScreen'
 import ScheduleScreen from '../screens/ScheduleScreen'
-
 import ProfileScreen from '../screens/ProfileScreen'
-const Stack = createNativeStackNavigator<RootStackParamList>()
+
+const Stack =
+  createNativeStackNavigator<RootStackParamList>()
 
 export default function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator
         initialRouteName="Splash"
-        screenOptions={{ headerShown: false }}
+        screenOptions={{
+          headerShown: false,
+        }}
       >
         <Stack.Screen
           name="Splash"
@@ -77,15 +82,16 @@ export default function AppNavigator() {
           name="Payment"
           component={PaymentScreen}
         />
-       <Stack.Screen
-  name="Schedule"
-  component={ScheduleScreen}
-/>
 
-<Stack.Screen
-  name="Checkout"
-  component={CheckoutScreen}
-/>
+        <Stack.Screen
+          name="Schedule"
+          component={ScheduleScreen}
+        />
+
+        <Stack.Screen
+          name="Checkout"
+          component={CheckoutScreen}
+        />
 
         <Stack.Screen
           name="BookingConfirmed"
@@ -105,6 +111,11 @@ export default function AppNavigator() {
         <Stack.Screen
           name="BookingDetails"
           component={BookingDetailsScreen}
+        />
+
+        <Stack.Screen
+          name="Profile"
+          component={ProfileScreen}
         />
       </Stack.Navigator>
     </NavigationContainer>

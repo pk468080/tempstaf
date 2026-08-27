@@ -17,13 +17,18 @@ import {
   CustomerBooking,
   getCustomerBookings,
 } from '../services/customerBookings'
+import CustomerBottomNav from '../components/CustomerBottomNav'
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
   'MyBookings'
 >
 
-type Filter = 'all' | 'active' | 'completed' | 'cancelled'
+type Filter =
+  | 'all'
+  | 'active'
+  | 'completed'
+  | 'cancelled'
 
 const ACTIVE_STATUSES = [
   'pending_payment',
@@ -39,14 +44,19 @@ function statusLabel(status: string) {
   switch (status) {
     case 'pending_payment':
       return 'Payment Pending'
+
     case 'payment_failed':
       return 'Payment Failed'
+
     case 'searching_worker':
       return 'Finding Worker'
+
     case 'on_the_way':
       return 'Worker On The Way'
+
     case 'in_progress':
       return 'Work In Progress'
+
     default:
       return status
         .replace(/_/g, ' ')
@@ -135,24 +145,36 @@ function BookingCard({
       <View style={styles.divider} />
 
       <View style={styles.infoRow}>
-        <Text style={styles.infoIcon}>📅</Text>
+        <Text style={styles.infoIcon}>
+          📅
+        </Text>
 
         <View>
-          <Text style={styles.infoLabel}>Date & Time</Text>
+          <Text style={styles.infoLabel}>
+            Date & Time
+          </Text>
 
           <Text style={styles.infoValue}>
-            {formatDate(booking.scheduled_start)}
+            {formatDate(
+              booking.scheduled_start
+            )}
             {' · '}
-            {formatTime(booking.scheduled_start)}
+            {formatTime(
+              booking.scheduled_start
+            )}
           </Text>
         </View>
       </View>
 
       <View style={styles.infoRow}>
-        <Text style={styles.infoIcon}>⏱️</Text>
+        <Text style={styles.infoIcon}>
+          ⏱️
+        </Text>
 
         <View>
-          <Text style={styles.infoLabel}>Duration</Text>
+          <Text style={styles.infoLabel}>
+            Duration
+          </Text>
 
           <Text style={styles.infoValue}>
             {booking.duration_value}{' '}
@@ -166,10 +188,14 @@ function BookingCard({
 
       {booking.worker && (
         <View style={styles.infoRow}>
-          <Text style={styles.infoIcon}>👤</Text>
+          <Text style={styles.infoIcon}>
+            👤
+          </Text>
 
           <View>
-            <Text style={styles.infoLabel}>Worker</Text>
+            <Text style={styles.infoLabel}>
+              Worker
+            </Text>
 
             <Text style={styles.infoValue}>
               {booking.worker.full_name ??
@@ -185,7 +211,10 @@ function BookingCard({
         </Text>
 
         <Text style={styles.total}>
-          ₹{Number(booking.total_amount).toFixed(2)}
+          ₹
+          {Number(
+            booking.total_amount
+          ).toFixed(2)}
         </Text>
       </View>
     </TouchableOpacity>
@@ -195,9 +224,8 @@ function BookingCard({
 export default function MyBookingsScreen({
   navigation,
 }: Props) {
-  const [bookings, setBookings] = useState<
-    CustomerBooking[]
-  >([])
+  const [bookings, setBookings] =
+    useState<CustomerBooking[]>([])
 
   const [filter, setFilter] =
     useState<Filter>('all')
@@ -278,133 +306,187 @@ export default function MyBookingsScreen({
     })
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-          />
-        }
-      >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>
-              My Bookings
-            </Text>
-
-            <Text style={styles.subtitle}>
-              View and manage your staff bookings
-            </Text>
-          </View>
-        </View>
-
+    <SafeAreaView
+      style={styles.container}
+    >
+      <View style={styles.screen}>
         <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filters}
+          contentContainerStyle={
+            styles.content
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+            />
+          }
+          showsVerticalScrollIndicator={
+            false
+          }
         >
-          {[
-            ['all', 'All'],
-            ['active', 'Active'],
-            ['completed', 'Completed'],
-            ['cancelled', 'Cancelled'],
-          ].map(([value, label]) => (
-            <TouchableOpacity
-              key={value}
-              style={[
-                styles.filterButton,
-                filter === value &&
-                  styles.filterButtonActive,
-              ]}
-              onPress={() =>
-                setFilter(value as Filter)
-              }
-            >
-              <Text
-                style={[
-                  styles.filterText,
-                  filter === value &&
-                    styles.filterTextActive,
-                ]}
-              >
-                {label}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.title}>
+                My Bookings
               </Text>
-            </TouchableOpacity>
-          ))}
+
+              <Text
+                style={styles.subtitle}
+              >
+                View and manage your staff
+                bookings
+              </Text>
+            </View>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={
+              false
+            }
+            contentContainerStyle={
+              styles.filters
+            }
+          >
+            {[
+              ['all', 'All'],
+              ['active', 'Active'],
+              [
+                'completed',
+                'Completed',
+              ],
+              [
+                'cancelled',
+                'Cancelled',
+              ],
+            ].map(
+              ([value, label]) => (
+                <TouchableOpacity
+                  key={value}
+                  style={[
+                    styles.filterButton,
+                    filter === value &&
+                      styles.filterButtonActive,
+                  ]}
+                  onPress={() =>
+                    setFilter(
+                      value as Filter
+                    )
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.filterText,
+                      filter === value &&
+                        styles.filterTextActive,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              )
+            )}
+          </ScrollView>
+
+          {loading ? (
+            <View style={styles.center}>
+              <ActivityIndicator
+                size="large"
+                color={COLORS.orange}
+              />
+
+              <Text
+                style={styles.loadingText}
+              >
+                Loading bookings...
+              </Text>
+            </View>
+          ) : error ? (
+            <View style={styles.empty}>
+              <Text
+                style={styles.emptyIcon}
+              >
+                ⚠️
+              </Text>
+
+              <Text
+                style={styles.emptyTitle}
+              >
+                Couldn't load bookings
+              </Text>
+
+              <Text
+                style={styles.emptyText}
+              >
+                {error}
+              </Text>
+
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() =>
+                  loadBookings()
+                }
+              >
+                <Text
+                  style={styles.retryText}
+                >
+                  Try Again
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : filteredBookings.length ===
+            0 ? (
+            <View style={styles.empty}>
+              <Text
+                style={styles.emptyIcon}
+              >
+                📋
+              </Text>
+
+              <Text
+                style={styles.emptyTitle}
+              >
+                No bookings found
+              </Text>
+
+              <Text
+                style={styles.emptyText}
+              >
+                Your{' '}
+                {filter === 'all'
+                  ? ''
+                  : filter + ' '}
+                bookings will appear here.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.list}>
+              {filteredBookings.map(
+                (booking) => (
+                  <BookingCard
+                    key={booking.id}
+                    booking={booking}
+                    onPress={() =>
+                      navigation.navigate(
+                        'BookingDetails',
+                        {
+                          bookingId:
+                            booking.id,
+                        }
+                      )
+                    }
+                  />
+                )
+              )}
+            </View>
+          )}
         </ScrollView>
 
-        {loading ? (
-          <View style={styles.center}>
-            <ActivityIndicator
-              size="large"
-              color={COLORS.orange}
-            />
-
-            <Text style={styles.loadingText}>
-              Loading bookings...
-            </Text>
-          </View>
-        ) : error ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>
-              ⚠️
-            </Text>
-
-            <Text style={styles.emptyTitle}>
-              Couldn't load bookings
-            </Text>
-
-            <Text style={styles.emptyText}>
-              {error}
-            </Text>
-
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => loadBookings()}
-            >
-              <Text style={styles.retryText}>
-                Try Again
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : filteredBookings.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>
-              📋
-            </Text>
-
-            <Text style={styles.emptyTitle}>
-              No bookings found
-            </Text>
-
-            <Text style={styles.emptyText}>
-              Your {filter === 'all'
-                ? ''
-                : filter + ' '}
-              bookings will appear here.
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.list}>
-            {filteredBookings.map((booking) => (
-              <BookingCard
-                key={booking.id}
-                booking={booking}
-                onPress={() =>
-                  navigation.navigate(
-                    'BookingDetails',
-                    {
-                      bookingId: booking.id,
-                    }
-                  )
-                }
-              />
-            ))}
-          </View>
-        )}
-      </ScrollView>
+        <CustomerBottomNav
+          navigation={navigation}
+          active="Bookings"
+        />
+      </View>
     </SafeAreaView>
   )
 }
@@ -415,9 +497,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.light,
   },
 
+  screen: {
+    flex: 1,
+  },
+
   content: {
     padding: 22,
-    paddingBottom: 45,
+    paddingBottom: 28,
   },
 
   header: {

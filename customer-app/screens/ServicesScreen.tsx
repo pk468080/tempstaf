@@ -20,13 +20,50 @@ type Props = NativeStackScreenProps<
   'Services'
 >
 
-const iconForService = (service: string) => {
-  const normalized = service.toLowerCase()
+const iconForService = (service: string): string => {
+  const normalized = service.trim().toLowerCase()
 
-  if (normalized.includes('housekeeping')) return '🧹'
-  if (normalized.includes('pantry')) return '🍽️'
-  if (normalized.includes('office')) return '💼'
-  if (normalized.includes('helper')) return '👷'
+  if (
+    normalized.includes('housekeeping') ||
+    normalized.includes('clean')
+  ) {
+    return '🧹'
+  }
+
+  if (
+    normalized.includes('pantry') ||
+    normalized.includes('kitchen')
+  ) {
+    return '🍽️'
+  }
+
+  if (
+    normalized.includes('office') ||
+    normalized.includes('admin')
+  ) {
+    return '💼'
+  }
+
+  if (
+    normalized.includes('helper') ||
+    normalized.includes('support')
+  ) {
+    return '👷'
+  }
+
+  if (
+    normalized.includes('security') ||
+    normalized.includes('guard')
+  ) {
+    return '🛡️'
+  }
+
+  if (
+    normalized.includes('driver') ||
+    normalized.includes('delivery')
+  ) {
+    return '🚗'
+  }
 
   return '👤'
 }
@@ -41,16 +78,12 @@ export default function ServicesScreen({
   const {
     selectedService,
     selectedDuration,
-
     services,
     packages,
-
     catalogueLoading,
     catalogueError,
-
     setSelectedService,
     setSelectedDuration,
-
     refreshCatalogue,
   } = useBooking()
 
@@ -70,24 +103,33 @@ export default function ServicesScreen({
     item => item.name === selectedDuration
   )
 
-  const handleServiceSelect = (serviceName: string) => {
-    setSelectedService(serviceName)
+  const handleServiceSelect = (
+    serviceName: string
+  ) => {
+    if (selectedService === serviceName) {
+      return
+    }
 
-    // Reset the package whenever the customer changes service.
+    setSelectedService(serviceName)
     setSelectedDuration('')
   }
 
-  const handleContinue = () => {
-  if (!selectedService || !selectedPackage) {
-    return
+  const handlePackageSelect = (
+    packageName: string
+  ) => {
+    setSelectedDuration(packageName)
   }
 
-  navigation.navigate('Summary')
-}
+  const handleContinue = () => {
+    if (!selectedService || !selectedPackage) {
+      return
+    }
 
-  const disabled =
-    !selectedService ||
-    !selectedPackage
+    navigation.navigate('Summary')
+  }
+
+  const selectedPackagePrice =
+    selectedPackage?.price ?? 0
 
   return (
     <SafeAreaView style={styles.container}>
@@ -99,32 +141,61 @@ export default function ServicesScreen({
           onBack={() => navigation.goBack()}
         />
 
-        <Text style={styles.title}>
-          What do you need?
-        </Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.stepBadge}>
+            <Text style={styles.stepBadgeText}>
+              STEP 1
+            </Text>
+          </View>
 
-        <Text style={styles.subtitle}>
-          Choose the type of temporary staff you need.
-        </Text>
+          <Text style={styles.title}>
+            What do you need?
+          </Text>
 
-        <Text style={styles.section}>
-          Staff type
-        </Text>
+          <Text style={styles.subtitle}>
+            Choose the type of staff and how long
+            you need them.
+          </Text>
+        </View>
+
+        {/* Staff type */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>
+            Staff type
+          </Text>
+
+          {selectedService ? (
+            <Text style={styles.selectedHint}>
+              Selected
+            </Text>
+          ) : null}
+        </View>
 
         {catalogueLoading ? (
-          <View style={styles.loadingBox}>
+          <View style={styles.stateCard}>
             <ActivityIndicator
               size="small"
               color={COLORS.orange}
             />
 
-            <Text style={styles.loadingText}>
-              Loading services...
+            <Text style={styles.stateText}>
+              Loading available services...
             </Text>
           </View>
         ) : catalogueError ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>
+          <View style={styles.stateCard}>
+            <View style={styles.stateIcon}>
+              <Text style={styles.stateIconText}>
+                !
+              </Text>
+            </View>
+
+            <Text style={styles.stateTitle}>
+              Unable to load services
+            </Text>
+
+            <Text style={styles.stateText}>
               {catalogueError}
             </Text>
 
@@ -139,13 +210,24 @@ export default function ServicesScreen({
             </TouchableOpacity>
           </View>
         ) : services.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>
-              No services are currently available.
+          <View style={styles.stateCard}>
+            <View style={styles.stateIcon}>
+              <Text style={styles.stateIconText}>
+                i
+              </Text>
+            </View>
+
+            <Text style={styles.stateTitle}>
+              No services available
+            </Text>
+
+            <Text style={styles.stateText}>
+              There are currently no active staffing
+              services available.
             </Text>
           </View>
         ) : (
-          <View style={styles.grid}>
+          <View style={styles.serviceList}>
             {services.map(service => {
               const isSelected =
                 selectedService === service.name
@@ -153,11 +235,11 @@ export default function ServicesScreen({
               return (
                 <TouchableOpacity
                   key={service.id}
-                  activeOpacity={0.85}
+                  activeOpacity={0.88}
                   style={[
-                    styles.service,
+                    styles.serviceCard,
                     isSelected &&
-                      styles.selectedService,
+                      styles.serviceCardSelected,
                   ]}
                   onPress={() =>
                     handleServiceSelect(
@@ -165,53 +247,96 @@ export default function ServicesScreen({
                     )
                   }
                 >
-                  <Text style={styles.icon}>
-                    {iconForService(service.name)}
-                  </Text>
-
-                  <Text
+                  <View
                     style={[
-                      styles.serviceName,
+                      styles.serviceIcon,
                       isSelected &&
-                        styles.selectedText,
+                        styles.serviceIconSelected,
                     ]}
                   >
-                    {service.name}
-                  </Text>
+                    <Text
+                      style={styles.serviceEmoji}
+                    >
+                      {iconForService(
+                        service.name
+                      )}
+                    </Text>
+                  </View>
 
-                  {service.description ? (
+                  <View
+                    style={styles.serviceContent}
+                  >
                     <Text
                       style={[
-                        styles.description,
+                        styles.serviceName,
+                        isSelected &&
+                          styles.selectedText,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {service.name}
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.serviceDescription,
                         isSelected &&
                           styles.selectedDescription,
                       ]}
                       numberOfLines={2}
                     >
-                      {service.description}
+                      {service.description ||
+                        'Temporary staffing service'}
                     </Text>
-                  ) : null}
+                  </View>
+
+                  <View
+                    style={[
+                      styles.radio,
+                      isSelected &&
+                        styles.radioSelected,
+                    ]}
+                  >
+                    {isSelected ? (
+                      <View
+                        style={styles.radioInner}
+                      />
+                    ) : null}
+                  </View>
                 </TouchableOpacity>
               )
             })}
           </View>
         )}
 
-        {selectedService && !catalogueLoading && (
+        {/* Duration */}
+        {selectedService && !catalogueLoading ? (
           <>
-            <Text style={styles.section}>
-              Choose staffing period
-            </Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Staffing period
+              </Text>
+
+              <Text style={styles.selectedHint}>
+                {selectedPackage
+                  ? 'Selected'
+                  : 'Required'}
+              </Text>
+            </View>
 
             <Text style={styles.helper}>
               Select how long you need the staff.
             </Text>
 
             {servicePackages.length === 0 ? (
-              <View style={styles.emptyBox}>
-                <Text style={styles.emptyText}>
-                  No packages are currently available
-                  for {selectedService}.
+              <View style={styles.stateCard}>
+                <Text style={styles.stateTitle}>
+                  No packages available
+                </Text>
+
+                <Text style={styles.stateText}>
+                  No staffing periods are currently
+                  available for {selectedService}.
                 </Text>
               </View>
             ) : (
@@ -223,22 +348,40 @@ export default function ServicesScreen({
                   return (
                     <TouchableOpacity
                       key={pkg.id}
-                      activeOpacity={0.85}
+                      activeOpacity={0.88}
                       style={[
-                        styles.package,
+                        styles.packageCard,
                         isSelected &&
-                          styles.selectedPackage,
+                          styles.packageCardSelected,
                       ]}
                       onPress={() =>
-                        setSelectedDuration(
+                        handlePackageSelect(
                           pkg.name
                         )
                       }
                     >
-                      <View style={styles.packageLeft}>
+                      <View
+                        style={[
+                          styles.packageRadio,
+                          isSelected &&
+                            styles.packageRadioSelected,
+                        ]}
+                      >
+                        {isSelected ? (
+                          <View
+                            style={
+                              styles.packageRadioInner
+                            }
+                          />
+                        ) : null}
+                      </View>
+
+                      <View
+                        style={styles.packageContent}
+                      >
                         <Text
                           style={[
-                            styles.packageTitle,
+                            styles.packageName,
                             isSelected &&
                               styles.selectedText,
                           ]}
@@ -252,41 +395,72 @@ export default function ServicesScreen({
                             isSelected &&
                               styles.selectedDescription,
                           ]}
+                          numberOfLines={2}
                         >
                           {pkg.description ||
                             'Temporary staffing package'}
                         </Text>
                       </View>
 
-                      <Text
-                        style={[
-                          styles.price,
-                          isSelected &&
-                            styles.selectedText,
-                        ]}
+                      <View
+                        style={
+                          styles.packagePriceContainer
+                        }
                       >
-                        {formatPrice(pkg.price)}
-                      </Text>
+                        <Text
+                          style={[
+                            styles.packagePrice,
+                            isSelected &&
+                              styles.selectedText,
+                          ]}
+                        >
+                          {formatPrice(pkg.price)}
+                        </Text>
+
+                        <Text
+                          style={[
+                            styles.packagePriceLabel,
+                            isSelected &&
+                              styles.selectedDescription,
+                          ]}
+                        >
+                          total
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   )
                 })}
               </View>
             )}
           </>
-        )}
+        ) : null}
 
-        {selectedService && selectedPackage && (
-          <View style={styles.summary}>
-            <Text style={styles.summaryTitle}>
-              Your selection
-            </Text>
+        {/* Selection summary */}
+        {selectedService && selectedPackage ? (
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryHeader}>
+              <Text style={styles.summaryTitle}>
+                Your selection
+              </Text>
+
+              <View style={styles.summaryCheck}>
+                <Text style={styles.summaryCheckText}>
+                  ✓
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.summaryDivider} />
 
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>
                 Staff
               </Text>
 
-              <Text style={styles.summaryValue}>
+              <Text
+                style={styles.summaryValue}
+                numberOfLines={1}
+              >
                 {selectedService}
               </Text>
             </View>
@@ -296,42 +470,74 @@ export default function ServicesScreen({
                 Period
               </Text>
 
-              <Text style={styles.summaryValue}>
+              <Text
+                style={styles.summaryValue}
+                numberOfLines={1}
+              >
                 {selectedPackage.name}
               </Text>
             </View>
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>
-                Price
+            <View style={styles.summaryDivider} />
+
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>
+                Estimated total
               </Text>
 
-              <Text style={styles.summaryPrice}>
+              <Text style={styles.totalValue}>
                 {formatPrice(
-                  selectedPackage.price
+                  selectedPackagePrice
                 )}
               </Text>
             </View>
           </View>
-        )}
+        ) : null}
 
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>
-            No worker selection
-          </Text>
+        {/* Assignment information */}
+        <View style={styles.infoCard}>
+          <View style={styles.infoIcon}>
+            <Text style={styles.infoIconText}>
+              ✓
+            </Text>
+          </View>
 
-          <Text style={styles.infoText}>
-            You choose the service and staffing period.
-            TempStaff will handle worker assignment for
-            you.
-          </Text>
+          <View style={styles.infoContent}>
+            <Text style={styles.infoTitle}>
+              We handle worker assignment
+            </Text>
+
+            <Text style={styles.infoText}>
+              You choose the service and staffing
+              period. TempStaff will find and assign
+              a suitable worker.
+            </Text>
+          </View>
         </View>
 
-        <PrimaryButton
-          title="Continue"
-          disabled={disabled}
-          onPress={handleContinue}
-        />
+        <View style={styles.bottom}>
+          <PrimaryButton
+            title="Continue"
+            disabled={
+              !selectedService ||
+              !selectedPackage
+            }
+            onPress={handleContinue}
+          />
+
+          {!selectedService ||
+          !selectedPackage ? (
+            <Text style={styles.bottomHint}>
+              Select a staff type and staffing period
+              to continue.
+            </Text>
+          ) : (
+            <Text style={styles.bottomHint}>
+              Next: choose your booking location and
+              schedule.
+            </Text>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   )
@@ -344,257 +550,436 @@ const styles = StyleSheet.create({
   },
 
   page: {
-    padding: 22,
+    paddingHorizontal: 20,
+    paddingTop: 12,
     paddingBottom: 45,
+  },
+
+  header: {
+    marginTop: 6,
+  },
+
+  stepBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E8F6F6',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginBottom: 11,
+  },
+
+  stepBadgeText: {
+    color: COLORS.teal,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
 
   title: {
     color: COLORS.navy,
-    fontSize: 30,
+    fontSize: 29,
+    lineHeight: 35,
     fontWeight: '800',
-    marginBottom: 7,
   },
 
   subtitle: {
     color: COLORS.gray,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 7,
+    maxWidth: 340,
   },
 
-  section: {
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 27,
+    marginBottom: 11,
+  },
+
+  sectionTitle: {
     color: COLORS.navy,
-    fontSize: 20,
+    fontSize: 19,
+    lineHeight: 25,
     fontWeight: '800',
-    marginTop: 24,
-    marginBottom: 12,
+  },
+
+  selectedHint: {
+    color: COLORS.teal,
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '800',
   },
 
   helper: {
     color: COLORS.gray,
-    fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 12,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: -4,
+    marginBottom: 11,
   },
 
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  serviceList: {
+    gap: 10,
   },
 
-  service: {
-    width: '48%',
-    minHeight: 112,
-    borderRadius: 18,
-    backgroundColor: 'white',
+  serviceCard: {
+    width: '100%',
+    minHeight: 83,
+    backgroundColor: COLORS.white,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: COLORS.border,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 14,
   },
 
-  selectedService: {
+  serviceCardSelected: {
     backgroundColor: COLORS.orange,
     borderColor: COLORS.orange,
   },
 
-  icon: {
-    fontSize: 27,
-    marginBottom: 7,
+  serviceIcon: {
+    width: 51,
+    height: 51,
+    borderRadius: 15,
+    backgroundColor: '#F2F6F8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+
+  serviceIconSelected: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+
+  serviceEmoji: {
+    fontSize: 26,
+  },
+
+  serviceContent: {
+    flex: 1,
+    paddingRight: 9,
   },
 
   serviceName: {
     color: COLORS.navy,
-    fontSize: 14,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: '800',
-    textAlign: 'center',
+  },
+
+  serviceDescription: {
+    color: COLORS.gray,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
   },
 
   selectedText: {
-    color: 'white',
-  },
-
-  description: {
-    color: COLORS.gray,
-    fontSize: 11,
-    lineHeight: 15,
-    textAlign: 'center',
-    marginTop: 5,
+    color: COLORS.white,
   },
 
   selectedDescription: {
-    color: 'rgba(255,255,255,0.88)',
+    color: 'rgba(255,255,255,0.86)',
+  },
+
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: '#C9D0D8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  radioSelected: {
+    borderColor: COLORS.white,
+  },
+
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.white,
   },
 
   packageList: {
     gap: 10,
   },
 
-  package: {
-    minHeight: 78,
+  packageCard: {
     width: '100%',
-    borderRadius: 16,
-    backgroundColor: 'white',
+    minHeight: 82,
+    backgroundColor: COLORS.white,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
 
-  selectedPackage: {
+  packageCardSelected: {
     backgroundColor: COLORS.orange,
     borderColor: COLORS.orange,
   },
 
-  packageLeft: {
-    flex: 1,
-    paddingRight: 12,
+  packageRadio: {
+    width: 21,
+    height: 21,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: '#C9D0D8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
   },
 
-  packageTitle: {
+  packageRadioSelected: {
+    borderColor: COLORS.white,
+  },
+
+  packageRadioInner: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: COLORS.white,
+  },
+
+  packageContent: {
+    flex: 1,
+    paddingRight: 8,
+  },
+
+  packageName: {
     color: COLORS.navy,
-    fontSize: 16,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: '800',
-    marginBottom: 4,
   },
 
   packageDescription: {
     color: COLORS.gray,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
   },
 
-  price: {
+  packagePriceContainer: {
+    minWidth: 65,
+    alignItems: 'flex-end',
+  },
+
+  packagePrice: {
     color: COLORS.navy,
-    fontSize: 17,
+    fontSize: 16,
+    lineHeight: 21,
     fontWeight: '900',
   },
 
-  summary: {
+  packagePriceLabel: {
+    color: COLORS.gray,
+    fontSize: 9,
+    lineHeight: 13,
+    marginTop: 1,
+  },
+
+  summaryCard: {
     backgroundColor: COLORS.navy,
-    borderRadius: 18,
-    padding: 18,
-    marginTop: 24,
+    borderRadius: 19,
+    padding: 17,
+    marginTop: 23,
+  },
+
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
   summaryTitle: {
-    color: 'white',
-    fontSize: 17,
+    color: COLORS.white,
+    fontSize: 16,
     fontWeight: '800',
-    marginBottom: 14,
+  },
+
+  summaryCheck: {
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    backgroundColor: COLORS.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  summaryCheckText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  summaryDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    marginVertical: 12,
   },
 
   summaryRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
+    justifyContent: 'space-between',
+    marginVertical: 3,
   },
 
   summaryLabel: {
-    color: '#D8E4EF',
-    fontSize: 13,
+    color: '#C8D5E1',
+    fontSize: 12,
   },
 
   summaryValue: {
-    color: 'white',
-    fontSize: 14,
+    color: COLORS.white,
+    fontSize: 13,
     fontWeight: '700',
-    maxWidth: '65%',
+    maxWidth: '68%',
     textAlign: 'right',
   },
 
-  summaryPrice: {
+  totalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  totalLabel: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  totalValue: {
+    color: COLORS.orange,
+    fontSize: 19,
+    fontWeight: '900',
+  },
+
+  infoCard: {
+    width: '100%',
+    backgroundColor: '#E8F6F6',
+    borderRadius: 17,
+    padding: 14,
+    marginTop: 15,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+
+  infoIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: COLORS.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  infoIconText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  infoContent: {
+    flex: 1,
+  },
+
+  infoTitle: {
+    color: COLORS.navy,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '800',
+  },
+
+  infoText: {
+    color: COLORS.gray,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+
+  stateCard: {
+    width: '100%',
+    backgroundColor: COLORS.white,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  stateIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFF4E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 9,
+  },
+
+  stateIconText: {
     color: COLORS.orange,
     fontSize: 17,
     fontWeight: '900',
   },
 
-  infoBox: {
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 18,
-    marginBottom: 20,
-  },
-
-  infoTitle: {
+  stateTitle: {
     color: COLORS.navy,
-    fontSize: 15,
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: '800',
-    marginBottom: 6,
+    textAlign: 'center',
   },
 
-  infoText: {
+  stateText: {
     color: COLORS.gray,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-
-  loadingBox: {
-    minHeight: 110,
-    backgroundColor: 'white',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  loadingText: {
-    color: COLORS.gray,
-    fontSize: 13,
-    marginTop: 9,
-  },
-
-  errorBox: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 18,
-  },
-
-  errorText: {
-    color: COLORS.navy,
-    fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 12,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 5,
+    maxWidth: 290,
   },
 
   retryButton: {
-    alignSelf: 'flex-start',
     backgroundColor: COLORS.orange,
+    borderRadius: 20,
     paddingHorizontal: 18,
     paddingVertical: 10,
-    borderRadius: 20,
+    marginTop: 13,
   },
 
   retryText: {
-    color: 'white',
-    fontSize: 13,
+    color: COLORS.white,
+    fontSize: 12,
     fontWeight: '800',
   },
 
-  emptyBox: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 18,
+  bottom: {
+    marginTop: 22,
   },
 
-  emptyText: {
+  bottomHint: {
     color: COLORS.gray,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 10.5,
+    lineHeight: 16,
+    textAlign: 'center',
+    marginTop: 10,
+    paddingHorizontal: 12,
   },
 })
