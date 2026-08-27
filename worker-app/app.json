@@ -1,14 +1,31 @@
 {
   "expo": {
-    "name": "worker-app",
-    "slug": "worker-app",
+    "name": "TempStaff Worker",
+    "slug": "tempstaff-worker",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "booking-assignment"
+        }
+      ]
+    ],
+
+    "extra": {
+      "eas": {
+        "projectId": "8dbe7612-45df-4793-b7a5-c7cb1662f2a0"
+      }
+    },
+
     "ios": {
       "supportsTablet": true
     },
+
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -18,6 +35,7 @@
       },
       "predictiveBackGestureEnabled": false
     },
+
     "web": {
       "favicon": "./assets/favicon.png"
     }
