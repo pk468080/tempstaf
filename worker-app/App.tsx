@@ -98,16 +98,11 @@ export default function App() {
   }, [])
 
   /*
-   * ---------------------------------------------------------
    * REALTIME WORKER BOOKING LISTENER
-   * ---------------------------------------------------------
    *
-   * Watches bookings belonging to the currently logged-in
-   * worker.
-   *
-   * Important:
-   * This is only the notification layer.
-   * Authorization remains in Supabase RLS/RPC.
+   * This works independently from push notifications.
+   * It allows the worker app to react immediately while
+   * the app is open.
    */
   useEffect(() => {
     if (!loggedIn) {
@@ -115,6 +110,7 @@ export default function App() {
     }
 
     let mounted = true
+
     let channel:
       ReturnType<
         typeof supabase.channel
@@ -155,8 +151,6 @@ export default function App() {
                     id?: string
                     status?: string
                     fulfillment_type?: string
-                    scheduled_start?: string
-                    total_amount?: number
                   }
 
                 if (
@@ -221,10 +215,6 @@ export default function App() {
                     status?: string
                   }
 
-                /*
-                 * Notify when admin assigns a worker
-                 * to an existing booking.
-                 */
                 if (
                   booking.status ===
                     'assigned' &&
@@ -302,12 +292,6 @@ export default function App() {
     )
   }
 
-  /*
-   * ---------------------------------------------------------
-   * AUTHENTICATION
-   * ---------------------------------------------------------
-   */
-
   if (!loggedIn) {
     if (
       authScreen ===
@@ -341,12 +325,6 @@ export default function App() {
     )
   }
 
-  /*
-   * ---------------------------------------------------------
-   * SETTINGS
-   * ---------------------------------------------------------
-   */
-
   if (showSettings) {
     return (
       <SettingsScreen
@@ -360,12 +338,6 @@ export default function App() {
     )
   }
 
-  /*
-   * ---------------------------------------------------------
-   * EDIT PROFILE
-   * ---------------------------------------------------------
-   */
-
   if (showEditProfile) {
     return (
       <EditProfileScreen
@@ -378,12 +350,6 @@ export default function App() {
       />
     )
   }
-
-  /*
-   * ---------------------------------------------------------
-   * MAIN APPLICATION
-   * ---------------------------------------------------------
-   */
 
   return (
     <View
