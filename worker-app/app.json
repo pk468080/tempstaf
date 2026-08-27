@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-
     "plugins": [
       [
         "expo-notifications",
@@ -15,17 +14,14 @@
         }
       ]
     ],
-
     "extra": {
       "eas": {
         "projectId": "8dbe7612-45df-4793-b7a5-c7cb1662f2a0"
       }
     },
-
     "ios": {
       "supportsTablet": true
     },
-
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -33,9 +29,9 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.pk468080.tempstaffworker"
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     }
