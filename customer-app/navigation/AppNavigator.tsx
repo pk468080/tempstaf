@@ -23,6 +23,7 @@ import ProfileScreen from '../screens/ProfileScreen'
 import MoneyScreen from '../screens/MoneyScreen'
 import HelpSupportScreen from '../screens/HelpSupportScreen'
 import AboutUsScreen from '../screens/AboutUsScreen'
+import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen'
 const Stack =
   createNativeStackNavigator<RootStackParamList>()
 
@@ -139,9 +140,13 @@ export default function AppNavigator() {
          name="AboutUs"
      component={AboutUsScreen}
 />
+        <Stack.Screen
+         name="PrivacyPolicy"
+     component={PrivacyPolicyScreen}
+/>
       </Stack.Navigator>
     </NavigationContainer>
   )
 }
-      
+    
       

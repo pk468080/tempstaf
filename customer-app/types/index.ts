@@ -45,4 +45,5 @@ export type RootStackParamList = {
   Money: undefined
   HelpSupport: undefined
   AboutUs: undefined
+  PrivacyPolicy: undefined
 }
