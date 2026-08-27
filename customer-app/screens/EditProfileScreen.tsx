@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -11,46 +12,39 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import {
-  NativeStackScreenProps,
-} from '@react-navigation/native-stack'
-import { useEffect, useState } from 'react'
+import { NativeStackScreenProps } from '@react-navigation/native-stack'
 
 import { COLORS } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import { supabase } from '../lib/supabase'
+import { saveCustomerProfile } from '../services/customer'
+import CustomerBottomNav from '../components/CustomerBottomNav'
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
   'EditProfile'
 >
 
-type ProfileData = {
-  full_name: string
-  company_name: string
-  phone: string
-  email: string
-}
-
 export default function EditProfileScreen({
   navigation,
 }: Props) {
-  const [profile, setProfile] =
-    useState<ProfileData>({
-      full_name: '',
-      company_name: '',
-      phone: '',
-      email: '',
-    })
+  const [fullName, setFullName] = useState('')
+  const [companyName, setCompanyName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
 
-  const [loading, setLoading] =
-    useState(true)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [focusedField, setFocusedField] =
+    useState<'name' | 'company' | null>(null)
 
-  const [saving, setSaving] =
-    useState(false)
-
-  const [focused, setFocused] =
-    useState<string | null>(null)
+  const canSave = useMemo(() => {
+    return (
+      fullName.trim().length >= 2 &&
+      companyName.trim().length >= 2 &&
+      !saving
+    )
+  }, [fullName, companyName, saving])
 
   useEffect(() => {
     loadProfile()
@@ -90,50 +84,46 @@ export default function EditProfileScreen({
         throw error
       }
 
-      setProfile({
-        full_name:
-          data?.full_name ||
-          user.user_metadata?.full_name ||
-          '',
+      setFullName(
+        data?.full_name ??
+          user.user_metadata?.full_name ??
+          ''
+      )
 
-        company_name:
-          data?.company_name ||
-          user.user_metadata?.company_name ||
-          '',
+      setCompanyName(
+        data?.company_name ??
+          user.user_metadata?.company_name ??
+          ''
+      )
 
-        phone:
-          data?.phone ||
-          user.phone ||
-          '',
+      setPhone(
+        data?.phone ??
+          user.phone ??
+          ''
+      )
 
-        email:
-          user.email ||
-          '',
-      })
+      setEmail(user.email ?? '')
     } catch (error: any) {
       console.error(
-        '[TempStaff] Failed to load customer profile:',
+        '[TempStaff Customer] Failed to load edit profile:',
         error
       )
 
       Alert.alert(
         'Unable to load profile',
         error?.message ||
-          'Please try again.'
+          'We could not load your profile details.'
       )
     } finally {
       setLoading(false)
     }
   }
 
-  const saveProfile = async () => {
-    const fullName =
-      profile.full_name.trim()
+  const saveChanges = async () => {
+    const trimmedName = fullName.trim()
+    const trimmedCompany = companyName.trim()
 
-    const companyName =
-      profile.company_name.trim()
-
-    if (fullName.length < 2) {
+    if (trimmedName.length < 2) {
       Alert.alert(
         'Invalid name',
         'Please enter your full name.'
@@ -141,7 +131,7 @@ export default function EditProfileScreen({
       return
     }
 
-    if (companyName.length < 2) {
+    if (trimmedCompany.length < 2) {
       Alert.alert(
         'Invalid company name',
         'Please enter your company or business name.'
@@ -149,43 +139,21 @@ export default function EditProfileScreen({
       return
     }
 
+    if (saving) {
+      return
+    }
+
     try {
       setSaving(true)
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
-
-      if (userError) {
-        throw userError
-      }
-
-      if (!user) {
-        throw new Error(
-          'Customer is not authenticated.'
-        )
-      }
-
-      const {
-        error,
-      } = await supabase
-        .from('profiles')
-        .update({
-          full_name: fullName,
-          company_name: companyName,
-          updated_at:
-            new Date().toISOString(),
-        })
-        .eq('id', user.id)
-
-      if (error) {
-        throw error
-      }
+      await saveCustomerProfile({
+        fullName: trimmedName,
+        companyName: trimmedCompany,
+      })
 
       Alert.alert(
         'Profile updated',
-        'Your profile details have been saved.',
+        'Your profile details have been saved successfully.',
         [
           {
             text: 'OK',
@@ -196,14 +164,14 @@ export default function EditProfileScreen({
       )
     } catch (error: any) {
       console.error(
-        '[TempStaff] Failed to update profile:',
+        '[TempStaff Customer] Failed to save profile:',
         error
       )
 
       Alert.alert(
         'Unable to save profile',
         error?.message ||
-          'Please try again.'
+          'We could not save your profile. Please try again.'
       )
     } finally {
       setSaving(false)
@@ -212,9 +180,7 @@ export default function EditProfileScreen({
 
   if (loading) {
     return (
-      <SafeAreaView
-        style={styles.container}
-      >
+      <SafeAreaView style={styles.container}>
         <View style={styles.loading}>
           <ActivityIndicator
             size="large"
@@ -222,17 +188,20 @@ export default function EditProfileScreen({
           />
 
           <Text style={styles.loadingText}>
-            Loading your profile...
+            Loading profile...
           </Text>
         </View>
+
+        <CustomerBottomNav
+          navigation={navigation}
+          active="Profile"
+        />
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView
-      style={styles.container}
-    >
+    <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         style={styles.keyboard}
         behavior={
@@ -241,268 +210,248 @@ export default function EditProfileScreen({
             : undefined
         }
       >
-        <ScrollView
-          contentContainerStyle={styles.page}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.topBar}>
+        <View style={styles.screen}>
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.topBar}>
+              <TouchableOpacity
+                style={styles.backButton}
+                activeOpacity={0.8}
+                onPress={() =>
+                  navigation.goBack()
+                }
+              >
+                <Text style={styles.backIcon}>
+                  ‹
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.topTitleContainer}>
+                <Text style={styles.eyebrow}>
+                  ACCOUNT
+                </Text>
+
+                <Text style={styles.title}>
+                  Edit Profile
+                </Text>
+              </View>
+
+              <View style={styles.topSpacer} />
+            </View>
+
+            <Text style={styles.subtitle}>
+              Update your personal and business
+              details.
+            </Text>
+
+            <View style={styles.avatarSection}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {getInitials(fullName)}
+                </Text>
+              </View>
+
+              <View>
+                <Text style={styles.avatarName}>
+                  {fullName.trim() || 'Customer'}
+                </Text>
+
+                <Text style={styles.avatarCompany}>
+                  {companyName.trim() ||
+                    'Business account'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.formCard}>
+              <Text style={styles.sectionTitle}>
+                Personal details
+              </Text>
+
+              <Text style={styles.label}>
+                Full name
+              </Text>
+
+              <View
+                style={[
+                  styles.inputContainer,
+                  focusedField === 'name' &&
+                    styles.inputFocused,
+                ]}
+              >
+                <TextInput
+                  style={styles.input}
+                  value={fullName}
+                  onChangeText={setFullName}
+                  placeholder="Enter your full name"
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  editable={!saving}
+                  returnKeyType="next"
+                  onFocus={() =>
+                    setFocusedField('name')
+                  }
+                  onBlur={() =>
+                    setFocusedField(null)
+                  }
+                />
+              </View>
+
+              <Text style={styles.label}>
+                Company / Business name
+              </Text>
+
+              <View
+                style={[
+                  styles.inputContainer,
+                  focusedField === 'company' &&
+                    styles.inputFocused,
+                ]}
+              >
+                <TextInput
+                  style={styles.input}
+                  value={companyName}
+                  onChangeText={setCompanyName}
+                  placeholder="Enter company or business name"
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  editable={!saving}
+                  returnKeyType="done"
+                  onFocus={() =>
+                    setFocusedField('company')
+                  }
+                  onBlur={() =>
+                    setFocusedField(null)
+                  }
+                  onSubmitEditing={saveChanges}
+                />
+              </View>
+            </View>
+
+            <View style={styles.contactCard}>
+              <Text style={styles.sectionTitle}>
+                Account contact
+              </Text>
+
+              <View style={styles.contactRow}>
+                <View style={styles.contactIcon}>
+                  <Text style={styles.contactIconText}>
+                    ☎
+                  </Text>
+                </View>
+
+                <View style={styles.contactContent}>
+                  <Text style={styles.contactLabel}>
+                    Phone number
+                  </Text>
+
+                  <Text style={styles.contactValue}>
+                    {phone || 'Not available'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.contactRow}>
+                <View style={styles.contactIcon}>
+                  <Text style={styles.contactIconText}>
+                    @
+                  </Text>
+                </View>
+
+                <View style={styles.contactContent}>
+                  <Text style={styles.contactLabel}>
+                    Email address
+                  </Text>
+
+                  <Text style={styles.contactValue}>
+                    {email || 'Not available'}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.readOnlyNote}>
+                Phone and email are managed through
+                your account authentication and cannot
+                be changed here.
+              </Text>
+            </View>
+
+            <View style={styles.infoBox}>
+              <View style={styles.infoIcon}>
+                <Text style={styles.infoIconText}>
+                  i
+                </Text>
+              </View>
+
+              <Text style={styles.infoText}>
+                Your name and business details are used
+                when creating and managing bookings.
+              </Text>
+            </View>
+
             <TouchableOpacity
-              style={styles.backButton}
+              style={[
+                styles.saveButton,
+                !canSave &&
+                  styles.saveButtonDisabled,
+              ]}
+              activeOpacity={0.85}
+              disabled={!canSave}
+              onPress={saveChanges}
+            >
+              {saving ? (
+                <ActivityIndicator
+                  color={COLORS.white}
+                />
+              ) : (
+                <Text style={styles.saveText}>
+                  Save Changes
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelButton}
+              activeOpacity={0.8}
+              disabled={saving}
               onPress={() =>
                 navigation.goBack()
               }
-              disabled={saving}
             >
-              <Text style={styles.backText}>
-                ‹
+              <Text style={styles.cancelText}>
+                Cancel
               </Text>
             </TouchableOpacity>
 
-            <Text style={styles.topTitle}>
-              Edit Profile
-            </Text>
+            <View style={styles.bottomSpace} />
+          </ScrollView>
 
-            <View
-              style={styles.topSpacer}
-            />
-          </View>
-
-          <View style={styles.avatar}>
-            <Text
-              style={styles.avatarText}
-            >
-              {getInitials(
-                profile.full_name
-              )}
-            </Text>
-          </View>
-
-          <Text style={styles.heading}>
-            Your profile
-          </Text>
-
-          <Text style={styles.subtitle}>
-            Keep your account information
-            up to date.
-          </Text>
-
-          <View style={styles.form}>
-            <Field
-              label="Full name"
-              value={profile.full_name}
-              placeholder="Enter your full name"
-              focused={focused === 'name'}
-              editable={!saving}
-              onFocus={() =>
-                setFocused('name')
-              }
-              onBlur={() =>
-                setFocused(null)
-              }
-              onChangeText={value =>
-                setProfile(current => ({
-                  ...current,
-                  full_name: value,
-                }))
-              }
-              autoCapitalize="words"
-            />
-
-            <Field
-              label="Company / Business name"
-              value={profile.company_name}
-              placeholder="Enter company or business name"
-              focused={
-                focused === 'company'
-              }
-              editable={!saving}
-              onFocus={() =>
-                setFocused('company')
-              }
-              onBlur={() =>
-                setFocused(null)
-              }
-              onChangeText={value =>
-                setProfile(current => ({
-                  ...current,
-                  company_name: value,
-                }))
-              }
-              autoCapitalize="words"
-            />
-
-            <Text style={styles.label}>
-              Phone number
-            </Text>
-
-            <View
-              style={[
-                styles.inputBox,
-                styles.disabledBox,
-              ]}
-            >
-              <TextInput
-                style={styles.input}
-                value={profile.phone}
-                editable={false}
-                placeholder="Phone number"
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-
-            <Text style={styles.helper}>
-              Phone number is linked to your
-              authentication account.
-            </Text>
-
-            <Text style={styles.label}>
-              Email
-            </Text>
-
-            <View
-              style={[
-                styles.inputBox,
-                styles.disabledBox,
-              ]}
-            >
-              <TextInput
-                style={styles.input}
-                value={profile.email}
-                editable={false}
-                placeholder="Email address"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="email-address"
-              />
-            </View>
-
-            <Text style={styles.helper}>
-              Authentication details are managed
-              by your TempStaff account.
-            </Text>
-          </View>
-
-          <View style={styles.infoBox}>
-            <View style={styles.infoIcon}>
-              <Text
-                style={styles.infoIconText}
-              >
-                i
-              </Text>
-            </View>
-
-            <Text style={styles.infoText}>
-              Your name and business information
-              are used when managing bookings
-              and identifying your account.
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={[
-              styles.saveButton,
-              saving &&
-                styles.saveButtonDisabled,
-            ]}
-            onPress={saveProfile}
-            disabled={saving}
-            activeOpacity={0.85}
-          >
-            {saving ? (
-              <ActivityIndicator
-                color={COLORS.white}
-              />
-            ) : (
-              <Text
-                style={styles.saveText}
-              >
-                Save Changes
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() =>
-              navigation.goBack()
-            }
-            disabled={saving}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={styles.cancelText}
-            >
-              Cancel
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
+          <CustomerBottomNav
+            navigation={navigation}
+            active="Profile"
+          />
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }
 
-function Field({
-  label,
-  value,
-  placeholder,
-  focused,
-  editable,
-  onFocus,
-  onBlur,
-  onChangeText,
-  autoCapitalize,
-}: {
-  label: string
-  value: string
-  placeholder: string
-  focused: boolean
-  editable: boolean
-  onFocus: () => void
-  onBlur: () => void
-  onChangeText: (value: string) => void
-  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters'
-}) {
-  return (
-    <View>
-      <Text style={styles.label}>
-        {label}
-      </Text>
-
-      <View
-        style={[
-          styles.inputBox,
-          focused &&
-            styles.inputFocused,
-        ]}
-      >
-        <TextInput
-          style={styles.input}
-          value={value}
-          placeholder={placeholder}
-          placeholderTextColor="#9CA3AF"
-          editable={editable}
-          autoCapitalize={
-            autoCapitalize || 'sentences'
-          }
-          autoCorrect={false}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          onChangeText={onChangeText}
-        />
-      </View>
-    </View>
-  )
-}
-
 function getInitials(name: string) {
+  if (!name.trim()) {
+    return 'TS'
+  }
+
   const parts = name
     .trim()
     .split(/\s+/)
     .filter(Boolean)
-
-  if (!parts.length) {
-    return 'TS'
-  }
 
   if (parts.length === 1) {
     return parts[0]
@@ -526,16 +475,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  page: {
+  screen: {
+    flex: 1,
+  },
+
+  content: {
     padding: 22,
-    paddingBottom: 40,
+    paddingBottom: 35,
   },
 
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 28,
   },
 
   backButton: {
@@ -549,76 +500,109 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  backText: {
+  backIcon: {
     color: COLORS.navy,
-    fontSize: 30,
-    lineHeight: 32,
+    fontSize: 31,
+    lineHeight: 34,
     marginTop: -3,
   },
 
-  topTitle: {
-    color: COLORS.navy,
-    fontSize: 18,
-    fontWeight: '900',
+  topTitleContainer: {
+    flex: 1,
+    marginLeft: 13,
   },
 
   topSpacer: {
     width: 42,
   },
 
-  avatar: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: COLORS.navy,
-    alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 17,
+  eyebrow: {
+    color: COLORS.teal,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+    marginBottom: 3,
   },
 
-  avatarText: {
-    color: COLORS.white,
+  title: {
+    color: COLORS.navy,
     fontSize: 25,
     fontWeight: '900',
-  },
-
-  heading: {
-    color: COLORS.navy,
-    fontSize: 27,
-    fontWeight: '900',
-    textAlign: 'center',
   },
 
   subtitle: {
     color: COLORS.gray,
     fontSize: 13,
-    textAlign: 'center',
-    marginTop: 6,
-    marginBottom: 28,
+    lineHeight: 19,
+    marginTop: 7,
+    marginBottom: 20,
   },
 
-  form: {
+  avatarSection: {
+    backgroundColor: COLORS.navy,
+    borderRadius: 21,
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+
+  avatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+
+  avatarText: {
+    color: COLORS.white,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+
+  avatarName: {
+    color: COLORS.white,
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  avatarCompany: {
+    color: '#B9CBD8',
+    fontSize: 12,
+    marginTop: 4,
+  },
+
+  formCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 17,
+    marginBottom: 14,
+  },
+
+  sectionTitle: {
+    color: COLORS.navy,
+    fontSize: 15,
+    fontWeight: '900',
+    marginBottom: 16,
   },
 
   label: {
     color: COLORS.navy,
     fontSize: 13,
     fontWeight: '800',
-    marginBottom: 8,
-    marginTop: 3,
+    marginBottom: 7,
   },
 
-  inputBox: {
+  inputContainer: {
     height: 54,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#D9DEE5',
-    borderRadius: 13,
     backgroundColor: COLORS.white,
     marginBottom: 17,
   },
@@ -627,24 +611,73 @@ const styles = StyleSheet.create({
     borderColor: COLORS.teal,
   },
 
-  disabledBox: {
-    backgroundColor: '#F3F5F7',
-  },
-
   input: {
     flex: 1,
-    paddingHorizontal: 15,
     color: COLORS.navy,
     fontSize: 15,
     fontWeight: '500',
+    paddingHorizontal: 15,
+    paddingVertical: 0,
   },
 
-  helper: {
+  contactCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 17,
+    marginBottom: 14,
+  },
+
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  contactIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#E8F6F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  contactIconText: {
+    color: COLORS.teal,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  contactContent: {
+    flex: 1,
+  },
+
+  contactLabel: {
+    color: COLORS.gray,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  contactValue: {
+    color: COLORS.navy,
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 13,
+  },
+
+  readOnlyNote: {
     color: COLORS.gray,
     fontSize: 10,
     lineHeight: 15,
-    marginTop: -11,
-    marginBottom: 17,
+    marginTop: 13,
   },
 
   infoBox: {
@@ -652,8 +685,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#E8F6F6',
     borderRadius: 14,
-    padding: 13,
-    marginTop: 16,
+    padding: 12,
+    marginBottom: 17,
   },
 
   infoIcon: {
@@ -668,28 +701,27 @@ const styles = StyleSheet.create({
 
   infoIconText: {
     color: COLORS.white,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '900',
   },
 
   infoText: {
     flex: 1,
     color: COLORS.navy,
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 10,
+    lineHeight: 15,
   },
 
   saveButton: {
-    height: 54,
+    height: 52,
     borderRadius: 16,
     backgroundColor: COLORS.orange,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 20,
   },
 
   saveButtonDisabled: {
-    opacity: 0.65,
+    opacity: 0.5,
   },
 
   saveText: {
@@ -699,17 +731,20 @@ const styles = StyleSheet.create({
   },
 
   cancelButton: {
-    height: 50,
-    borderRadius: 16,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 9,
+    marginTop: 5,
   },
 
   cancelText: {
-    color: COLORS.gray,
+    color: COLORS.navy,
     fontSize: 13,
     fontWeight: '800',
+  },
+
+  bottomSpace: {
+    height: 20,
   },
 
   loading: {
@@ -721,6 +756,6 @@ const styles = StyleSheet.create({
   loadingText: {
     color: COLORS.gray,
     fontSize: 13,
-    marginTop: 12,
+    marginTop: 11,
   },
 })
