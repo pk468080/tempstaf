@@ -38,6 +38,7 @@ export type RootStackParamList = {
   Tracking: {
     bookingId?: string
   }
+  SavedAddresses: undefined
 
   Profile: undefined
 }
