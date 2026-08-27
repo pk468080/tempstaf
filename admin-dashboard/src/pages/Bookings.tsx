@@ -152,36 +152,36 @@ export default function Bookings() {
   }, [])
 
   async function assignWorker(
-    bookingId: string,
-    workerId: string
-  ) {
-    if (!workerId) return
+  bookingId: string,
+  workerId: string
+) {
+  if (!workerId) return
 
-    setAssigningBookingId(bookingId)
-    setError(null)
+  setAssigningBookingId(bookingId)
+  setError(null)
 
-    const { error } = await supabase
-  .from('bookings')
-  .update({
-    worker_id: workerId,
-    status: 'assigned',
-  })
-  .eq('id', bookingId)
-
-    setAssigningBookingId(null)
-
-    if (error) {
-      console.error(
-        'Failed to assign worker:',
-        error
-      )
-
-      setError(error.message)
-      return
+  const { error } = await supabase.rpc(
+    'admin_assign_booking_worker',
+    {
+      p_booking_id: bookingId,
+      p_worker_id: workerId,
     }
+  )
 
-    await loadBookings()
+  setAssigningBookingId(null)
+
+  if (error) {
+    console.error(
+      'Failed to assign worker:',
+      error
+    )
+
+    setError(error.message)
+    return
   }
+
+  await loadBookings()
+}
 
   function getProfileName(id: string | null) {
     if (!id) return 'Unassigned'
