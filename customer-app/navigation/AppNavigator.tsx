@@ -18,6 +18,7 @@ import MyBookingsScreen from '../screens/MyBookingsScreen'
 import BookingDetailsScreen from '../screens/BookingDetailsScreen'
 import ScheduleScreen from '../screens/ScheduleScreen'
 
+import ProfileScreen from '../screens/ProfileScreen'
 const Stack = createNativeStackNavigator<RootStackParamList>()
 
 export default function AppNavigator() {
