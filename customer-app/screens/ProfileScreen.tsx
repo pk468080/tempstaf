@@ -311,9 +311,8 @@ export default function ProfileScreen({
             subtitle="Update your personal and business details"
             icon="✎"
             onPress={() =>
-              Alert.alert(
-                'Edit Profile',
-                'Edit Profile screen will be completed next.'
+              navigation.navigate(
+                'EditProfile'
               )
             }
           />
@@ -323,9 +322,8 @@ export default function ProfileScreen({
             subtitle="Manage your saved booking locations"
             icon="⌖"
             onPress={() =>
-              Alert.alert(
-                'Saved Addresses',
-                'Saved Addresses screen will be completed next.'
+              navigation.navigate(
+                'SavedAddresses'
               )
             }
           />
@@ -335,9 +333,8 @@ export default function ProfileScreen({
             subtitle="View your TempStaff balance and transactions"
             icon="₹"
             onPress={() =>
-              Alert.alert(
-                'TempStaff Money',
-                'TempStaff Money screen will be completed next.'
+              navigation.navigate(
+                'Money'
               )
             }
           />
@@ -356,9 +353,8 @@ export default function ProfileScreen({
             subtitle="Get help with your account or booking"
             icon="?"
             onPress={() =>
-              Alert.alert(
-                'Help & Support',
-                'Help & Support screen will be completed next.'
+              navigation.navigate(
+                'HelpSupport'
               )
             }
           />
@@ -368,9 +364,8 @@ export default function ProfileScreen({
             subtitle="Learn more about TempStaff"
             icon="i"
             onPress={() =>
-              Alert.alert(
-                'About Us',
-                'About Us screen will be completed next.'
+              navigation.navigate(
+                'AboutUs'
               )
             }
           />
@@ -380,9 +375,8 @@ export default function ProfileScreen({
             subtitle="Read the TempStaff terms"
             icon="§"
             onPress={() =>
-              Alert.alert(
-                'Terms of Service',
-                'Terms of Service screen will be completed next.'
+              navigation.navigate(
+                'TermsOfService'
               )
             }
           />
@@ -392,9 +386,8 @@ export default function ProfileScreen({
             subtitle="Read our privacy policy"
             icon="✓"
             onPress={() =>
-              Alert.alert(
-                'Privacy Policy',
-                'Privacy Policy screen will be completed next.'
+              navigation.navigate(
+                'PrivacyPolicy'
               )
             }
           />
@@ -412,9 +405,8 @@ export default function ProfileScreen({
             style={styles.deleteButton}
             activeOpacity={0.85}
             onPress={() =>
-              Alert.alert(
-                'Delete Account',
-                'Account deletion will be completed after the remaining account screens are finished.'
+              navigation.navigate(
+                'DeleteAccount'
               )
             }
           >
@@ -486,7 +478,9 @@ function ProfileMenu({
       </View>
 
       <View style={styles.menuContent}>
-        <Text style={styles.menuTitle}>
+        <Text
+          style={styles.menuTitle}
+        >
           {title}
         </Text>
 
