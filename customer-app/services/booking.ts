@@ -92,7 +92,9 @@ export async function createAddress(
   } = await supabase.auth.getUser()
 
   if (!user) {
-    throw new Error('Customer is not authenticated.')
+    throw new Error(
+      'Customer is not authenticated.'
+    )
   }
 
   const { data, error } = await supabase
@@ -201,8 +203,6 @@ export async function verifyBookingOtp(
 }
 
 export type CreateBookingInput = {
-  workerId?: string | null
-
   fulfillmentType:
     | 'instant'
     | 'scheduled'
@@ -229,6 +229,15 @@ export type CreateBookingInput = {
   notes?: string
 }
 
+/**
+ * Creates the booking only.
+ *
+ * Worker assignment is intentionally NOT trusted
+ * from the customer application.
+ *
+ * Instant assignment must be performed by the
+ * Supabase/database transaction after payment.
+ */
 export async function createBooking(
   input: CreateBookingInput
 ) {
@@ -242,33 +251,79 @@ export async function createBooking(
     )
   }
 
+  if (!input.serviceId) {
+    throw new Error(
+      'Service is required.'
+    )
+  }
+
+  if (!input.addressId) {
+    throw new Error(
+      'Booking address is required.'
+    )
+  }
+
+  if (
+    input.fulfillmentType === 'instant' &&
+    !input.scheduledStart
+  ) {
+    throw new Error(
+      'Instant booking start time is required.'
+    )
+  }
+
+  if (
+    input.fulfillmentType === 'scheduled' &&
+    !input.scheduledStart
+  ) {
+    throw new Error(
+      'Scheduled booking time is required.'
+    )
+  }
+
   const { data, error } = await supabase
-  .from('bookings')
-  .insert({
-    customer_id: user.id,
+    .from('bookings')
+    .insert({
+      customer_id: user.id,
 
-    // Worker is normally assigned after booking creation.
-    worker_id: input.workerId ?? null,
+      // Never accept a worker selected by the
+      // customer app.
+      worker_id: null,
 
-    service_id: input.serviceId,
-    address_id: input.addressId,
+      service_id: input.serviceId,
+      address_id: input.addressId,
 
-    fulfillment_type: input.fulfillmentType,
+      fulfillment_type:
+        input.fulfillmentType,
 
-    status: 'pending_payment',
+      status: 'pending_payment',
 
-      duration_value: input.durationValue,
-      duration_unit: input.durationUnit,
+      duration_value:
+        input.durationValue,
 
-      scheduled_start: input.scheduledStart,
-      scheduled_end: input.scheduledEnd,
+      duration_unit:
+        input.durationUnit,
 
-      base_amount: input.baseAmount,
-      platform_fee: input.platformFee,
-      tax_amount: input.taxAmount,
-      total_amount: input.totalAmount,
+      scheduled_start:
+        input.scheduledStart,
 
-      notes: input.notes ?? null,
+      scheduled_end:
+        input.scheduledEnd,
+
+      base_amount:
+        input.baseAmount,
+
+      platform_fee:
+        input.platformFee,
+
+      tax_amount:
+        input.taxAmount,
+
+      total_amount:
+        input.totalAmount,
+
+      notes:
+        input.notes ?? null,
     })
     .select()
     .single()
@@ -289,7 +344,9 @@ export async function markBookingPaid(
   bookingId: string
 ) {
   if (!bookingId) {
-    throw new Error('Booking ID is required.')
+    throw new Error(
+      'Booking ID is required.'
+    )
   }
 
   const { data, error } =
