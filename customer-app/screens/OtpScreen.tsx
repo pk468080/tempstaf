@@ -17,6 +17,9 @@ import { COLORS, LOGO } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import PrimaryButton from '../components/PrimaryButton'
 import {
+  isCustomerProfileComplete,
+} from '../services/customer'
+import {
   ensureDevelopmentSession,
   verifyDevelopmentLoginOtp,
 } from '../services/booking'
@@ -75,14 +78,19 @@ export default function OtpScreen({
         route.params.phone
       )
 
-      navigation.reset({
-        index: 0,
-        routes: [
-          {
-            name: 'CustomerDetails',
-          },
-        ],
-      })
+      const profileComplete =
+  await isCustomerProfileComplete()
+
+navigation.reset({
+  index: 0,
+  routes: [
+    {
+      name: profileComplete
+        ? 'Home'
+        : 'CustomerDetails',
+    },
+  ],
+})
     } catch (error: any) {
       console.error(
         '[TempStaff] Development authentication failed:',

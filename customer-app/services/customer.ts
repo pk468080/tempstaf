@@ -71,6 +71,21 @@ export async function getCustomerProfile(): Promise<CustomerProfile> {
   return data as CustomerProfile
 }
 
+export async function isCustomerProfileComplete() {
+  const profile = await getCustomerProfile()
+
+  if (!profile) {
+    return false
+  }
+
+  return (
+    profile.role === 'customer' &&
+    profile.is_active === true &&
+    (profile.full_name ?? '').trim().length >= 2 &&
+    (profile.company_name ?? '').trim().length >= 2
+  )
+}
+
 export async function saveCustomerProfile(
   input: CustomerProfileInput
 ) {
