@@ -25,20 +25,30 @@ type Service = {
   name: string
 }
 
-type Worker = {
-  id: string
+type EligibleWorker = {
+  worker_id: string
   worker_status: string | null
-  is_verified: boolean
+  rating: number | null
+  total_completed_jobs: number | null
+  distance_km: number | null
 }
 
 export default function Bookings() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [services, setServices] = useState<Service[]>([])
-  const [workers, setWorkers] = useState<Worker[]>([])
+
+  const [eligibleWorkers, setEligibleWorkers] = useState<
+    Record<string, EligibleWorker[]>
+  >({})
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
   const [assigningBookingId, setAssigningBookingId] =
+    useState<string | null>(null)
+
+  const [loadingWorkersFor, setLoadingWorkersFor] =
     useState<string | null>(null)
 
   async function loadBookings() {
@@ -49,50 +59,35 @@ export default function Bookings() {
       bookingsResult,
       profilesResult,
       servicesResult,
-      workersResult,
     ] = await Promise.all([
       supabase
         .from('bookings')
-        .select(`
-          id,
-          customer_id,
-          worker_id,
-          service_id,
-          status,
-          scheduled_start,
-          scheduled_end,
-          base_amount,
-          platform_fee,
-          tax_amount,
-          total_amount
-        `)
+        .select(
+          `
+            id,
+            customer_id,
+            worker_id,
+            service_id,
+            status,
+            scheduled_start,
+            scheduled_end,
+            base_amount,
+            platform_fee,
+            tax_amount,
+            total_amount
+          `
+        )
         .order('scheduled_start', {
           ascending: false,
         }),
 
       supabase
         .from('profiles')
-        .select(`
-          id,
-          full_name
-        `),
+        .select('id, full_name'),
 
       supabase
         .from('services')
-        .select(`
-          id,
-          name
-        `),
-
-      supabase
-        .from('worker_profiles')
-        .select(`
-          id,
-          worker_status,
-          is_verified
-        `)
-        .eq('is_verified', true)
-        .in('worker_status', ['available', 'busy']),
+        .select('id, name'),
     ])
 
     if (bookingsResult.error) {
@@ -104,6 +99,7 @@ export default function Bookings() {
       setError(bookingsResult.error.message)
       setBookings([])
       setLoading(false)
+
       return
     }
 
@@ -121,16 +117,10 @@ export default function Bookings() {
       )
     }
 
-    if (workersResult.error) {
-      console.error(
-        'Failed to load workers:',
-        workersResult.error
-      )
-    }
-
-    setBookings(
+    const nextBookings =
       (bookingsResult.data || []) as Booking[]
-    )
+
+    setBookings(nextBookings)
 
     setProfiles(
       (profilesResult.data || []) as Profile[]
@@ -140,9 +130,8 @@ export default function Bookings() {
       (servicesResult.data || []) as Service[]
     )
 
-    setWorkers(
-      (workersResult.data || []) as Worker[]
-    )
+    // Clear eligibility cache after refresh.
+    setEligibleWorkers({})
 
     setLoading(false)
   }
@@ -151,92 +140,186 @@ export default function Bookings() {
     loadBookings()
   }, [])
 
+  async function loadEligibleWorkers(
+    bookingId: string
+  ) {
+    if (eligibleWorkers[bookingId]) {
+      return
+    }
+
+    setLoadingWorkersFor(bookingId)
+    setError(null)
+
+    const {
+      data,
+      error: rpcError,
+    } = await supabase.rpc(
+      'get_eligible_workers',
+      {
+        p_booking_id: bookingId,
+      }
+    )
+
+    setLoadingWorkersFor(null)
+
+    if (rpcError) {
+      console.error(
+        'Failed to load eligible workers:',
+        rpcError
+      )
+
+      setError(rpcError.message)
+
+      return
+    }
+
+    setEligibleWorkers(
+      (current) => ({
+        ...current,
+        [bookingId]:
+          (data || []) as EligibleWorker[],
+      })
+    )
+  }
+
   async function assignWorker(
-  bookingId: string,
-  workerId: string
-) {
-  if (!workerId) return
-
-  setAssigningBookingId(bookingId)
-  setError(null)
-
-  const { error } = await supabase.rpc(
-    'admin_assign_booking_worker',
-    {
-      p_booking_id: bookingId,
-      p_worker_id: workerId,
-    }
-  )
-
-  setAssigningBookingId(null)
-
-  if (error) {
-    console.error(
-      'Failed to assign worker:',
-      error
-    )
-
-    setError(error.message)
-    return
-  }
-
-  await loadBookings()
-}
-
-  function getProfileName(id: string | null) {
-    if (!id) return 'Unassigned'
-
-    const profile = profiles.find(
-      (item) => item.id === id
-    )
-
-    return profile?.full_name || 'Unknown'
-  }
-
-  function getWorkerName(workerId: string) {
-    const worker = workers.find(
-      (item) => item.id === workerId
-    )
-
-    if (!worker) {
-      return getProfileName(workerId)
+    bookingId: string,
+    workerId: string
+  ) {
+    if (!workerId) {
+      return
     }
 
-    return getProfileName(worker.id)
-  }
+    setAssigningBookingId(bookingId)
+    setError(null)
 
-  function getServiceName(id: string) {
-    const service = services.find(
-      (item) => item.id === id
+    const {
+      error: rpcError,
+    } = await supabase.rpc(
+      'admin_assign_booking_worker',
+      {
+        p_booking_id: bookingId,
+        p_worker_id: workerId,
+      }
     )
 
-    return service?.name || 'Unknown service'
+    setAssigningBookingId(null)
+
+    if (rpcError) {
+      console.error(
+        'Failed to assign worker:',
+        rpcError
+      )
+
+      setError(rpcError.message)
+
+      return
+    }
+
+    await loadBookings()
   }
 
-  function formatDate(value: string) {
-    if (!value) return '—'
+  function getProfileName(
+    id: string | null
+  ) {
+    if (!id) {
+      return 'Unassigned'
+    }
 
-    return new Date(value).toLocaleString('en-IN', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    })
+    return (
+      profiles.find(
+        (profile) => profile.id === id
+      )?.full_name ||
+      'Unknown'
+    )
   }
 
-  function formatAmount(value: number) {
-    return `₹${Number(value || 0).toLocaleString(
-      'en-IN'
-    )}`
+  function getServiceName(
+    id: string
+  ) {
+    return (
+      services.find(
+        (service) => service.id === id
+      )?.name ||
+      'Unknown service'
+    )
   }
 
-  function statusClass(status: string) {
-    return `booking-status booking-status-${status
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')}`
+  function formatDate(
+    value: string
+  ) {
+    if (!value) {
+      return '—'
+    }
+
+    const date = new Date(value)
+
+    if (Number.isNaN(date.getTime())) {
+      return '—'
+    }
+
+    return date.toLocaleString(
+      'en-IN',
+      {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }
+    )
+  }
+
+  function formatAmount(
+    value: number
+  ) {
+    return `₹${Number(
+      value || 0
+    ).toLocaleString('en-IN')}`
+  }
+
+  function formatWorkerLabel(
+    worker: EligibleWorker
+  ) {
+    const name = getProfileName(
+      worker.worker_id
+    )
+
+    const distance =
+      worker.distance_km == null
+        ? 'distance n/a'
+        : `${worker.distance_km.toFixed(
+            1
+          )} km`
+
+    const rating =
+      worker.rating == null
+        ? 'new'
+        : `${Number(
+            worker.rating
+          ).toFixed(1)}★`
+
+    const jobs =
+      worker.total_completed_jobs == null
+        ? '0 jobs'
+        : `${worker.total_completed_jobs} jobs`
+
+    return `${name} — ${distance} — ${rating} — ${jobs}`
+  }
+
+  function statusClass(
+    status: string
+  ) {
+    return (
+      `booking-status booking-status-` +
+      status
+        .toLowerCase()
+        .replace(
+          /[^a-z0-9]+/g,
+          '-'
+        )
+    )
   }
 
   return (
     <div className="page-content">
-
       <div className="page-heading">
         <div>
           <h1>Bookings</h1>
@@ -251,18 +334,20 @@ export default function Bookings() {
           onClick={loadBookings}
           disabled={loading}
         >
-          {loading ? 'Loading...' : 'Refresh'}
+          {loading
+            ? 'Loading...'
+            : 'Refresh'}
         </button>
       </div>
 
       {error && (
         <div className="error-banner">
-          Failed to load bookings: {error}
+          Booking operation failed:{' '}
+          {error}
         </div>
       )}
 
       <div className="panel bookings-panel">
-
         <div className="panel-header">
           <div>
             <h2>All bookings</h2>
@@ -296,15 +381,13 @@ export default function Bookings() {
             </strong>
 
             <span>
-              New TempStaff bookings will
-              appear here.
+              New TempStaff bookings
+              will appear here.
             </span>
           </div>
         ) : (
           <div className="bookings-table-wrap">
-
             <table className="bookings-table">
-
               <thead>
                 <tr>
                   <th>Booking</th>
@@ -318,145 +401,181 @@ export default function Bookings() {
               </thead>
 
               <tbody>
+                {bookings.map(
+                  (booking) => (
+                    <tr key={booking.id}>
+                      <td>
+                        <strong>
+                          #
+                          {booking.id.slice(
+                            0,
+                            8
+                          )}
+                        </strong>
+                      </td>
 
-                {bookings.map((booking) => (
+                      <td>
+                        <strong>
+                          {getProfileName(
+                            booking.customer_id
+                          )}
+                        </strong>
+                      </td>
 
-                  <tr key={booking.id}>
+                      <td>
+                        {booking.worker_id ? (
+                          <div>
+                            <strong>
+                              {getProfileName(
+                                booking.worker_id
+                              )}
+                            </strong>
 
-                    <td>
-                      <strong>
-                        #{booking.id.slice(0, 8)}
-                      </strong>
-                    </td>
-
-                    <td>
-                      <strong>
-                        {getProfileName(
-                          booking.customer_id
-                        )}
-                      </strong>
-                    </td>
-
-                    <td>
-                      {booking.worker_id ? (
-                        <div>
-                          <strong>
-                            {getWorkerName(
-                              booking.worker_id
-                            )}
-                          </strong>
-
+                            <div
+                              style={{
+                                fontSize: 12,
+                                marginTop: 4,
+                                opacity: 0.7,
+                              }}
+                            >
+                              Assigned
+                            </div>
+                          </div>
+                        ) : (
                           <div
                             style={{
-                              fontSize: 12,
-                              marginTop: 4,
-                              opacity: 0.7,
+                              display: 'flex',
+                              alignItems:
+                                'center',
+                              gap: 8,
+                              flexWrap:
+                                'wrap',
                             }}
                           >
-                            Assigned
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            flexWrap: 'wrap',
-                          }}
-                        >
-                          <select
-                            defaultValue=""
-                            disabled={
-                              assigningBookingId ===
+                            {!eligibleWorkers[
                               booking.id
-                            }
-                            onChange={(event) =>
-                              assignWorker(
-                                booking.id,
-                                event.target.value
-                              )
-                            }
-                          >
-                            <option
-                              value=""
-                              disabled
-                            >
-                              Select worker
-                            </option>
-
-                            {workers.map(
-                              (worker) => (
+                            ] ? (
+                              <button
+                                className="dashboard-refresh"
+                                onClick={() =>
+                                  loadEligibleWorkers(
+                                    booking.id
+                                  )
+                                }
+                                disabled={
+                                  loadingWorkersFor ===
+                                  booking.id
+                                }
+                              >
+                                {loadingWorkersFor ===
+                                booking.id
+                                  ? 'Finding workers...'
+                                  : 'Find eligible workers'}
+                              </button>
+                            ) : eligibleWorkers[
+                                booking.id
+                              ].length === 0 ? (
+                              <span>
+                                No eligible
+                                workers found
+                              </span>
+                            ) : (
+                              <select
+                                defaultValue=""
+                                disabled={
+                                  assigningBookingId ===
+                                  booking.id
+                                }
+                                onChange={(
+                                  event
+                                ) =>
+                                  assignWorker(
+                                    booking.id,
+                                    event.target
+                                      .value
+                                  )
+                                }
+                              >
                                 <option
-                                  key={worker.id}
-                                  value={worker.id}
+                                  value=""
+                                  disabled
                                 >
-                                  {getProfileName(
-                                    worker.id
-                                  )}
-                                  {' — '}
-                                  {worker.worker_status ||
-                                    'available'}
+                                  Select eligible
+                                  worker
                                 </option>
-                              )
+
+                                {eligibleWorkers[
+                                  booking.id
+                                ].map(
+                                  (
+                                    worker
+                                  ) => (
+                                    <option
+                                      key={
+                                        worker.worker_id
+                                      }
+                                      value={
+                                        worker.worker_id
+                                      }
+                                    >
+                                      {formatWorkerLabel(
+                                        worker
+                                      )}
+                                    </option>
+                                  )
+                                )}
+                              </select>
                             )}
-                          </select>
 
-                          {assigningBookingId ===
-                            booking.id && (
-                            <span>
-                              Assigning...
-                            </span>
+                            {assigningBookingId ===
+                              booking.id && (
+                              <span>
+                                Assigning...
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      <td>
+                        <strong>
+                          {getServiceName(
+                            booking.service_id
                           )}
-                        </div>
-                      )}
-                    </td>
+                        </strong>
+                      </td>
 
-                    <td>
-                      <strong>
-                        {getServiceName(
-                          booking.service_id
+                      <td>
+                        {formatDate(
+                          booking.scheduled_start
                         )}
-                      </strong>
-                    </td>
+                      </td>
 
-                    <td>
-                      {formatDate(
-                        booking.scheduled_start
-                      )}
-                    </td>
+                      <td>
+                        <span
+                          className={statusClass(
+                            booking.status
+                          )}
+                        >
+                          {booking.status}
+                        </span>
+                      </td>
 
-                    <td>
-                      <span
-                        className={statusClass(
-                          booking.status
-                        )}
-                      >
-                        {booking.status}
-                      </span>
-                    </td>
-
-                    <td>
-                      <strong>
-                        {formatAmount(
-                          booking.total_amount
-                        )}
-                      </strong>
-                    </td>
-
-                  </tr>
-
-                ))}
-
+                      <td>
+                        <strong>
+                          {formatAmount(
+                            booking.total_amount
+                          )}
+                        </strong>
+                      </td>
+                    </tr>
+                  )
+                )}
               </tbody>
-
             </table>
-
           </div>
         )}
-
       </div>
-
     </div>
   )
 }
