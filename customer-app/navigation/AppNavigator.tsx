@@ -1,6 +1,6 @@
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
-
+import EditProfileScreen from '../screens/EditProfileScreen'
 import { RootStackParamList } from '../types'
 import SavedAddressesScreen from '../screens/SavedAddressesScreen'
 import CheckoutScreen from '../screens/CheckoutScreen'
@@ -120,6 +120,10 @@ export default function AppNavigator() {
         <Stack.Screen
          name="SavedAddresses"
      component={SavedAddressesScreen}
+/>
+        <Stack.Screen
+         name="EditProfile"
+     component={EditProfileScreen}
 />
       </Stack.Navigator>
     </NavigationContainer>

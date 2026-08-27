@@ -41,4 +41,5 @@ export type RootStackParamList = {
   SavedAddresses: undefined
 
   Profile: undefined
+  EditProfile: undefined
 }
