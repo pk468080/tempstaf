@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard'
 import Workers from './pages/Workers'
 import WorkerDetail from './pages/WorkerDetail'
 import AdminLayout from './layouts/AdminLayout'
+import ProtectedRoute from './components/ProtectedRoute'
 import Bookings from './pages/Bookings'
 import Services from './pages/Services'
 import Customers from './pages/Customers'
@@ -19,65 +20,50 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-
-        {/* Authentication */}
         <Route
           path="/login"
           element={<Login />}
         />
 
-        {/* Admin application */}
-        <Route element={<AdminLayout />}>
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AdminLayout />}>
+            <Route
+              path="/dashboard"
+              element={<Dashboard />}
+            />
 
-          <Route
-            path="/dashboard"
-            element={<Dashboard />}
-          />
+            <Route
+              path="/bookings"
+              element={<Bookings />}
+            />
 
-          <Route
-  path="/bookings"
-  element={<Bookings />}
-  
-/>
+            <Route
+              path="/workers"
+              element={<Workers />}
+            />
 
-          <Route
-            path="/workers"
-            element={<Workers />}
-          />
+            <Route
+              path="/workers/:workerId"
+              element={<WorkerDetail />}
+            />
 
-          <Route
-            path="/workers/:workerId"
-            element={<WorkerDetail />}
-          />
+            <Route
+              path="/customers"
+              element={<Customers />}
+            />
 
-          <Route
-  path="/customers"
-  element={<Customers />}
-/>
+            <Route
+              path="/services"
+              element={<Services />}
+            />
 
-<Route
-  path="/services"
-  element={<Services />}
-/>
-
-          <Route
-            path="/payments"
-            element={<Payments />}
-          />
-
-          <Route
-            path="/reviews"
-            
-          />
-
-          <Route
-            path="/notifications"
-            
-          />
-
+            <Route
+              path="/payments"
+              element={<Payments />}
+            />
+          </Route>
         </Route>
 
-        {/* Default */}
         <Route
           path="/"
           element={
@@ -88,7 +74,6 @@ export default function App() {
           }
         />
 
-        {/* Unknown route */}
         <Route
           path="*"
           element={
@@ -98,7 +83,6 @@ export default function App() {
             />
           }
         />
-
       </Routes>
     </BrowserRouter>
   )
