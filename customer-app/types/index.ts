@@ -46,4 +46,5 @@ export type RootStackParamList = {
   HelpSupport: undefined
   AboutUs: undefined
   PrivacyPolicy: undefined
+  DeleteAccount: undefined
 }

@@ -24,6 +24,8 @@ import MoneyScreen from '../screens/MoneyScreen'
 import HelpSupportScreen from '../screens/HelpSupportScreen'
 import AboutUsScreen from '../screens/AboutUsScreen'
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen'
+import DeleteAccountScreen from '../screens/DeleteAccountScreen'
+
 const Stack =
   createNativeStackNavigator<RootStackParamList>()
 
@@ -144,9 +146,14 @@ export default function AppNavigator() {
          name="PrivacyPolicy"
      component={PrivacyPolicyScreen}
 />
+        <Stack.Screen
+         name="DeleteAccount"
+     component={DeleteAccountScreen}
+/>
       </Stack.Navigator>
     </NavigationContainer>
   )
 }
-    
+
+  
       
