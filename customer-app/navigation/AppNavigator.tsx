@@ -21,6 +21,7 @@ import BookingDetailsScreen from '../screens/BookingDetailsScreen'
 import ScheduleScreen from '../screens/ScheduleScreen'
 import ProfileScreen from '../screens/ProfileScreen'
 import MoneyScreen from '../screens/MoneyScreen'
+import HelpSupportScreen from '../screens/HelpSupportScreen'
 
 const Stack =
   createNativeStackNavigator<RootStackParamList>()
@@ -129,9 +130,14 @@ export default function AppNavigator() {
         <Stack.Screen
          name="Money"
      component={MoneyScreen}
+    
+/>        <Stack.Screen
+         name="HelpSupport"
+     component={HelpSupportScreen}
 />
       </Stack.Navigator>
     </NavigationContainer>
   )
 }
+      
       
