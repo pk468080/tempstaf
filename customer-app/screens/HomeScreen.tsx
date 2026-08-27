@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Image,
@@ -9,9 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-
 import * as Location from 'expo-location'
-
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 
 import { COLORS, LOGO } from '../constants/theme'
@@ -19,47 +17,27 @@ import { RootStackParamList } from '../types'
 import { useBooking } from '../context/BookingContext'
 import CustomerBottomNav from '../components/CustomerBottomNav'
 
-type Props = NativeStackScreenProps<
-  RootStackParamList,
-  'Home'
->
+type Props = NativeStackScreenProps<RootStackParamList, 'Home'>
 
-const iconForService = (
-  service: string
-): string => {
-  const normalized =
-    service.trim().toLowerCase()
+type LocationState = {
+  loading: boolean
+  label: string | null
+  detail: string | null
+  error: string | null
+}
 
-  if (
-    normalized.includes('housekeeping')
-  ) {
-    return '🧹'
-  }
+const iconForService = (service: string): string => {
+  const normalized = service.trim().toLowerCase()
 
-  if (
-    normalized.includes('pantry')
-  ) {
-    return '🍽️'
-  }
-
-  if (
-    normalized.includes('office')
-  ) {
-    return '💼'
-  }
-
-  if (
-    normalized.includes('helper')
-  ) {
-    return '👷'
-  }
+  if (normalized.includes('housekeeping')) return '🧹'
+  if (normalized.includes('pantry')) return '🍽️'
+  if (normalized.includes('office')) return '💼'
+  if (normalized.includes('helper')) return '👷'
 
   return '👤'
 }
 
-export default function HomeScreen({
-  navigation,
-}: Props) {
+export default function HomeScreen({ navigation }: Props) {
   const {
     resetBooking,
     setSelectedService,
@@ -69,58 +47,133 @@ export default function HomeScreen({
     refreshCatalogue,
   } = useBooking()
 
-  useEffect(() => {
-    requestLocationPermission()
-  }, [])
+  const [locationState, setLocationState] = useState<LocationState>({
+    loading: true,
+    label: null,
+    detail: null,
+    error: null,
+  })
 
-  const requestLocationPermission =
-    async () => {
+  const loadLocation = useCallback(async () => {
+    setLocationState({
+      loading: true,
+      label: null,
+      detail: null,
+      error: null,
+    })
+
+    try {
+      const permission =
+        await Location.requestForegroundPermissionsAsync()
+
+      if (permission.status !== 'granted') {
+        setLocationState({
+          loading: false,
+          label: null,
+          detail: null,
+          error:
+            'Location permission is required to show nearby services.',
+        })
+
+        return
+      }
+
+      const current =
+        await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        })
+
+      const { latitude, longitude } = current.coords
+
+      let label = `${latitude.toFixed(
+        5
+      )}, ${longitude.toFixed(5)}`
+
+      let detail = 'Current location'
+
       try {
-        const permission =
-          await Location.requestForegroundPermissionsAsync()
+        const addresses =
+          await Location.reverseGeocodeAsync({
+            latitude,
+            longitude,
+          })
 
-        if (
-          permission.status ===
-          'granted'
-        ) {
-          console.log(
-            '[TempStaff] Location permission granted'
-          )
+        const address = addresses[0]
 
-          return
+        if (address) {
+          const locality =
+            address.city ||
+            address.district ||
+            address.subregion
+
+          const region = address.region
+          const country = address.country
+
+          label =
+            locality ||
+            region ||
+            country ||
+            label
+
+          const parts = [
+            locality &&
+            region &&
+            locality !== region
+              ? region
+              : null,
+            country,
+          ].filter(Boolean)
+
+          detail =
+            parts.length > 0
+              ? parts.join(', ')
+              : 'Current location'
         }
-
-        console.log(
-          '[TempStaff] Location permission denied'
-        )
-      } catch (error) {
-        console.error(
-          '[TempStaff] Location permission error:',
-          error
+      } catch (geocodeError) {
+        console.warn(
+          '[TempStaff] Reverse geocoding failed:',
+          geocodeError
         )
       }
-    }
 
-  const handleServicePress = (
-    service: string
-  ) => {
+      setLocationState({
+        loading: false,
+        label,
+        detail,
+        error: null,
+      })
+    } catch (error) {
+      console.error(
+        '[TempStaff] Location error:',
+        error
+      )
+
+      setLocationState({
+        loading: false,
+        label: null,
+        detail: null,
+        error:
+          'Unable to detect your location. Please try again.',
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    loadLocation()
+  }, [loadLocation])
+
+  const handleServicePress = (service: string) => {
     resetBooking()
     setSelectedService(service)
     navigation.navigate('Services')
   }
 
   return (
-    <SafeAreaView
-      style={styles.container}
-    >
+    <SafeAreaView style={styles.container}>
       <View style={styles.screen}>
         <ScrollView
-          contentContainerStyle={
-            styles.content
-          }
-          showsVerticalScrollIndicator={
-            false
-          }
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
         >
           <View style={styles.top}>
             <Image
@@ -140,82 +193,117 @@ export default function HomeScreen({
             </View>
 
             <TouchableOpacity
-              style={
-                styles.settingsButton
-              }
+              style={styles.settingsButton}
               onPress={() =>
-                navigation.navigate(
-                  'Profile'
-                )
+                navigation.navigate('Profile')
               }
               activeOpacity={0.85}
             >
-              <Text
-                style={
-                  styles.settingsIcon
-                }
-              >
+              <Text style={styles.settingsIcon}>
                 ◉
               </Text>
             </TouchableOpacity>
           </View>
 
+          {/* LOCATION */}
+          <View style={styles.locationCard}>
+            <View style={styles.locationIconBox}>
+              <Text style={styles.locationIcon}>
+                📍
+              </Text>
+            </View>
+
+            <View style={styles.locationTextWrap}>
+              <Text style={styles.locationCaption}>
+                Your location
+              </Text>
+
+              {locationState.loading ? (
+                <View style={styles.locationLoadingRow}>
+                  <ActivityIndicator
+                    size="small"
+                    color={COLORS.orange}
+                  />
+
+                  <Text style={styles.locationValue}>
+                    Detecting location...
+                  </Text>
+                </View>
+              ) : locationState.error ? (
+                <>
+                  <Text style={styles.locationError}>
+                    {locationState.error}
+                  </Text>
+
+                  <TouchableOpacity
+                    onPress={loadLocation}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.locationRetry}>
+                      Try again
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text
+                    style={styles.locationValue}
+                    numberOfLines={1}
+                  >
+                    {locationState.label}
+                  </Text>
+
+                  <Text
+                    style={styles.locationDetail}
+                    numberOfLines={1}
+                  >
+                    {locationState.detail}
+                  </Text>
+                </>
+              )}
+            </View>
+          </View>
+
+          {/* HERO */}
           <View style={styles.hero}>
             <Text style={styles.heroTitle}>
-              Reliable staff, when you
-              need them.
+              Reliable staff, when you need them.
             </Text>
 
             <Text style={styles.heroText}>
-              Book temporary staff for
-              home or office work.
+              Book temporary staff for home or office
+              work.
             </Text>
 
             <TouchableOpacity
               style={styles.heroButton}
               onPress={() => {
                 resetBooking()
-                navigation.navigate(
-                  'Services'
-                )
+                navigation.navigate('Services')
               }}
               activeOpacity={0.85}
             >
-              <Text
-                style={styles.buttonText}
-              >
+              <Text style={styles.buttonText}>
                 Find Staff
               </Text>
             </TouchableOpacity>
           </View>
 
+          {/* BOOKINGS */}
           <TouchableOpacity
-            style={
-              styles.bookingsButton
-            }
+            style={styles.bookingsButton}
             onPress={() =>
-              navigation.navigate(
-                'MyBookings'
-              )
+              navigation.navigate('MyBookings')
             }
             activeOpacity={0.85}
           >
             <View>
-              <Text
-                style={
-                  styles.bookingsTitle
-                }
-              >
+              <Text style={styles.bookingsTitle}>
                 My Bookings
               </Text>
 
-              <Text
-                style={
-                  styles.bookingsSubtitle
-                }
-              >
-                View your current and past
-                bookings
+              <Text style={styles.bookingsSubtitle}>
+                View your current and past bookings
               </Text>
             </View>
 
@@ -224,62 +312,42 @@ export default function HomeScreen({
             </Text>
           </TouchableOpacity>
 
+          {/* SERVICES */}
           <Text style={styles.section}>
             Popular services
           </Text>
 
           {catalogueLoading ? (
-            <View
-              style={styles.loadingBox}
-            >
+            <View style={styles.loadingBox}>
               <ActivityIndicator
                 size="small"
                 color={COLORS.orange}
               />
 
-              <Text
-                style={
-                  styles.loadingText
-                }
-              >
+              <Text style={styles.loadingText}>
                 Loading services...
               </Text>
             </View>
           ) : catalogueError ? (
-            <View
-              style={styles.errorBox}
-            >
-              <Text
-                style={styles.errorText}
-              >
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>
                 {catalogueError}
               </Text>
 
               <TouchableOpacity
-                style={
-                  styles.retryButton
-                }
-                onPress={
-                  refreshCatalogue
-                }
+                style={styles.retryButton}
+                onPress={refreshCatalogue}
                 activeOpacity={0.85}
               >
-                <Text
-                  style={styles.retryText}
-                >
+                <Text style={styles.retryText}>
                   Try Again
                 </Text>
               </TouchableOpacity>
             </View>
           ) : services.length === 0 ? (
-            <View
-              style={styles.emptyBox}
-            >
-              <Text
-                style={styles.emptyText}
-              >
-                No services are
-                currently available.
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>
+                No services are currently available.
               </Text>
             </View>
           ) : (
@@ -289,33 +357,21 @@ export default function HomeScreen({
                   key={service.id}
                   style={styles.card}
                   onPress={() =>
-                    handleServicePress(
-                      service.name
-                    )
+                    handleServicePress(service.name)
                   }
                   activeOpacity={0.85}
                 >
-                  <Text
-                    style={styles.icon}
-                  >
-                    {iconForService(
-                      service.name
-                    )}
+                  <Text style={styles.icon}>
+                    {iconForService(service.name)}
                   </Text>
 
-                  <Text
-                    style={
-                      styles.cardText
-                    }
-                  >
+                  <Text style={styles.cardText}>
                     {service.name}
                   </Text>
 
                   {service.description ? (
                     <Text
-                      style={
-                        styles.cardDescription
-                      }
+                      style={styles.cardDescription}
                       numberOfLines={2}
                     >
                       {service.description}
@@ -354,7 +410,7 @@ const styles = StyleSheet.create({
   top: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 22,
+    marginBottom: 16,
   },
 
   logo: {
@@ -391,6 +447,72 @@ const styles = StyleSheet.create({
     fontSize: 21,
     color: COLORS.navy,
     fontWeight: '800',
+  },
+
+  locationCard: {
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  locationIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFF1E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+
+  locationIcon: {
+    fontSize: 20,
+  },
+
+  locationTextWrap: {
+    flex: 1,
+  },
+
+  locationCaption: {
+    color: COLORS.gray,
+    fontSize: 11,
+    marginBottom: 2,
+  },
+
+  locationLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  locationValue: {
+    color: COLORS.navy,
+    fontSize: 15,
+    fontWeight: '800',
+    marginLeft: 7,
+  },
+
+  locationDetail: {
+    color: COLORS.gray,
+    fontSize: 11,
+    marginTop: 2,
+  },
+
+  locationError: {
+    color: COLORS.gray,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
+  locationRetry: {
+    color: COLORS.orange,
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 4,
   },
 
   hero: {
