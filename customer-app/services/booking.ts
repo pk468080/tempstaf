@@ -202,20 +202,30 @@ export async function verifyBookingOtp(
 
 export type CreateBookingInput = {
   workerId?: string | null
+
+  fulfillmentType:
+    | 'instant'
+    | 'scheduled'
+
   serviceId: string
   addressId: string
+
   durationValue: number
+
   durationUnit:
     | 'hour'
     | 'day'
     | 'week'
     | 'month'
+
   scheduledStart: string
   scheduledEnd: string
+
   baseAmount: number
   platformFee: number
   taxAmount: number
   totalAmount: number
+
   notes?: string
 }
 
@@ -233,17 +243,19 @@ export async function createBooking(
   }
 
   const { data, error } = await supabase
-    .from('bookings')
-    .insert({
-      customer_id: user.id,
+  .from('bookings')
+  .insert({
+    customer_id: user.id,
 
-      // Worker is assigned later by TempStaff.
-      worker_id: input.workerId ?? null,
+    // Worker is normally assigned after booking creation.
+    worker_id: input.workerId ?? null,
 
-      service_id: input.serviceId,
-      address_id: input.addressId,
+    service_id: input.serviceId,
+    address_id: input.addressId,
 
-      status: 'pending_payment',
+    fulfillment_type: input.fulfillmentType,
+
+    status: 'pending_payment',
 
       duration_value: input.durationValue,
       duration_unit: input.durationUnit,
