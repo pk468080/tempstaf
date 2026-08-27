@@ -44,4 +44,5 @@ export type RootStackParamList = {
   EditProfile: undefined
   Money: undefined
   HelpSupport: undefined
+  AboutUs: undefined
 }

@@ -22,7 +22,7 @@ import ScheduleScreen from '../screens/ScheduleScreen'
 import ProfileScreen from '../screens/ProfileScreen'
 import MoneyScreen from '../screens/MoneyScreen'
 import HelpSupportScreen from '../screens/HelpSupportScreen'
-
+import AboutUsScreen from '../screens/AboutUsScreen'
 const Stack =
   createNativeStackNavigator<RootStackParamList>()
 
@@ -134,6 +134,10 @@ export default function AppNavigator() {
 />        <Stack.Screen
          name="HelpSupport"
      component={HelpSupportScreen}
+/>
+        <Stack.Screen
+         name="AboutUs"
+     component={AboutUsScreen}
 />
       </Stack.Navigator>
     </NavigationContainer>
