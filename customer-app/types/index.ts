@@ -24,66 +24,6 @@ export type RootStackParamList = {
   Location: undefined
   Workers: undefined
   Summary: undefined
-Payment: undefined
-Schedule: undefined
-Checkout: undefined
-BookingConfirmed: undefined
-
-  MyBookings: undefined
-
-  BookingDetails: {
-    bookingId: string
-  }
-
-  Tracking: {
-  bookingId?: string
-}
-
-Profile: undefined
-  
-}
-export type RootStackParamList = {
-  Splash: undefined
-  Login: undefined
-  OTP: { phone: string }
-
-  CustomerDetails: undefined
-
-  Home: undefined
-  Services: undefined
-  Location: undefined
-  Workers: undefined
-  Summary: undefined
-  Payment: undefined
-  Schedule: undefined
-  Checkout: undefined
-  BookingConfirmed: undefined
-
-  MyBookings: undefined
-
-  BookingDetails: {
-    bookingId: string
-  }
-
-  Tracking: {
-    bookingId?: string
-  }
-
-  Profile: undefined
-}
-
-export type RootStackParamList = {
-  Splash: undefined
-  Login: undefined
-  OTP: { phone: string }
-
-  CustomerDetails: undefined
-
-  Home: undefined
-  Services: undefined
-  Location: undefined
-  Workers: undefined
-  Summary: undefined
   Payment: undefined
   Schedule: undefined
   Checkout: undefined

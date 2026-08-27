@@ -1,7 +1,6 @@
 import {
   ActivityIndicator,
   Alert,
-  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -12,68 +11,21 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useCallback, useEffect, useState } from 'react'
 
-import { COLORS, LOGO } from '../constants/theme'
+import { COLORS } from '../constants/theme'
 import { RootStackParamList } from '../types'
-import {
-  CustomerProfile,
-  deleteCustomerAccount,
-  getCustomerProfile,
-  signOutCustomer,
-} from '../services/customer'
+import { supabase } from '../lib/supabase'
+import CustomerBottomNav from '../components/CustomerBottomNav'
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
   'Profile'
 >
 
-function MenuItem({
-  icon,
-  title,
-  subtitle,
-  onPress,
-  danger = false,
-}: {
-  icon: string
-  title: string
-  subtitle: string
-  onPress: () => void
-  danger?: boolean
-}) {
-  return (
-    <TouchableOpacity
-      style={styles.menuItem}
-      activeOpacity={0.82}
-      onPress={onPress}
-    >
-      <View
-        style={[
-          styles.menuIcon,
-          danger && styles.menuIconDanger,
-        ]}
-      >
-        <Text style={styles.menuIconText}>
-          {icon}
-        </Text>
-      </View>
-
-      <View style={styles.menuContent}>
-        <Text
-          style={[
-            styles.menuTitle,
-            danger && styles.dangerText,
-          ]}
-        >
-          {title}
-        </Text>
-
-        <Text style={styles.menuSubtitle}>
-          {subtitle}
-        </Text>
-      </View>
-
-      <Text style={styles.chevron}>›</Text>
-    </TouchableOpacity>
-  )
+type CustomerProfile = {
+  full_name: string | null
+  company_name: string | null
+  phone: string | null
+  email: string | null
 }
 
 export default function ProfileScreen({
@@ -85,10 +37,7 @@ export default function ProfileScreen({
   const [loading, setLoading] =
     useState(true)
 
-  const [signingOut, setSigningOut] =
-    useState(false)
-
-  const [deleting, setDeleting] =
+  const [loggingOut, setLoggingOut] =
     useState(false)
 
   const loadProfile = useCallback(
@@ -96,13 +45,59 @@ export default function ProfileScreen({
       try {
         setLoading(true)
 
-        const data =
-          await getCustomerProfile()
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser()
 
-        setProfile(data)
+        if (userError) {
+          throw userError
+        }
+
+        if (!user) {
+          throw new Error(
+            'Customer is not authenticated.'
+          )
+        }
+
+        const {
+          data,
+          error,
+        } = await supabase
+          .from('profiles')
+          .select(
+            'full_name, company_name, phone'
+          )
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (error) {
+          throw error
+        }
+
+        setProfile({
+          full_name:
+            data?.full_name ??
+            user.user_metadata?.full_name ??
+            null,
+
+          company_name:
+            data?.company_name ??
+            user.user_metadata?.company_name ??
+            null,
+
+          phone:
+            data?.phone ??
+            user.phone ??
+            null,
+
+          email:
+            user.email ??
+            null,
+        })
       } catch (error: any) {
         console.error(
-          '[TempStaff] Profile load failed:',
+          '[TempStaff Customer] Failed to load profile:',
           error
         )
 
@@ -122,10 +117,10 @@ export default function ProfileScreen({
     loadProfile()
   }, [loadProfile])
 
-  const handleLogout = () => {
+  const logout = () => {
     Alert.alert(
       'Log out',
-      'Are you sure you want to log out of TempStaff?',
+      'Are you sure you want to log out?',
       [
         {
           text: 'Cancel',
@@ -134,346 +129,403 @@ export default function ProfileScreen({
         {
           text: 'Log out',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              setSigningOut(true)
-
-              await signOutCustomer()
-
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Login' }],
-              })
-            } catch (error: any) {
-              console.error(
-                '[TempStaff] Logout failed:',
-                error
-              )
-
-              Alert.alert(
-                'Unable to log out',
-                error?.message ||
-                  'Please try again.'
-              )
-            } finally {
-              setSigningOut(false)
-            }
-          },
+          onPress: performLogout,
         },
       ]
     )
   }
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete account',
-      'This will deactivate your TempStaff account and sign you out. This action should only be used if you no longer want to use the account.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete Account',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setDeleting(true)
+  const performLogout = async () => {
+    try {
+      setLoggingOut(true)
 
-              await deleteCustomerAccount()
+      const { error } =
+        await supabase.auth.signOut()
 
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Login' }],
-              })
-            } catch (error: any) {
-              console.error(
-                '[TempStaff] Delete account failed:',
-                error
-              )
+      if (error) {
+        throw error
+      }
 
-              Alert.alert(
-                'Unable to delete account',
-                error?.message ||
-                  'Please try again.'
-              )
-            } finally {
-              setDeleting(false)
-            }
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'Login',
           },
-        },
-      ]
+        ],
+      })
+    } catch (error: any) {
+      console.error(
+        '[TempStaff Customer] Logout failed:',
+        error
+      )
+
+      Alert.alert(
+        'Logout failed',
+        error?.message ||
+          'Please try again.'
+      )
+    } finally {
+      setLoggingOut(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <SafeAreaView
+        style={styles.container}
+      >
+        <View style={styles.loading}>
+          <ActivityIndicator
+            size="large"
+            color={COLORS.teal}
+          />
+
+          <Text
+            style={styles.loadingText}
+          >
+            Loading profile...
+          </Text>
+        </View>
+      </SafeAreaView>
     )
   }
 
-  const displayName =
-    profile?.full_name?.trim() ||
-    'TempStaff Customer'
+  if (!profile) {
+    return (
+      <SafeAreaView
+        style={styles.container}
+      >
+        <View style={styles.loading}>
+          <Text
+            style={styles.errorTitle}
+          >
+            Unable to load profile
+          </Text>
 
-  const company =
-    profile?.company_name?.trim() ||
-    'Company / Business'
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={loadProfile}
+          >
+            <Text
+              style={styles.retryText}
+            >
+              Try Again
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    )
+  }
 
-  const initial =
-    displayName.charAt(0).toUpperCase() || 'T'
+  const initials =
+    getInitials(profile.full_name)
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
+    <SafeAreaView
+      style={styles.container}
+    >
+      <View style={styles.screen}>
+        <ScrollView
+          contentContainerStyle={
+            styles.content
+          }
+          showsVerticalScrollIndicator={
+            false
+          }
+        >
+          <View style={styles.header}>
+            <View>
+              <Text
+                style={styles.eyebrow}
+              >
+                ACCOUNT
+              </Text>
+
+              <Text
+                style={styles.title}
+              >
+                Profile
+              </Text>
+
+              <Text
+                style={styles.subtitle}
+              >
+                Manage your TempStaff account.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.profileCard}>
+            <View style={styles.avatar}>
+              <Text
+                style={styles.avatarText}
+              >
+                {initials}
+              </Text>
+            </View>
+
+            <View
+              style={styles.profileInfo}
+            >
+              <Text
+                style={styles.name}
+              >
+                {profile.full_name ||
+                  'Customer'}
+              </Text>
+
+              <Text
+                style={styles.company}
+              >
+                {profile.company_name ||
+                  'Business account'}
+              </Text>
+
+              {profile.phone ? (
+                <Text
+                  style={styles.contact}
+                >
+                  {profile.phone}
+                </Text>
+              ) : null}
+
+              {profile.email ? (
+                <Text
+                  style={styles.contact}
+                >
+                  {profile.email}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+
+          <Text
+            style={styles.sectionTitle}
           >
-            <Text style={styles.backText}>
-              ‹
+            Account
+          </Text>
+
+          <ProfileMenu
+            title="Edit Profile"
+            subtitle="Update your personal and business details"
+            icon="✎"
+            onPress={() =>
+              Alert.alert(
+                'Edit Profile',
+                'Edit Profile screen will be completed next.'
+              )
+            }
+          />
+
+          <ProfileMenu
+            title="Saved Addresses"
+            subtitle="Manage your saved booking locations"
+            icon="⌖"
+            onPress={() =>
+              Alert.alert(
+                'Saved Addresses',
+                'Saved Addresses screen will be completed next.'
+              )
+            }
+          />
+
+          <ProfileMenu
+            title="TempStaff Money"
+            subtitle="View your TempStaff balance and transactions"
+            icon="₹"
+            onPress={() =>
+              Alert.alert(
+                'TempStaff Money',
+                'TempStaff Money screen will be completed next.'
+              )
+            }
+          />
+
+          <Text
+            style={[
+              styles.sectionTitle,
+              styles.sectionSpacing,
+            ]}
+          >
+            Support & Information
+          </Text>
+
+          <ProfileMenu
+            title="Help & Support"
+            subtitle="Get help with your account or booking"
+            icon="?"
+            onPress={() =>
+              Alert.alert(
+                'Help & Support',
+                'Help & Support screen will be completed next.'
+              )
+            }
+          />
+
+          <ProfileMenu
+            title="About Us"
+            subtitle="Learn more about TempStaff"
+            icon="i"
+            onPress={() =>
+              Alert.alert(
+                'About Us',
+                'About Us screen will be completed next.'
+              )
+            }
+          />
+
+          <ProfileMenu
+            title="Terms of Service"
+            subtitle="Read the TempStaff terms"
+            icon="§"
+            onPress={() =>
+              Alert.alert(
+                'Terms of Service',
+                'Terms of Service screen will be completed next.'
+              )
+            }
+          />
+
+          <ProfileMenu
+            title="Privacy Policy"
+            subtitle="Read our privacy policy"
+            icon="✓"
+            onPress={() =>
+              Alert.alert(
+                'Privacy Policy',
+                'Privacy Policy screen will be completed next.'
+              )
+            }
+          />
+
+          <Text
+            style={[
+              styles.sectionTitle,
+              styles.sectionSpacing,
+            ]}
+          >
+            Account Actions
+          </Text>
+
+          <TouchableOpacity
+            style={styles.deleteButton}
+            activeOpacity={0.85}
+            onPress={() =>
+              Alert.alert(
+                'Delete Account',
+                'Account deletion will be completed after the remaining account screens are finished.'
+              )
+            }
+          >
+            <Text
+              style={styles.deleteText}
+            >
+              Delete Account
             </Text>
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>
-            Profile
-          </Text>
-
-          <View style={styles.headerSpacer} />
-        </View>
-
-        {loading ? (
-          <View style={styles.loading}>
-            <ActivityIndicator
-              size="large"
-              color={COLORS.teal}
-            />
-
-            <Text style={styles.loadingText}>
-              Loading profile...
-            </Text>
-          </View>
-        ) : (
-          <>
-            <View style={styles.profileCard}>
-              <View style={styles.avatar}>
-                {profile?.avatar_url ? (
-                  <Image
-                    source={{
-                      uri: profile.avatar_url,
-                    }}
-                    style={styles.avatarImage}
-                  />
-                ) : (
-                  <Text style={styles.avatarText}>
-                    {initial}
-                  </Text>
-                )}
-              </View>
-
-              <View style={styles.profileInfo}>
-                <Text
-                  style={styles.name}
-                  numberOfLines={1}
-                >
-                  {displayName}
-                </Text>
-
-                <Text
-                  style={styles.company}
-                  numberOfLines={1}
-                >
-                  {company}
-                </Text>
-
-                {!!profile?.phone && (
-                  <Text style={styles.contact}>
-                    {profile.phone}
-                  </Text>
-                )}
-
-                {!!profile?.email && (
-                  <Text
-                    style={styles.contact}
-                    numberOfLines={1}
-                  >
-                    {profile.email}
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.editButton}
-              activeOpacity={0.85}
-              onPress={() => {
-                Alert.alert(
-                  'Edit Profile',
-                  'The Edit Profile screen will be connected next.'
-                )
-              }}
-            >
-              <Text style={styles.editButtonText}>
-                Edit Profile
+          <TouchableOpacity
+            style={styles.logoutButton}
+            activeOpacity={0.85}
+            onPress={logout}
+            disabled={loggingOut}
+          >
+            {loggingOut ? (
+              <ActivityIndicator
+                color={COLORS.white}
+              />
+            ) : (
+              <Text
+                style={styles.logoutText}
+              >
+                Log Out
               </Text>
-            </TouchableOpacity>
+            )}
+          </TouchableOpacity>
 
-            <Text style={styles.sectionTitle}>
-              Account
-            </Text>
-
-            <View style={styles.menuCard}>
-              <MenuItem
-                icon="📍"
-                title="Saved Addresses"
-                subtitle="Manage your booking locations"
-                onPress={() => {
-                  Alert.alert(
-                    'Saved Addresses',
-                    'The Saved Addresses screen will be connected next.'
-                  )
-                }}
-              />
-
-              <View style={styles.menuDivider} />
-
-              <MenuItem
-                icon="📋"
-                title="My Bookings"
-                subtitle="View your current and previous bookings"
-                onPress={() =>
-                  navigation.navigate(
-                    'MyBookings'
-                  )
-                }
-              />
-            </View>
-
-            <Text style={styles.sectionTitle}>
-              Support
-            </Text>
-
-            <View style={styles.menuCard}>
-              <MenuItem
-                icon="?"
-                title="Help & Support"
-                subtitle="Get help with TempStaff"
-                onPress={() => {
-                  Alert.alert(
-                    'Help & Support',
-                    'Support screen will be connected next.'
-                  )
-                }}
-              />
-
-              <View style={styles.menuDivider} />
-
-              <MenuItem
-                icon="i"
-                title="About Us"
-                subtitle="Learn more about TempStaff"
-                onPress={() => {
-                  Alert.alert(
-                    'About Us',
-                    'About Us screen will be connected next.'
-                  )
-                }}
-              />
-            </View>
-
-            <Text style={styles.sectionTitle}>
-              Legal
-            </Text>
-
-            <View style={styles.menuCard}>
-              <MenuItem
-                icon="T"
-                title="Terms of Service"
-                subtitle="Review our terms"
-                onPress={() => {
-                  Alert.alert(
-                    'Terms of Service',
-                    'Terms screen will be connected next.'
-                  )
-                }}
-              />
-
-              <View style={styles.menuDivider} />
-
-              <MenuItem
-                icon="P"
-                title="Privacy Policy"
-                subtitle="Review our privacy policy"
-                onPress={() => {
-                  Alert.alert(
-                    'Privacy Policy',
-                    'Privacy screen will be connected next.'
-                  )
-                }}
-              />
-            </View>
-
-            <View style={styles.accountActions}>
-              <TouchableOpacity
-                style={styles.logoutButton}
-                activeOpacity={0.85}
-                disabled={
-                  signingOut || deleting
-                }
-                onPress={handleLogout}
-              >
-                {signingOut ? (
-                  <ActivityIndicator
-                    color={COLORS.navy}
-                  />
-                ) : (
-                  <Text
-                    style={styles.logoutText}
-                  >
-                    Log Out
-                  </Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.deleteButton}
-                activeOpacity={0.8}
-                disabled={
-                  signingOut || deleting
-                }
-                onPress={
-                  handleDeleteAccount
-                }
-              >
-                {deleting ? (
-                  <ActivityIndicator
-                    color="#B42318"
-                  />
-                ) : (
-                  <Text
-                    style={styles.deleteText}
-                  >
-                    Delete Account
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
-
-        <View style={styles.brand}>
-          <Image
-            source={LOGO}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-
-          <Text style={styles.version}>
-            TempStaff
+          <Text
+            style={styles.version}
+          >
+            TempStaff Customer
           </Text>
-        </View>
-      </ScrollView>
+        </ScrollView>
+
+        <CustomerBottomNav
+          navigation={navigation}
+          active="Profile"
+        />
+      </View>
     </SafeAreaView>
   )
+}
+
+function ProfileMenu({
+  title,
+  subtitle,
+  icon,
+  onPress,
+}: {
+  title: string
+  subtitle: string
+  icon: string
+  onPress: () => void
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.menu}
+      activeOpacity={0.8}
+      onPress={onPress}
+    >
+      <View style={styles.menuIcon}>
+        <Text
+          style={styles.menuIconText}
+        >
+          {icon}
+        </Text>
+      </View>
+
+      <View style={styles.menuContent}>
+        <Text style={styles.menuTitle}>
+          {title}
+        </Text>
+
+        <Text
+          style={styles.menuSubtitle}
+        >
+          {subtitle}
+        </Text>
+      </View>
+
+      <Text style={styles.chevron}>
+        ›
+      </Text>
+    </TouchableOpacity>
+  )
+}
+
+function getInitials(
+  name: string | null
+) {
+  if (!name) {
+    return 'TS'
+  }
+
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  if (parts.length === 1) {
+    return parts[0]
+      .slice(0, 2)
+      .toUpperCase()
+  }
+
+  return (
+    parts[0][0] +
+    parts[parts.length - 1][0]
+  ).toUpperCase()
 }
 
 const styles = StyleSheet.create({
@@ -482,87 +534,61 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.light,
   },
 
+  screen: {
+    flex: 1,
+  },
+
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 45,
+    padding: 22,
+    paddingBottom: 30,
   },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 20,
   },
 
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+  eyebrow: {
+    color: COLORS.teal,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+    marginBottom: 5,
   },
 
-  backText: {
+  title: {
     color: COLORS.navy,
-    fontSize: 30,
-    lineHeight: 31,
-    marginTop: -3,
-  },
-
-  headerTitle: {
-    color: COLORS.navy,
-    fontSize: 22,
+    fontSize: 29,
     fontWeight: '900',
   },
 
-  headerSpacer: {
-    width: 42,
-  },
-
-  loading: {
-    alignItems: 'center',
-    paddingVertical: 100,
-  },
-
-  loadingText: {
+  subtitle: {
     color: COLORS.gray,
-    fontSize: 12,
-    marginTop: 12,
+    fontSize: 13,
+    marginTop: 5,
   },
 
   profileCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 21,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 18,
+    backgroundColor: COLORS.navy,
+    borderRadius: 22,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 25,
   },
 
   avatar: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: COLORS.navy,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.teal,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
     marginRight: 15,
-  },
-
-  avatarImage: {
-    width: '100%',
-    height: '100%',
   },
 
   avatarText: {
     color: COLORS.white,
-    fontSize: 28,
+    fontSize: 21,
     fontWeight: '900',
   },
 
@@ -571,81 +597,58 @@ const styles = StyleSheet.create({
   },
 
   name: {
-    color: COLORS.navy,
+    color: COLORS.white,
     fontSize: 19,
     fontWeight: '900',
   },
 
   company: {
-    color: COLORS.teal,
-    fontSize: 12,
-    fontWeight: '800',
-    marginTop: 3,
+    color: '#B9CBD8',
+    fontSize: 13,
+    marginTop: 4,
   },
 
   contact: {
-    color: COLORS.gray,
-    fontSize: 10.5,
+    color: '#DCE7EE',
+    fontSize: 11,
     marginTop: 3,
-  },
-
-  editButton: {
-    height: 45,
-    borderRadius: 13,
-    backgroundColor: COLORS.navy,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 11,
-  },
-
-  editButtonText: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: '900',
   },
 
   sectionTitle: {
     color: COLORS.navy,
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: '900',
-    marginTop: 24,
-    marginBottom: 9,
-    marginLeft: 2,
+    marginBottom: 10,
   },
 
-  menuCard: {
+  sectionSpacing: {
+    marginTop: 23,
+  },
+
+  menu: {
     backgroundColor: COLORS.white,
-    borderRadius: 18,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: COLORS.border,
-    overflow: 'hidden',
-  },
-
-  menuItem: {
-    minHeight: 70,
+    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 13,
-    paddingVertical: 11,
+    marginBottom: 10,
   },
 
   menuIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 43,
+    height: 43,
+    borderRadius: 14,
     backgroundColor: '#E8F6F6',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 11,
-  },
-
-  menuIconDanger: {
-    backgroundColor: '#FDECEC',
+    marginRight: 13,
   },
 
   menuIconText: {
-    color: COLORS.navy,
-    fontSize: 17,
+    color: COLORS.teal,
+    fontSize: 19,
     fontWeight: '900',
   },
 
@@ -655,80 +658,91 @@ const styles = StyleSheet.create({
 
   menuTitle: {
     color: COLORS.navy,
-    fontSize: 12.5,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '800',
   },
 
   menuSubtitle: {
     color: COLORS.gray,
-    fontSize: 9.5,
-    lineHeight: 14,
+    fontSize: 11,
+    lineHeight: 16,
     marginTop: 3,
-  },
-
-  dangerText: {
-    color: '#B42318',
   },
 
   chevron: {
     color: COLORS.gray,
-    fontSize: 25,
+    fontSize: 27,
     marginLeft: 8,
   },
 
-  menuDivider: {
-    height: 1,
-    backgroundColor: '#EEF1F3',
-    marginLeft: 64,
+  deleteButton: {
+    height: 49,
+    borderRadius: 15,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: '#E4B8B8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
 
-  accountActions: {
-    marginTop: 25,
+  deleteText: {
+    color: '#C62828',
+    fontSize: 13,
+    fontWeight: '800',
   },
 
   logoutButton: {
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.navy,
+    height: 49,
+    borderRadius: 15,
+    backgroundColor: COLORS.navy,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   logoutText: {
-    color: COLORS.navy,
-    fontSize: 12,
+    color: COLORS.white,
+    fontSize: 13,
     fontWeight: '900',
-  },
-
-  deleteButton: {
-    height: 45,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 5,
-  },
-
-  deleteText: {
-    color: '#B42318',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-
-  brand: {
-    alignItems: 'center',
-    marginTop: 28,
-  },
-
-  logo: {
-    width: 45,
-    height: 45,
-    opacity: 0.8,
   },
 
   version: {
     color: COLORS.gray,
-    fontSize: 9,
-    marginTop: 4,
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 16,
+  },
+
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+
+  loadingText: {
+    color: COLORS.gray,
+    fontSize: 14,
+    marginTop: 12,
+  },
+
+  errorTitle: {
+    color: COLORS.navy,
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 15,
+  },
+
+  retryButton: {
+    backgroundColor: COLORS.orange,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 22,
+  },
+
+  retryText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '800',
   },
 })
