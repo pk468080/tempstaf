@@ -2,7 +2,7 @@ import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 
 import { RootStackParamList } from '../types'
-
+import ManualLocationScreen from '../screens/ManualLocationScreen'
 import SplashScreen from '../screens/SplashScreen'
 import LoginScreen from '../screens/LoginScreen'
 import OtpScreen from '../screens/OtpScreen'
@@ -170,7 +170,12 @@ export default function AppNavigator() {
           name="DeleteAccount"
           component={DeleteAccountScreen}
         />
+        <Stack.Screen
+          name="ManualLocation"
+          component={ManualLocationScreen}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   )
 }
+      

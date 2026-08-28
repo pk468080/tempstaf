@@ -19,7 +19,15 @@ export type RootStackParamList = {
 
   CustomerDetails: undefined
 
-  Home: undefined
+  Home:
+  | undefined
+  | {
+      latitude: number
+      longitude: number
+      label: string
+      detail: string
+    }
+    ManualLocation: undefined
   Services: undefined
   Location: undefined
   Workers: undefined
@@ -38,6 +46,7 @@ export type RootStackParamList = {
   Tracking: {
     bookingId?: string
   }
+
   SavedAddresses: undefined
 
   Profile: undefined
@@ -45,6 +54,7 @@ export type RootStackParamList = {
   Money: undefined
   HelpSupport: undefined
   AboutUs: undefined
+  TermsOfService: undefined
   PrivacyPolicy: undefined
   DeleteAccount: undefined
 }
