@@ -106,6 +106,7 @@ const iconForService = (
 
 export default function HomeScreen({
   navigation,
+  route,
 }: Props) {
   const {
     resetBooking,
@@ -295,8 +296,39 @@ export default function HomeScreen({
     )
 
   useEffect(() => {
-    loadLocation()
-  }, [loadLocation])
+  const manualLocation =
+    route.params
+
+  if (
+    manualLocation &&
+    typeof manualLocation.latitude ===
+      'number' &&
+    typeof manualLocation.longitude ===
+      'number'
+  ) {
+    setLocationState({
+      loading: false,
+      label:
+        manualLocation.label,
+      detail:
+        manualLocation.detail,
+      error: null,
+      latitude:
+        manualLocation.latitude,
+      longitude:
+        manualLocation.longitude,
+    })
+
+    setAvailability({})
+
+    return
+  }
+
+  loadLocation()
+}, [
+  route.params,
+  loadLocation,
+])
 
   /*
    * --------------------------------------------------
@@ -643,20 +675,41 @@ export default function HomeScreen({
                     {locationState.error}
                   </Text>
 
-                  <TouchableOpacity
-                    onPress={
-                      loadLocation
-                    }
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={
-                        styles.locationRetry
-                      }
-                    >
-                      Try again
-                    </Text>
-                  </TouchableOpacity>
+                  <View
+  style={styles.locationActions}
+>
+  <TouchableOpacity
+    onPress={
+      loadLocation
+    }
+    activeOpacity={0.8}
+  >
+    <Text
+      style={
+        styles.locationRetry
+      }
+    >
+      Try again
+    </Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity
+    onPress={() =>
+      navigation.navigate(
+        'ManualLocation'
+      )
+    }
+    activeOpacity={0.8}
+  >
+    <Text
+      style={
+        styles.manualLocationLink
+      }
+    >
+      Select location manually
+    </Text>
+  </TouchableOpacity>
+</View>
                 </>
               ) : (
                 <>
@@ -847,23 +900,49 @@ export default function HomeScreen({
                 {catalogueError}
               </Text>
 
-              <TouchableOpacity
-                style={
-                  styles.retryButton
-                }
-                onPress={
-                  refreshCatalogue
-                }
-                activeOpacity={0.85}
-              >
-                <Text
-                  style={
-                    styles.retryText
-                  }
-                >
-                  Try Again
-                </Text>
-              </TouchableOpacity>
+              <View
+  style={
+    styles.locationChoiceRow
+  }
+>
+  <TouchableOpacity
+    style={
+      styles.retryButton
+    }
+    onPress={
+      loadLocation
+    }
+    activeOpacity={0.85}
+  >
+    <Text
+      style={
+        styles.retryText
+      }
+    >
+      Try Again
+    </Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity
+    style={
+      styles.manualLocationButton
+    }
+    onPress={() =>
+      navigation.navigate(
+        'ManualLocation'
+      )
+    }
+    activeOpacity={0.85}
+  >
+    <Text
+      style={
+        styles.manualLocationButtonText
+      }
+    >
+      Select manually
+    </Text>
+  </TouchableOpacity>
+</View>
             </View>
           ) : services.length ===
             0 ? (
@@ -1518,4 +1597,34 @@ const styles =
       marginBottom: 14,
       maxWidth: 300,
     },
+    locationActions: {
+  marginTop: 4,
+},
+
+manualLocationLink: {
+  color: COLORS.teal,
+  fontSize: 12,
+  fontWeight: '800',
+  marginTop: 9,
+},
+
+locationChoiceRow: {
+  width: '100%',
+  alignItems: 'center',
+},
+
+manualLocationButton: {
+  marginTop: 9,
+  paddingHorizontal: 18,
+  paddingVertical: 9,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: COLORS.teal,
+},
+
+manualLocationButtonText: {
+  color: COLORS.teal,
+  fontSize: 12,
+  fontWeight: '800',
+},
   })
