@@ -74,7 +74,7 @@ function parseScheduledDate(
 
   if (
     period.toUpperCase() ===
-    'PM' &&
+      'PM' &&
     hour !== 12
   ) {
     hour += 12
@@ -82,7 +82,7 @@ function parseScheduledDate(
 
   if (
     period.toUpperCase() ===
-    'AM' &&
+      'AM' &&
     hour === 12
   ) {
     hour = 0
@@ -194,14 +194,11 @@ export default function CheckoutScreen({
       setPaying(true)
 
       /*
-       * ------------------------------------------------
        * STEP 1
        * Create the real booking first.
        *
-       * We only create it once.
-       * If the customer retries payment,
-       * we reuse the existing pending booking.
-       * ------------------------------------------------
+       * Worker assignment happens later.
+       * Customers do not select workers.
        */
 
       let currentBookingId =
@@ -230,7 +227,10 @@ export default function CheckoutScreen({
 
         const booking =
           await createBooking({
-            workerId: null,
+            fulfillmentType:
+              bookingMode === 'Instant'
+                ? 'instant'
+                : 'scheduled',
 
             serviceId:
               selectedServiceId,
@@ -280,13 +280,8 @@ export default function CheckoutScreen({
       }
 
       /*
-       * ------------------------------------------------
        * STEP 2
        * Create Razorpay order.
-       *
-       * Server verifies the live package price
-       * directly from Supabase.
-       * ------------------------------------------------
        */
 
       const order =
@@ -338,10 +333,8 @@ export default function CheckoutScreen({
       }
 
       /*
-       * ------------------------------------------------
        * STEP 3
        * Open Razorpay.
-       * ------------------------------------------------
        */
 
       const payment =
@@ -355,13 +348,8 @@ export default function CheckoutScreen({
       )
 
       /*
-       * ------------------------------------------------
        * STEP 4
-       * Complete the booking/payment in Supabase.
-       *
-       * This calls the existing
-       * complete_test_payment RPC.
-       * ------------------------------------------------
+       * Complete payment in Supabase.
        */
 
       if (!currentBookingId) {
@@ -382,10 +370,8 @@ export default function CheckoutScreen({
       )
 
       /*
-       * ------------------------------------------------
        * STEP 5
-       * Go to the real confirmation screen.
-       * ------------------------------------------------
+       * Go to confirmation.
        */
 
       Alert.alert(

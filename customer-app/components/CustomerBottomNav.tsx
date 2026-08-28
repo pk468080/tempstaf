@@ -10,12 +10,11 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { COLORS } from '../constants/theme'
 import { RootStackParamList } from '../types'
 
-type Navigation = NativeStackNavigationProp<
-  RootStackParamList
->
-
 type Props = {
-  navigation: Navigation
+  navigation: NativeStackNavigationProp<
+    RootStackParamList,
+    keyof RootStackParamList
+  >
   active: 'Home' | 'Bookings' | 'Profile'
 }
 
@@ -198,7 +197,6 @@ const styles = StyleSheet.create({
   icon: {
     color: COLORS.gray,
     fontSize: 19,
-    fontWeight: '800',
   },
 
   iconActive: {
@@ -207,13 +205,12 @@ const styles = StyleSheet.create({
 
   label: {
     color: COLORS.gray,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     marginTop: 2,
   },
 
   labelActive: {
     color: COLORS.teal,
-    fontWeight: '900',
   },
 })
