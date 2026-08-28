@@ -276,8 +276,8 @@ export default function HomeScreen({
             longitude,
           })
         } catch (error) {
-          console.error(
-            '[TempStaff] Location error:',
+          console.warn(
+            '[TempStaff] Location unavailable:',
             error
           )
 
