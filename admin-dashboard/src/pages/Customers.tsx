@@ -95,7 +95,7 @@ async function loadCustomers() {
   } finally {
     setLoading(false)
   }
-}
+}   
 
   useEffect(() => {
     loadCustomers()

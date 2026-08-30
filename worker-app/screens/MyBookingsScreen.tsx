@@ -14,10 +14,23 @@ import {
 
 import { supabase } from '../lib/supabase'
 
+type BookingStatus =
+  | 'pending_payment'
+  | 'paid'
+  | 'searching_worker'
+  | 'assigned'
+  | 'on_the_way'
+  | 'arrived'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'expired'
+  | 'payment_failed'
+
 type Booking = {
   id: string
-  status: string
-  duration_value: number | string | null
+  status: BookingStatus
+  duration_value: number | null
   duration_unit: string | null
   total_amount: number | string | null
   scheduled_start: string | null
@@ -32,77 +45,66 @@ type WorkerBookingAction =
   | 'accept'
   | 'decline'
   | 'on_the_way'
+  | 'arrived'
+  | 'start'
+  | 'complete'
+  | 'cancel'
+
+type WorkerBookingActionResponse = {
+  success?: boolean
+  status?: string
+  error?: string
+  message?: string
+}
 
 export default function MyBookingsScreen({
   onBack,
 }: MyBookingsScreenProps) {
-  const [bookings, setBookings] =
-    useState<Booking[]>([])
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
 
-  const [loading, setLoading] =
-    useState(true)
+  const loadBookings = useCallback(async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-  const [refreshing, setRefreshing] =
-    useState(false)
-
-  const [updatingId, setUpdatingId] =
-    useState<string | null>(null)
-
-  const loadBookings = useCallback(
-    async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (!user) {
-          throw new Error(
-            'Worker is not authenticated.'
-          )
-        }
-
-        const { data, error } =
-          await supabase
-            .from('bookings')
-            .select(
-              `
-                id,
-                status,
-                duration_value,
-                duration_unit,
-                total_amount,
-                scheduled_start,
-                created_at
-              `
-            )
-            .eq('worker_id', user.id)
-            .order('created_at', {
-              ascending: false,
-            })
-
-        if (error) {
-          throw error
-        }
-
-        setBookings(data ?? [])
-      } catch (error: any) {
-        console.error(
-          '[TempStaff Worker] Failed to load bookings:',
-          error
-        )
-
-        Alert.alert(
-          'Unable to load bookings',
-          error?.message ||
-            'Please try again.'
-        )
-      } finally {
-        setLoading(false)
-        setRefreshing(false)
+      if (!user) {
+        throw new Error('Worker is not authenticated.')
       }
-    },
-    []
-  )
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(
+          'id, status, duration_value, duration_unit, total_amount, scheduled_start, created_at',
+        )
+        .eq('worker_id', user.id)
+        .order('created_at', {
+          ascending: false,
+        })
+
+      if (error) {
+        throw error
+      }
+
+      setBookings((data ?? []) as Booking[])
+    } catch (error: any) {
+      console.error(
+        '[TempStaff Worker] Failed to load bookings:',
+        error,
+      )
+
+      Alert.alert(
+        'Unable to load bookings',
+        error?.message || 'Please try again.',
+      )
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [])
 
   useEffect(() => {
     loadBookings()
@@ -113,19 +115,11 @@ export default function MyBookingsScreen({
     loadBookings()
   }
 
-  /**
-   * Worker actions are sent through a Supabase
-   * RPC instead of directly changing booking.status.
-   *
-   * This keeps the real state transition inside
-   * the database where authorization and race
-   * protection can be enforced.
-   */
   const performBookingAction = async (
     bookingId: string,
-    action: WorkerBookingAction
+    action: WorkerBookingAction,
   ) => {
-    if (updatingId === bookingId) {
+    if (updatingId !== null) {
       return
     }
 
@@ -137,75 +131,112 @@ export default function MyBookingsScreen({
       } = await supabase.auth.getUser()
 
       if (!user) {
-        throw new Error(
-          'Worker is not authenticated.'
-        )
+        throw new Error('Worker is not authenticated.')
       }
 
-      const { data, error } =
-        await supabase.rpc(
-          'worker_booking_action',
-          {
-            p_booking_id: bookingId,
-            p_action: action,
-          }
-        )
+      const { data, error } = await supabase.rpc(
+        'worker_booking_action',
+        {
+          p_booking_id: bookingId,
+          p_action: action,
+        },
+      )
 
       if (error) {
         throw error
       }
 
-      if (!data?.success) {
+      const result =
+        (data ?? {}) as WorkerBookingActionResponse
+
+      if (result.success !== true) {
         throw new Error(
-          data?.error ||
-            'Booking action was rejected.'
+          result.error ||
+            result.message ||
+            'Booking action was rejected.',
         )
       }
 
       const updatedStatus =
-        data.status
+        result.status as BookingStatus | undefined
 
-      setBookings(current =>
-        current.map(booking =>
+      setBookings((current) =>
+        current.map((booking) =>
           booking.id === bookingId
             ? {
                 ...booking,
                 status:
-                  updatedStatus ??
-                  booking.status,
+                  updatedStatus ?? booking.status,
               }
-            : booking
-        )
+            : booking,
+        ),
       )
 
-      if (action === 'accept') {
-        Alert.alert(
-          'Booking accepted',
-          'The booking has been accepted successfully.'
-        )
-      } else if (
-        action === 'decline'
-      ) {
-        Alert.alert(
-          'Booking declined',
-          'The booking has been declined.'
-        )
-      } else {
-        Alert.alert(
-          'You are on the way',
-          'The customer has been notified.'
-        )
+      switch (action) {
+        case 'accept':
+          Alert.alert(
+            'Booking accepted',
+            'The booking has been accepted successfully.',
+          )
+          break
+
+        case 'decline':
+          Alert.alert(
+            'Booking declined',
+            'The booking has been declined and returned for reassignment.',
+          )
+          break
+
+        case 'on_the_way':
+          Alert.alert(
+            'You are on the way',
+            'The customer has been notified that you are on the way.',
+          )
+          break
+
+        case 'arrived':
+          Alert.alert(
+            'Marked as arrived',
+            'You have arrived at the customer location.',
+          )
+          break
+
+        case 'start':
+          Alert.alert(
+            'Job started',
+            'The job is now in progress.',
+          )
+          break
+
+        case 'complete':
+          Alert.alert(
+            'Job completed',
+            'The booking has been completed successfully.',
+          )
+          break
+
+        case 'cancel':
+          Alert.alert(
+            'Booking cancelled',
+            'The booking has been cancelled.',
+          )
+          break
+
+        default:
+          break
       }
+
+      await loadBookings()
     } catch (error: any) {
       console.error(
         '[TempStaff Worker] Booking action failed:',
-        error
+        error,
       )
 
       Alert.alert(
         'Unable to update booking',
         error?.message ||
-          'The booking may have changed. Refresh and try again.'
+          'The booking may have changed. Refresh and try again.',
       )
 
       await loadBookings()
@@ -214,9 +245,7 @@ export default function MyBookingsScreen({
     }
   }
 
-  const confirmAccept = (
-    bookingId: string
-  ) => {
+  const confirmAccept = (bookingId: string) => {
     Alert.alert(
       'Accept booking',
       'Are you sure you want to accept this booking?',
@@ -230,16 +259,14 @@ export default function MyBookingsScreen({
           onPress: () =>
             performBookingAction(
               bookingId,
-              'accept'
+              'accept',
             ),
         },
-      ]
+      ],
     )
   }
 
-  const confirmDecline = (
-    bookingId: string
-  ) => {
+  const confirmDecline = (bookingId: string) => {
     Alert.alert(
       'Decline booking',
       'Are you sure you want to decline this booking?',
@@ -254,16 +281,14 @@ export default function MyBookingsScreen({
           onPress: () =>
             performBookingAction(
               bookingId,
-              'decline'
+              'decline',
             ),
         },
-      ]
+      ],
     )
   }
 
-  const confirmOnTheWay = (
-    bookingId: string
-  ) => {
+  const confirmOnTheWay = (bookingId: string) => {
     Alert.alert(
       'Start travelling',
       'Mark this booking as On the Way?',
@@ -277,79 +302,125 @@ export default function MyBookingsScreen({
           onPress: () =>
             performBookingAction(
               bookingId,
-              'on_the_way'
+              'on_the_way',
             ),
         },
-      ]
+      ],
+    )
+  }
+
+  const confirmArrived = (bookingId: string) => {
+    Alert.alert(
+      'Confirm arrival',
+      'Are you sure you have arrived at the customer location?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Arrived',
+          onPress: () =>
+            performBookingAction(
+              bookingId,
+              'arrived',
+            ),
+        },
+      ],
+    )
+  }
+
+  const confirmStart = (bookingId: string) => {
+    Alert.alert(
+      'Start job',
+      'Start this job only after completing the required customer verification.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Start Job',
+          onPress: () =>
+            performBookingAction(
+              bookingId,
+              'start',
+            ),
+        },
+      ],
+    )
+  }
+
+  const confirmComplete = (bookingId: string) => {
+    Alert.alert(
+      'Complete job',
+      'Are you sure the job has been completed?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Complete',
+          onPress: () =>
+            performBookingAction(
+              bookingId,
+              'complete',
+            ),
+        },
+      ],
     )
   }
 
   const formatAmount = (
-    amount: number | string | null
+    amount: number | string | null,
   ) => {
-    return `₹${Number(
-      amount || 0
-    ).toLocaleString('en-IN', {
-      maximumFractionDigits: 2,
-    })}`
+    return (
+      '₹' +
+      Number(amount || 0).toLocaleString(
+        'en-IN',
+        {
+          maximumFractionDigits: 2,
+        },
+      )
+    )
   }
 
-  const formatDate = (
-    date: string | null
-  ) => {
+  const formatDate = (date: string | null) => {
     if (!date) {
       return 'Date not available'
     }
 
-    const parsed =
-      new Date(date)
+    const parsed = new Date(date)
 
-    if (
-      Number.isNaN(
-        parsed.getTime()
-      )
-    ) {
+    if (Number.isNaN(parsed.getTime())) {
       return 'Date not available'
     }
 
-    return parsed.toLocaleString(
-      'en-IN',
-      {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }
-    )
+    return parsed.toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
   }
 
-  const formatStatus = (
-    status: string
-  ) => {
+  const formatStatus = (status: string) => {
     return status
       .replace(/_/g, ' ')
-      .replace(
-        /\b\w/g,
-        letter =>
-          letter.toUpperCase()
+      .replace(/\b\w/g, (letter) =>
+        letter.toUpperCase(),
       )
   }
 
   const isAwaitingWorkerAction = (
-    status: string
+    status: BookingStatus,
   ) => {
-    return (
-      status === 'assigned' ||
-      status === 'pending'
-    )
+    return status === 'assigned'
   }
 
   return (
-    <SafeAreaView
-      style={styles.container}
-    >
+    <SafeAreaView style={styles.container}>
       <ScrollView
-        contentContainerStyle={
-          styles.page
-        }
+        contentContainerStyle={styles.page}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -370,98 +441,56 @@ export default function MyBookingsScreen({
           My Bookings
         </Text>
 
-        <Text
-          style={styles.subtitle}
-        >
-          View and manage your assigned
-          bookings.
+        <Text style={styles.subtitle}>
+          View and manage your assigned bookings.
         </Text>
 
         {loading ? (
-          <View
-            style={styles.loading}
-          >
-            <ActivityIndicator
-              size="large"
-            />
+          <View style={styles.loading}>
+            <ActivityIndicator size="large" />
 
-            <Text
-              style={
-                styles.loadingText
-              }
-            >
+            <Text style={styles.loadingText}>
               Loading bookings...
             </Text>
           </View>
         ) : bookings.length === 0 ? (
-          <View
-            style={styles.emptyCard}
-          >
-            <Text
-              style={styles.emptyIcon}
-            >
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyIcon}>
               📋
             </Text>
 
-            <Text
-              style={styles.emptyTitle}
-            >
+            <Text style={styles.emptyTitle}>
               No bookings yet
             </Text>
 
-            <Text
-              style={styles.emptyText}
-            >
-              New bookings assigned to
-              you will appear here.
+            <Text style={styles.emptyText}>
+              New bookings assigned to you will
+              appear here.
             </Text>
           </View>
         ) : (
-          bookings.map(booking => {
+          bookings.map((booking) => {
             const pending =
               isAwaitingWorkerAction(
-                booking.status
+                booking.status,
               )
 
             const updating =
-              updatingId ===
-              booking.id
+              updatingId === booking.id
 
             return (
               <View
                 key={booking.id}
-                style={
-                  styles.bookingCard
-                }
+                style={styles.bookingCard}
               >
-                <View
-                  style={
-                    styles.headerRow
-                  }
-                >
-                  <View
-                    style={
-                      styles.headerLeft
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.jobTitle
-                      }
-                    >
+                <View style={styles.headerRow}>
+                  <View style={styles.headerLeft}>
+                    <Text style={styles.jobTitle}>
                       Service Booking
                     </Text>
 
-                    <Text
-                      style={
-                        styles.bookingId
-                      }
-                    >
-                      #
-                      {booking.id.slice(
-                        0,
-                        8
-                      )}
+                    <Text style={styles.bookingId}>
+                      #{booking.id.slice(0, 8)}
                     </Text>
                   </View>
 
@@ -469,7 +498,7 @@ export default function MyBookingsScreen({
                     style={[
                       styles.statusBadge,
                       getStatusStyle(
-                        booking.status
+                        booking.status,
                       ),
                     ]}
                   >
@@ -477,131 +506,87 @@ export default function MyBookingsScreen({
                       style={[
                         styles.statusText,
                         getStatusTextStyle(
-                          booking.status
+                          booking.status,
                         ),
                       ]}
                     >
                       {formatStatus(
-                        booking.status
+                        booking.status,
                       )}
                     </Text>
                   </View>
                 </View>
 
-                <View
-                  style={styles.divider}
-                />
+                <View style={styles.divider} />
 
-                <View
-                  style={
-                    styles.detailRow
-                  }
-                >
-                  <Text
-                    style={styles.label}
-                  >
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>
                     Scheduled
                   </Text>
 
-                  <Text
-                    style={styles.value}
-                  >
+                  <Text style={styles.value}>
                     {formatDate(
-                      booking.scheduled_start
+                      booking.scheduled_start,
                     )}
                   </Text>
                 </View>
 
-                <View
-                  style={
-                    styles.detailRow
-                  }
-                >
-                  <Text
-                    style={styles.label}
-                  >
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>
                     Duration
                   </Text>
 
-                  <Text
-                    style={styles.value}
-                  >
-                    {booking.duration_value ??
-                      '-'}{' '}
-                    {booking.duration_unit ??
-                      ''}
+                  <Text style={styles.value}>
+                    {booking.duration_value ?? '-'}{' '}
+                    {booking.duration_unit ?? ''}
                   </Text>
                 </View>
 
-                <View
-                  style={
-                    styles.detailRow
-                  }
-                >
-                  <Text
-                    style={styles.label}
-                  >
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>
                     Amount
                   </Text>
 
-                  <Text
-                    style={styles.amount}
-                  >
+                  <Text style={styles.amount}>
                     {formatAmount(
-                      booking.total_amount
+                      booking.total_amount,
                     )}
                   </Text>
                 </View>
 
-                <Text
-                  style={styles.created}
-                >
+                <Text style={styles.created}>
                   Booked on{' '}
                   {formatDate(
-                    booking.created_at
+                    booking.created_at,
                   )}
                 </Text>
 
                 {pending && (
-                  <View
-                    style={
-                      styles.actionRow
-                    }
-                  >
+                  <View style={styles.actionRow}>
                     <TouchableOpacity
-                      style={
-                        styles.declineButton
-                      }
+                      style={styles.declineButton}
                       onPress={() =>
                         confirmDecline(
-                          booking.id
+                          booking.id,
                         )
                       }
-                      disabled={
-                        updating
-                      }
+                      disabled={updating}
                     >
                       <Text
-                        style={
-                          styles.declineText
-                        }
+                        style={styles.declineText}
                       >
                         Decline
                       </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={
-                        styles.acceptButton
-                      }
+                      style={styles.acceptButton}
                       onPress={() =>
                         confirmAccept(
-                          booking.id
+                          booking.id,
                         )
                       }
-                      disabled={
-                        updating
-                      }
+                      disabled={updating}
                     >
                       {updating ? (
                         <ActivityIndicator
@@ -621,19 +606,40 @@ export default function MyBookingsScreen({
                 )}
 
                 {booking.status ===
-                  'accepted' && (
+                  'assigned' && (
                   <TouchableOpacity
-                    style={
-                      styles.acceptButton
-                    }
+                    style={styles.secondaryActionButton}
                     onPress={() =>
                       confirmOnTheWay(
-                        booking.id
+                        booking.id,
                       )
                     }
-                    disabled={
-                      updating
+                    disabled={updating}
+                  >
+                    {updating ? (
+                      <ActivityIndicator />
+                    ) : (
+                      <Text
+                        style={
+                          styles.secondaryActionText
+                        }
+                      >
+                        On the Way
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+                {booking.status ===
+                  'on_the_way' && (
+                  <TouchableOpacity
+                    style={styles.acceptButton}
+                    onPress={() =>
+                      confirmArrived(
+                        booking.id,
+                      )
                     }
+                    disabled={updating}
                   >
                     {updating ? (
                       <ActivityIndicator
@@ -645,7 +651,61 @@ export default function MyBookingsScreen({
                           styles.acceptText
                         }
                       >
-                        On the Way
+                        Arrived
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+                {booking.status ===
+                  'arrived' && (
+                  <TouchableOpacity
+                    style={styles.acceptButton}
+                    onPress={() =>
+                      confirmStart(
+                        booking.id,
+                      )
+                    }
+                    disabled={updating}
+                  >
+                    {updating ? (
+                      <ActivityIndicator
+                        color="white"
+                      />
+                    ) : (
+                      <Text
+                        style={
+                          styles.acceptText
+                        }
+                      >
+                        Start Job
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+                {booking.status ===
+                  'in_progress' && (
+                  <TouchableOpacity
+                    style={styles.acceptButton}
+                    onPress={() =>
+                      confirmComplete(
+                        booking.id,
+                      )
+                    }
+                    disabled={updating}
+                  >
+                    {updating ? (
+                      <ActivityIndicator
+                        color="white"
+                      />
+                    ) : (
+                      <Text
+                        style={
+                          styles.acceptText
+                        }
+                      >
+                        Complete Job
                       </Text>
                     )}
                   </TouchableOpacity>
@@ -659,48 +719,52 @@ export default function MyBookingsScreen({
   )
 }
 
-function getStatusStyle(
-  status: string
-) {
+function getStatusStyle(status: string) {
   switch (status) {
-    case 'accepted':
+    case 'paid':
+    case 'assigned':
+    case 'arrived':
       return styles.acceptedBadge
-
-    case 'declined':
-      return styles.declinedBadge
 
     case 'completed':
       return styles.completedBadge
 
     case 'cancelled':
+    case 'expired':
+    case 'payment_failed':
       return styles.cancelledBadge
 
     case 'on_the_way':
       return styles.onTheWayBadge
+
+    case 'in_progress':
+      return styles.inProgressBadge
 
     default:
       return styles.pendingBadge
   }
 }
 
-function getStatusTextStyle(
-  status: string
-) {
+function getStatusTextStyle(status: string) {
   switch (status) {
-    case 'accepted':
+    case 'paid':
+    case 'assigned':
+    case 'arrived':
       return styles.acceptedStatusText
-
-    case 'declined':
-      return styles.declinedStatusText
 
     case 'completed':
       return styles.completedStatusText
 
     case 'cancelled':
+    case 'expired':
+    case 'payment_failed':
       return styles.cancelledStatusText
 
     case 'on_the_way':
       return styles.onTheWayStatusText
+
+    case 'in_progress':
+      return styles.inProgressStatusText
 
     default:
       return styles.pendingStatusText
@@ -845,14 +909,6 @@ const styles = StyleSheet.create({
     color: '#166534',
   },
 
-  declinedBadge: {
-    backgroundColor: '#fee2e2',
-  },
-
-  declinedStatusText: {
-    color: '#991b1b',
-  },
-
   completedBadge: {
     backgroundColor: '#dbeafe',
   },
@@ -875,6 +931,14 @@ const styles = StyleSheet.create({
 
   onTheWayStatusText: {
     color: '#6d28d9',
+  },
+
+  inProgressBadge: {
+    backgroundColor: '#ffedd5',
+  },
+
+  inProgressStatusText: {
+    color: '#c2410c',
   },
 
   divider: {
@@ -951,6 +1015,23 @@ const styles = StyleSheet.create({
 
   acceptText: {
     color: 'white',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  secondaryActionButton: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0f766e',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    marginTop: 4,
+  },
+
+  secondaryActionText: {
+    color: '#0f766e',
     fontSize: 14,
     fontWeight: '800',
   },
