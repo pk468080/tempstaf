@@ -25,6 +25,64 @@ alter table public.payments enable row level security;
 alter table public.services enable row level security;
 alter table public.worker_services enable row level security;
 
+do $policy_cleanup$
+declare
+  v_policy record;
+begin
+  for v_policy in
+    select * from (values
+      ('profiles', 'profiles_select_own'),
+      ('profiles', 'profiles_update_own'),
+      ('profiles', 'profiles_select_admin'),
+      ('bookings', 'bookings_customer_select'),
+      ('bookings', 'bookings_worker_select'),
+      ('bookings', 'bookings_admin_select'),
+      ('bookings', 'bookings_customer_update'),
+      ('bookings', 'bookings_no_direct_worker_update'),
+      ('bookings', 'bookings_admin_update_via_rpc'),
+      ('bookings', 'bookings_no_delete'),
+      ('worker_profiles', 'worker_profiles_select_own'),
+      ('worker_profiles', 'worker_profiles_update_own'),
+      ('worker_profiles', 'worker_profiles_select_customer'),
+      ('worker_profiles', 'worker_profiles_select_admin'),
+      ('addresses', 'addresses_select_own'),
+      ('addresses', 'addresses_insert_own'),
+      ('addresses', 'addresses_update_own'),
+      ('addresses', 'addresses_delete_own'),
+      ('worker_earnings', 'worker_earnings_select_own'),
+      ('worker_earnings', 'worker_earnings_select_admin'),
+      ('worker_earnings', 'worker_earnings_no_direct_write'),
+      ('worker_locations', 'worker_locations_insert_own'),
+      ('worker_locations', 'worker_locations_select_customer'),
+      ('worker_locations', 'worker_locations_select_own'),
+      ('worker_locations', 'worker_locations_select_admin'),
+      ('booking_otps', 'booking_otps_select_own'),
+      ('booking_otps', 'booking_otps_select_admin'),
+      ('booking_otps', 'booking_otps_no_direct_write'),
+      ('payments', 'payments_select_customer'),
+      ('payments', 'payments_select_admin'),
+      ('payments', 'payments_no_direct_write'),
+      ('services', 'services_select_authenticated'),
+      ('services', 'services_select_anon'),
+      ('services', 'services_write_admin'),
+      ('worker_services', 'worker_services_select'),
+      ('worker_services', 'worker_services_write_admin'),
+      ('booking_status_history', 'booking_status_history_select_customer'),
+      ('booking_status_history', 'booking_status_history_select_worker'),
+      ('booking_status_history', 'booking_status_history_select_admin')
+    ) as policies(table_name, policy_name)
+  loop
+    if to_regclass('public.' || v_policy.table_name) is not null then
+      execute format(
+        'drop policy if exists %I on public.%I',
+        v_policy.policy_name,
+        v_policy.table_name
+      );
+    end if;
+  end loop;
+end;
+$policy_cleanup$;
+
 -- ============================================================================
 -- PROFILES TABLE
 -- ============================================================================

@@ -74,14 +74,3 @@ for all
 to authenticated
 using (worker_id = auth.uid())
 with check (worker_id = auth.uid());
-
-create policy "worker_services_write_admin"
-on public.worker_services
-for all
-to authenticated
-using (
-  (select role from public.profiles where id = auth.uid()) = 'admin'
-)
-with check (
-  (select role from public.profiles where id = auth.uid()) = 'admin'
-);

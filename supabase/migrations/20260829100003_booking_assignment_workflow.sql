@@ -1,4 +1,6 @@
-create or replace function public.complete_test_payment(
+drop function if exists public.complete_test_payment(uuid);
+
+create function public.complete_test_payment(
   p_booking_id uuid
 )
 returns jsonb
@@ -77,7 +79,9 @@ $function$;
 revoke execute on function public.complete_test_payment(uuid) from anon;
 grant execute on function public.complete_test_payment(uuid) to authenticated;
 
-create or replace function public.get_eligible_workers(
+drop function if exists public.get_eligible_workers(uuid);
+
+create function public.get_eligible_workers(
   p_booking_id uuid
 )
 returns jsonb
@@ -157,7 +161,9 @@ $function$;
 revoke execute on function public.get_eligible_workers(uuid) from anon;
 grant execute on function public.get_eligible_workers(uuid) to authenticated;
 
-create or replace function public.admin_assign_booking_worker(
+drop function if exists public.admin_assign_booking_worker(uuid, uuid);
+
+create function public.admin_assign_booking_worker(
   p_booking_id uuid,
   p_worker_id uuid
 )
