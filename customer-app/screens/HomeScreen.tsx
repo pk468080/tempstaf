@@ -1196,8 +1196,7 @@ const styles =
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor:
-        COLORS.light,
+      backgroundColor: COLORS.light,
     },
 
     screen: {
@@ -1205,20 +1204,22 @@ const styles =
     },
 
     content: {
-      padding: 22,
-      paddingBottom: 28,
+      paddingHorizontal: 18,
+      paddingTop: 18,
+      paddingBottom: 32,
     },
 
     top: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: 16,
+      marginBottom: 18,
+      paddingVertical: 6,
     },
 
     logo: {
-      width: 64,
-      height: 64,
-      marginRight: 14,
+      width: 58,
+      height: 58,
+      marginRight: 12,
     },
 
     greeting: {
@@ -1227,50 +1228,61 @@ const styles =
 
     small: {
       color: COLORS.gray,
-      fontSize: 13,
+      fontSize: 12,
+      letterSpacing: 0.2,
+      textTransform: 'uppercase',
     },
 
     name: {
       color: COLORS.navy,
       fontSize: 22,
       fontWeight: '800',
+      marginTop: 2,
     },
 
     settingsButton: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor:
-        '#E7E7E7',
+      width: 46,
+      height: 46,
+      borderRadius: 14,
+      backgroundColor: COLORS.white,
       alignItems: 'center',
       justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      shadowColor: COLORS.shadow,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
+      elevation: 2,
     },
 
     settingsIcon: {
-      fontSize: 21,
+      fontSize: 20,
       color: COLORS.navy,
       fontWeight: '800',
     },
 
     locationCard: {
-      backgroundColor:
-        'white',
+      backgroundColor: COLORS.white,
       borderWidth: 1,
-      borderColor:
-        COLORS.border,
-      borderRadius: 18,
+      borderColor: COLORS.border,
+      borderRadius: 20,
       padding: 14,
       marginBottom: 18,
       flexDirection: 'row',
       alignItems: 'center',
+      shadowColor: COLORS.shadow,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.04,
+      shadowRadius: 12,
+      elevation: 2,
     },
 
     locationIconBox: {
       width: 42,
       height: 42,
-      borderRadius: 21,
-      backgroundColor:
-        '#FFF1E8',
+      borderRadius: 14,
+      backgroundColor: '#FFF3E8',
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: 12,
@@ -1288,6 +1300,8 @@ const styles =
       color: COLORS.gray,
       fontSize: 11,
       marginBottom: 2,
+      letterSpacing: 0.25,
+      textTransform: 'uppercase',
     },
 
     locationLoadingRow: {
@@ -1322,18 +1336,23 @@ const styles =
     },
 
     hero: {
-      backgroundColor:
-        COLORS.navy,
-      borderRadius: 24,
+      backgroundColor: COLORS.navy,
+      borderRadius: 26,
       padding: 22,
       marginBottom: 18,
+      shadowColor: COLORS.shadow,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.12,
+      shadowRadius: 24,
+      elevation: 4,
     },
 
     heroTitle: {
       color: 'white',
-      fontSize: 25,
-      lineHeight: 31,
+      fontSize: 26,
+      lineHeight: 32,
       fontWeight: '800',
+      letterSpacing: -0.5,
     },
 
     heroText: {
@@ -1345,58 +1364,65 @@ const styles =
     },
 
     heroButton: {
-      backgroundColor:
-        COLORS.orange,
-      height: 50,
-      borderRadius: 25,
+      backgroundColor: COLORS.orange,
+      height: 52,
+      borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
+      shadowColor: COLORS.orange,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.25,
+      shadowRadius: 14,
+      elevation: 3,
     },
 
     buttonText: {
       color: 'white',
-      fontSize: 17,
+      fontSize: 16,
       fontWeight: '800',
+      letterSpacing: 0.2,
     },
 
     bookingsButton: {
-      backgroundColor:
-        'white',
+      backgroundColor: COLORS.white,
       borderWidth: 1,
-      borderColor:
-        COLORS.border,
+      borderColor: COLORS.border,
       borderRadius: 18,
       padding: 18,
-      marginBottom: 28,
+      marginBottom: 26,
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent:
-        'space-between',
+      justifyContent: 'space-between',
+      shadowColor: COLORS.shadow,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.04,
+      shadowRadius: 12,
+      elevation: 2,
     },
 
     bookingsTitle: {
       color: COLORS.navy,
-      fontSize: 18,
+      fontSize: 17,
       fontWeight: '800',
     },
 
     bookingsSubtitle: {
       color: COLORS.gray,
-      fontSize: 13,
+      fontSize: 12,
       marginTop: 4,
+      lineHeight: 18,
     },
 
     arrow: {
       color: COLORS.navy,
-      fontSize: 25,
+      fontSize: 24,
       fontWeight: '800',
     },
 
     sectionHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent:
-        'space-between',
+      justifyContent: 'space-between',
       marginBottom: 14,
     },
 
@@ -1404,25 +1430,28 @@ const styles =
       color: COLORS.navy,
       fontSize: 20,
       fontWeight: '800',
+      letterSpacing: -0.3,
     },
 
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      justifyContent:
-        'space-between',
+      justifyContent: 'space-between',
     },
 
     card: {
       width: '48%',
-      backgroundColor:
-        'white',
+      backgroundColor: 'white',
       borderWidth: 1,
-      borderColor:
-        COLORS.border,
-      borderRadius: 18,
-      padding: 16,
+      borderColor: COLORS.border,
+      borderRadius: 20,
+      padding: 15,
       marginBottom: 12,
+      shadowColor: COLORS.shadow,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.04,
+      shadowRadius: 12,
+      elevation: 2,
     },
 
     cardUnavailable: {
@@ -1430,8 +1459,8 @@ const styles =
     },
 
     icon: {
-      fontSize: 27,
-      marginBottom: 7,
+      fontSize: 28,
+      marginBottom: 8,
     },
 
     cardText: {
@@ -1465,8 +1494,7 @@ const styles =
       width: 8,
       height: 8,
       borderRadius: 4,
-      backgroundColor:
-        COLORS.teal,
+      backgroundColor: COLORS.teal,
       marginRight: 6,
     },
 
@@ -1480,8 +1508,7 @@ const styles =
       width: 8,
       height: 8,
       borderRadius: 4,
-      backgroundColor:
-        COLORS.orange,
+      backgroundColor: COLORS.orange,
       marginRight: 6,
     },
 
@@ -1506,14 +1533,17 @@ const styles =
 
     loadingBox: {
       minHeight: 110,
-      backgroundColor:
-        'white',
-      borderRadius: 16,
+      backgroundColor: 'white',
+      borderRadius: 18,
       borderWidth: 1,
-      borderColor:
-        COLORS.border,
+      borderColor: COLORS.border,
       alignItems: 'center',
       justifyContent: 'center',
+      shadowColor: COLORS.shadow,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.04,
+      shadowRadius: 12,
+      elevation: 2,
     },
 
     loadingText: {
@@ -1523,12 +1553,10 @@ const styles =
     },
 
     errorBox: {
-      backgroundColor:
-        'white',
-      borderRadius: 16,
+      backgroundColor: 'white',
+      borderRadius: 18,
       borderWidth: 1,
-      borderColor:
-        COLORS.border,
+      borderColor: COLORS.border,
       padding: 18,
     },
 
@@ -1541,11 +1569,15 @@ const styles =
 
     retryButton: {
       alignSelf: 'flex-start',
-      backgroundColor:
-        COLORS.orange,
+      backgroundColor: COLORS.orange,
       paddingHorizontal: 18,
       paddingVertical: 10,
-      borderRadius: 20,
+      borderRadius: 14,
+      shadowColor: COLORS.orange,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      elevation: 2,
     },
 
     retryText: {
@@ -1555,12 +1587,10 @@ const styles =
     },
 
     emptyBox: {
-      backgroundColor:
-        'white',
-      borderRadius: 16,
+      backgroundColor: 'white',
+      borderRadius: 18,
       borderWidth: 1,
-      borderColor:
-        COLORS.border,
+      borderColor: COLORS.border,
       padding: 18,
     },
 
@@ -1571,12 +1601,10 @@ const styles =
     },
 
     unavailableAreaBox: {
-      backgroundColor:
-        'white',
+      backgroundColor: 'white',
       borderRadius: 18,
       borderWidth: 1,
-      borderColor:
-        COLORS.border,
+      borderColor: COLORS.border,
       padding: 20,
       alignItems: 'center',
     },
@@ -1598,33 +1626,34 @@ const styles =
       maxWidth: 300,
     },
     locationActions: {
-  marginTop: 4,
-},
+      marginTop: 4,
+    },
 
-manualLocationLink: {
-  color: COLORS.teal,
-  fontSize: 12,
-  fontWeight: '800',
-  marginTop: 9,
-},
+    manualLocationLink: {
+      color: COLORS.teal,
+      fontSize: 12,
+      fontWeight: '800',
+      marginTop: 9,
+    },
 
-locationChoiceRow: {
-  width: '100%',
-  alignItems: 'center',
-},
+    locationChoiceRow: {
+      width: '100%',
+      alignItems: 'center',
+    },
 
-manualLocationButton: {
-  marginTop: 9,
-  paddingHorizontal: 18,
-  paddingVertical: 9,
-  borderRadius: 20,
-  borderWidth: 1,
-  borderColor: COLORS.teal,
-},
+    manualLocationButton: {
+      marginTop: 9,
+      paddingHorizontal: 18,
+      paddingVertical: 9,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: COLORS.teal,
+      backgroundColor: COLORS.tealSoft,
+    },
 
-manualLocationButtonText: {
-  color: COLORS.teal,
-  fontSize: 12,
-  fontWeight: '800',
-},
+    manualLocationButtonText: {
+      color: COLORS.teal,
+      fontSize: 12,
+      fontWeight: '800',
+    },
   })

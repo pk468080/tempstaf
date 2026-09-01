@@ -6,8 +6,10 @@ type Worker = {
   id: string
   full_name: string | null
   email: string | null
+  phone: string | null
   worker_status: string
   is_verified: boolean
+  is_featured: boolean
   rating: number
   total_completed_jobs: number
   service_radius_km: number
@@ -30,6 +32,7 @@ export default function Workers() {
   const [error, setError] = useState('')
   const [showAddWorker, setShowAddWorker] = useState(false)
   const [creatingWorker, setCreatingWorker] = useState(false)
+  const [editingWorkerId, setEditingWorkerId] = useState<string | null>(null)
 
   const [workerForm, setWorkerForm] = useState({
     fullName: '',
@@ -37,6 +40,17 @@ export default function Workers() {
     phone: '',
     password: '',
     serviceIds: [] as string[],
+    featured: false,
+  })
+
+  const [editForm, setEditForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    worker_status: 'offline',
+    is_verified: false,
+    service_radius_km: 10,
+    is_featured: false,
   })
 
   async function loadWorkers() {
@@ -49,13 +63,15 @@ export default function Workers() {
         id,
         worker_status,
         is_verified,
+        is_featured,
         rating,
         total_completed_jobs,
         service_radius_km,
         current_location,
         profiles!worker_profiles_id_fkey (
           full_name,
-          email
+          email,
+          phone
         )
       `)
       .order('rating', { ascending: false })
@@ -71,8 +87,10 @@ export default function Workers() {
       id: worker.id,
       full_name: worker.profiles?.full_name ?? null,
       email: worker.profiles?.email ?? null,
+      phone: worker.profiles?.phone ?? null,
       worker_status: worker.worker_status,
-      is_verified: worker.is_verified,
+      is_verified: Boolean(worker.is_verified),
+      is_featured: Boolean(worker.is_featured),
       rating: Number(worker.rating ?? 0),
       total_completed_jobs: Number(worker.total_completed_jobs ?? 0),
       service_radius_km: Number(worker.service_radius_km ?? 0),
@@ -138,6 +156,7 @@ export default function Workers() {
           phone: workerForm.phone.trim(),
           password: workerForm.password,
           serviceIds: workerForm.serviceIds,
+          featured: workerForm.featured,
         },
       }
     )
@@ -161,6 +180,7 @@ export default function Workers() {
       phone: '',
       password: '',
       serviceIds: [],
+      featured: false,
     })
 
     setShowAddWorker(false)
@@ -220,6 +240,115 @@ export default function Workers() {
     await loadWorkers()
   }
 
+  async function toggleFeatured(workerId: string, isFeatured: boolean) {
+    const { error } = await supabase
+      .from('worker_profiles')
+      .update({ is_featured: isFeatured })
+      .eq('id', workerId)
+
+    if (error) {
+      setError(error.message)
+      return
+    }
+
+    await loadWorkers()
+  }
+
+  async function removeWorker(workerId: string) {
+    const confirmed = window.confirm(
+      'Remove this worker from active operations? This will suspend the worker and disable their account.'
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_active: false })
+      .eq('id', workerId)
+
+    if (error) {
+      setError(error.message)
+      return
+    }
+
+    const profileUpdate = await supabase
+      .from('worker_profiles')
+      .update({
+        worker_status: 'suspended',
+        is_verified: false,
+      })
+      .eq('id', workerId)
+
+    if (profileUpdate.error) {
+      setError(profileUpdate.error.message)
+      return
+    }
+
+    await loadWorkers()
+  }
+
+  function openEditWorker(worker: Worker) {
+    setEditingWorkerId(worker.id)
+    setEditForm({
+      fullName: worker.full_name || '',
+      email: worker.email || '',
+      phone: worker.phone || '',
+      worker_status: worker.worker_status,
+      is_verified: worker.is_verified,
+      service_radius_km: Number(worker.service_radius_km || 10),
+      is_featured: worker.is_featured,
+    })
+  }
+
+  async function saveWorkerEdit() {
+    if (!editingWorkerId) {
+      return
+    }
+
+    const trimmedEmail = editForm.email.trim()
+    const trimmedName = editForm.fullName.trim()
+
+    if (!trimmedName) {
+      setError('Worker name is required.')
+      return
+    }
+
+    const profileUpdate = await supabase
+      .from('profiles')
+      .update({
+        full_name: trimmedName,
+        email: trimmedEmail || null,
+        phone: editForm.phone.trim() || null,
+      })
+      .eq('id', editingWorkerId)
+
+    if (profileUpdate.error) {
+      setError(profileUpdate.error.message)
+      return
+    }
+
+    const workerUpdate = await supabase
+      .from('worker_profiles')
+      .update({
+        worker_status: editForm.worker_status,
+        is_verified: editForm.is_verified,
+        service_radius_km: editForm.service_radius_km,
+        is_featured: editForm.is_featured,
+      })
+      .eq('id', editingWorkerId)
+
+    if (workerUpdate.error) {
+      setError(workerUpdate.error.message)
+      return
+    }
+
+    setEditingWorkerId(null)
+    setError('')
+    await loadWorkers()
+  }
+
   useEffect(() => {
     loadWorkers()
     loadServices()
@@ -252,12 +381,12 @@ export default function Workers() {
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
+    <div className="page-content workers-page">
+      <div className="page-heading">
         <div>
-          <h1 style={styles.title}>Workers</h1>
+          <h1>Workers</h1>
 
-          <p style={styles.subtitle}>
+          <p>
             Manage profiles, access and worker operations
           </p>
         </div>
@@ -265,7 +394,7 @@ export default function Workers() {
         <div style={styles.headerActions}>
           <button
             onClick={loadWorkers}
-            style={styles.refresh}
+            className="dashboard-refresh"
             disabled={loading}
           >
             Refresh
@@ -276,14 +405,19 @@ export default function Workers() {
               setError('')
               setShowAddWorker(true)
             }}
-            style={styles.addButton}
+            className="secondary-button"
+            style={{
+              background: '#0f172a',
+              borderColor: '#0f172a',
+              color: '#fff',
+            }}
           >
             + Add Worker
           </button>
         </div>
       </div>
 
-      <div style={styles.toolbar}>
+      <div className="workers-toolbar">
         <input
           aria-label="Search workers"
           value={search}
@@ -307,7 +441,7 @@ export default function Workers() {
           ))}
         </select>
 
-        <span style={styles.resultCount}>
+        <span className="workers-result-count">
           {filteredWorkers.length} of {workers.length} workers
         </span>
       </div>
@@ -325,17 +459,18 @@ export default function Workers() {
           No workers match the current filters.
         </div>
       ) : (
-        <div style={styles.tableWrapper}>
-          <table style={styles.table}>
+        <div className="workers-table-wrap">
+          <table className="workers-table">
             <thead>
               <tr>
-                <th style={styles.th}>Worker</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Verified</th>
-                <th style={styles.th}>Rating</th>
-                <th style={styles.th}>Jobs</th>
-                <th style={styles.th}>Radius</th>
-                <th style={styles.th}>Actions</th>
+                <th>Worker</th>
+                <th>Status</th>
+                <th>Verified</th>
+                <th>Rating</th>
+                <th>Jobs</th>
+                <th>Radius</th>
+                <th>Availability</th>
+                <th>Actions</th>
               </tr>
             </thead>
 
@@ -428,10 +563,207 @@ export default function Workers() {
                       </option>
                     </select>
                   </td>
+
+                  <td style={styles.td}>
+                    <div style={styles.actionStack}>
+                      <button
+                        type="button"
+                        style={styles.smallButton}
+                        onClick={() => openEditWorker(worker)}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        style={{
+                          ...styles.smallButton,
+                          ...(worker.is_featured
+                            ? styles.featuredButtonSelected
+                            : styles.featuredButton),
+                        }}
+                        onClick={() =>
+                          toggleFeatured(
+                            worker.id,
+                            !worker.is_featured
+                          )
+                        }
+                      >
+                        {worker.is_featured ? 'Featured' : 'Mark featured'}
+                      </button>
+
+                      <button
+                        type="button"
+                        style={{
+                          ...styles.smallButton,
+                          ...styles.deleteButton,
+                        }}
+                        onClick={() => removeWorker(worker.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {editingWorkerId && (
+        <div
+          style={styles.modalOverlay}
+          onClick={() => setEditingWorkerId(null)}
+        >
+          <div
+            style={styles.modal}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={styles.modalHeader}>
+              <div>
+                <h2 style={styles.modalTitle}>Edit Worker</h2>
+                <p style={styles.modalSubtitle}>
+                  Update profile details, verification, and assignment status.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setEditingWorkerId(null)}
+                style={styles.closeButton}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={styles.form}>
+              <label style={styles.label}>
+                Full Name
+                <input
+                  value={editForm.fullName}
+                  onChange={(event) =>
+                    setEditForm({
+                      ...editForm,
+                      fullName: event.target.value,
+                    })
+                  }
+                  style={styles.input}
+                />
+              </label>
+
+              <label style={styles.label}>
+                Email
+                <input
+                  value={editForm.email}
+                  onChange={(event) =>
+                    setEditForm({
+                      ...editForm,
+                      email: event.target.value,
+                    })
+                  }
+                  style={styles.input}
+                />
+              </label>
+
+              <label style={styles.label}>
+                Mobile Number
+                <input
+                  value={editForm.phone}
+                  onChange={(event) =>
+                    setEditForm({
+                      ...editForm,
+                      phone: event.target.value,
+                    })
+                  }
+                  style={styles.input}
+                />
+              </label>
+
+              <div style={styles.inlineGrid}>
+                <label style={styles.label}>
+                  Status
+                  <select
+                    value={editForm.worker_status}
+                    onChange={(event) =>
+                      setEditForm({
+                        ...editForm,
+                        worker_status: event.target.value,
+                      })
+                    }
+                    style={styles.input}
+                  >
+                    <option value="offline">Offline</option>
+                    <option value="available">Available</option>
+                    <option value="busy">Busy</option>
+                    <option value="suspended">Suspended</option>
+                  </select>
+                </label>
+
+                <label style={styles.label}>
+                  Radius (km)
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={editForm.service_radius_km}
+                    onChange={(event) =>
+                      setEditForm({
+                        ...editForm,
+                        service_radius_km: Number(event.target.value || 10),
+                      })
+                    }
+                    style={styles.input}
+                  />
+                </label>
+              </div>
+
+              <label style={styles.labelCheckbox}>
+                <input
+                  type="checkbox"
+                  checked={editForm.is_verified}
+                  onChange={() =>
+                    setEditForm({
+                      ...editForm,
+                      is_verified: !editForm.is_verified,
+                    })
+                  }
+                />
+                <span>Verified worker</span>
+              </label>
+
+              <label style={styles.labelCheckbox}>
+                <input
+                  type="checkbox"
+                  checked={editForm.is_featured}
+                  onChange={() =>
+                    setEditForm({
+                      ...editForm,
+                      is_featured: !editForm.is_featured,
+                    })
+                  }
+                />
+                <span>Featured worker</span>
+              </label>
+
+              <div style={styles.formActions}>
+                <button
+                  type="button"
+                  onClick={() => setEditingWorkerId(null)}
+                  style={styles.cancelButton}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={saveWorkerEdit}
+                  style={styles.createButton}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -551,6 +883,21 @@ export default function Workers() {
                 <span style={styles.helpText}>
                   Give this password to the worker securely.
                 </span>
+              </label>
+
+              <label style={styles.labelCheckbox}>
+                <input
+                  type="checkbox"
+                  checked={workerForm.featured}
+                  onChange={() =>
+                    setWorkerForm({
+                      ...workerForm,
+                      featured: !workerForm.featured,
+                    })
+                  }
+                  disabled={creatingWorker}
+                />
+                <span>Featured worker</span>
               </label>
 
               <div style={styles.label}>
@@ -861,6 +1208,20 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#111827',
   },
 
+  labelCheckbox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    fontWeight: 600,
+    color: '#111827',
+  },
+
+  inlineGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: 12,
+  },
+
   input: {
     width: '100%',
     boxSizing: 'border-box',
@@ -931,5 +1292,41 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff',
     cursor: 'pointer',
     fontWeight: 600,
+  },
+
+  actionStack: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    alignItems: 'center',
+  },
+
+  smallButton: {
+    border: '1px solid #d1d5db',
+    background: '#fff',
+    color: '#0f172a',
+    borderRadius: 8,
+    padding: '6px 10px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+
+  deleteButton: {
+    borderColor: '#fecaca',
+    color: '#b91c1c',
+    background: '#fff5f5',
+  },
+
+  featuredButton: {
+    borderColor: '#fcd34d',
+    color: '#92400e',
+    background: '#fffbeb',
+  },
+
+  featuredButtonSelected: {
+    borderColor: '#86efac',
+    color: '#166534',
+    background: '#ecfdf5',
   },
 }

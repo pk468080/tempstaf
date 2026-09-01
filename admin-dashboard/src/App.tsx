@@ -15,6 +15,8 @@ import Bookings from './pages/Bookings'
 import Services from './pages/Services'
 import Customers from './pages/Customers'
 import Payments from './pages/Payments'
+import Reviews from './pages/Reviews'
+import Notifications from './pages/Notifications'
 
 export default function App() {
   return (
@@ -60,6 +62,16 @@ export default function App() {
             <Route
               path="/payments"
               element={<Payments />}
+            />
+
+            <Route
+              path="/reviews"
+              element={<Reviews />}
+            />
+
+            <Route
+              path="/notifications"
+              element={<Notifications />}
             />
           </Route>
         </Route>

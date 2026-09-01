@@ -199,7 +199,7 @@ export default function LoginScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F6F8FA',
+    backgroundColor: '#F4F7FB',
   },
 
   content: {
@@ -209,38 +209,44 @@ const styles = StyleSheet.create({
   },
 
   logo: {
-    width: 68,
-    height: 68,
-    borderRadius: 18,
-    backgroundColor: '#0B1F33',
+    width: 74,
+    height: 74,
+    borderRadius: 22,
+    backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
     marginBottom: 24,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 4,
   },
 
   logoText: {
     color: 'white',
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '900',
   },
 
   title: {
-    color: '#0B1F33',
+    color: '#0F172A',
     fontSize: 30,
     fontWeight: '800',
     marginBottom: 8,
+    letterSpacing: -0.5,
   },
 
   subtitle: {
-    color: '#667085',
+    color: '#64748B',
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 28,
   },
 
   label: {
-    color: '#0B1F33',
+    color: '#0F172A',
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 7,
@@ -250,21 +256,30 @@ const styles = StyleSheet.create({
     height: 54,
     backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: '#D9DEE5',
-    borderRadius: 14,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
     paddingHorizontal: 15,
     fontSize: 16,
-    color: '#0B1F33',
+    color: '#0F172A',
     marginBottom: 18,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
   },
 
   button: {
     height: 54,
-    borderRadius: 14,
-    backgroundColor: '#F28C28',
+    borderRadius: 16,
+    backgroundColor: '#FF8A3D',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
+    shadowColor: '#FF8A3D',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 3,
   },
 
   disabled: {
@@ -275,6 +290,7 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '800',
+    letterSpacing: 0.2,
   },
 
   dividerRow: {
@@ -290,30 +306,31 @@ const styles = StyleSheet.create({
   },
 
   dividerText: {
-    color: '#98A2B3',
+    color: '#94A3B8',
     fontSize: 11,
     fontWeight: '800',
     marginHorizontal: 12,
+    letterSpacing: 1,
   },
 
   registerButton: {
     height: 54,
-    borderRadius: 14,
+    borderRadius: 16,
     backgroundColor: 'white',
     borderWidth: 1.5,
-    borderColor: '#0B1F33',
+    borderColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   registerButtonText: {
-    color: '#0B1F33',
+    color: '#0F172A',
     fontSize: 16,
     fontWeight: '800',
   },
 
   note: {
-    color: '#667085',
+    color: '#64748B',
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',

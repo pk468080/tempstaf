@@ -171,6 +171,10 @@ Deno.serve(async (req: Request) => {
         )
       : [];
 
+    const isFeatured =
+      body?.featured === true ||
+      body?.featured === "true";
+
     if (!fullName) {
       return jsonResponse(
         {
@@ -321,6 +325,7 @@ Deno.serve(async (req: Request) => {
         worker_status: "offline",
         service_radius_km: 10,
         is_verified: false,
+        is_featured: isFeatured,
         rating: 0,
         total_completed_jobs: 0,
       });

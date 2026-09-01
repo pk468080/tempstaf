@@ -149,30 +149,28 @@ export default function CustomerBottomNav({
 const styles = StyleSheet.create({
   wrapper: {
     backgroundColor: COLORS.light,
-    paddingHorizontal: 14,
-    paddingTop: 7,
-    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
   },
 
   bar: {
-    height: 68,
+    height: 74,
     backgroundColor: COLORS.white,
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: COLORS.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-
-    shadowColor: '#000',
+    shadowColor: COLORS.shadow,
     shadowOffset: {
       width: 0,
-      height: 3,
+      height: 10,
     },
     shadowOpacity: 0.08,
-    shadowRadius: 8,
-
-    elevation: 4,
+    shadowRadius: 18,
+    elevation: 5,
   },
 
   item: {
@@ -180,23 +178,25 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 8,
   },
 
   iconBox: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 4,
   },
 
   iconBoxActive: {
-    backgroundColor: '#E8F6F6',
+    backgroundColor: COLORS.tealSoft,
   },
 
   icon: {
     color: COLORS.gray,
-    fontSize: 19,
+    fontSize: 18,
   },
 
   iconActive: {
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     fontSize: 10,
     fontWeight: '700',
-    marginTop: 2,
+    letterSpacing: 0.2,
   },
 
   labelActive: {

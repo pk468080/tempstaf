@@ -16,8 +16,30 @@ export default function Header({ onBack }: { onBack?: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  header: { width: '100%', height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  button: { width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
+  header: {
+    width: '100%',
+    height: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+    paddingHorizontal: 4,
+  },
+  button: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
   back: { color: COLORS.navy, fontSize: 30, lineHeight: 32 },
-  logo: { width: 48, height: 48 },
+  logo: { width: 52, height: 52 },
 })

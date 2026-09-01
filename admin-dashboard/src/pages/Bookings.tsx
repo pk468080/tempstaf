@@ -203,6 +203,43 @@ export default function Bookings() {
     )
   }
 
+  async function cancelBooking(
+    bookingId: string
+  ) {
+    const confirmed = window.confirm(
+      'Cancel this booking? This will remove the worker and change the booking status.'
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setError(null)
+
+    const {
+      error: rpcError,
+    } = await supabase.rpc(
+      'customer_booking_action',
+      {
+        p_booking_id: bookingId,
+        p_action: 'cancel',
+      }
+    )
+
+    if (rpcError) {
+      console.error(
+        'Failed to cancel booking:',
+        rpcError
+      )
+
+      setError(rpcError.message)
+
+      return
+    }
+
+    await loadBookings()
+  }
+
   async function assignWorker(
     bookingId: string,
     workerId: string
@@ -221,6 +258,39 @@ export default function Bookings() {
 
     setAssigningBookingId(bookingId)
     setError(null)
+
+    const booking = bookings.find(
+      (item) => item.id === bookingId
+    )
+
+    if (!booking) {
+      setAssigningBookingId(null)
+      setError('Booking not found.')
+      return
+    }
+
+    if (
+      booking.worker_id &&
+      booking.status !== 'paid' &&
+      booking.status !== 'searching_worker'
+    ) {
+      const {
+        error: clearError,
+      } = await supabase
+        .from('bookings')
+        .update({
+          worker_id: null,
+          status: 'searching_worker',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', bookingId)
+
+      if (clearError) {
+        setAssigningBookingId(null)
+        setError(clearError.message)
+        return
+      }
+    }
 
     const {
       error: rpcError,
@@ -562,7 +632,11 @@ export default function Bookings() {
 
                         <td>
                           {booking.worker_id ? (
-                            <div>
+                            <div
+                              style={{
+                                minWidth: 260,
+                              }}
+                            >
                               <strong>
                                 {getProfileName(
                                   booking.worker_id
@@ -577,6 +651,89 @@ export default function Bookings() {
                                 }}
                               >
                                 Assigned
+                              </div>
+
+                              <div
+                                style={{
+                                  marginTop: 10,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 8,
+                                }}
+                              >
+                                {!workers ? (
+                                  <button
+                                    className="dashboard-refresh"
+                                    onClick={() =>
+                                      loadEligibleWorkers(
+                                        booking.id
+                                      )
+                                    }
+                                    disabled={
+                                      loadingWorkersFor ===
+                                      booking.id
+                                    }
+                                  >
+                                    {loadingWorkersFor ===
+                                    booking.id
+                                      ? 'Finding workers...'
+                                      : 'Reassign worker'}
+                                  </button>
+                                ) : workers.length === 0 ? (
+                                  <div>
+                                    <strong>
+                                      No eligible workers
+                                    </strong>
+
+                                    <div
+                                      style={{
+                                        fontSize: 12,
+                                        marginTop: 4,
+                                        opacity: 0.7,
+                                      }}
+                                    >
+                                      Check worker availability,
+                                      service, location, or
+                                      schedule.
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <select
+                                    defaultValue=""
+                                    disabled={
+                                      assigningBookingId ===
+                                      booking.id
+                                    }
+                                    onChange={(event) =>
+                                      assignWorker(
+                                        booking.id,
+                                        event.target.value
+                                      )
+                                    }
+                                  >
+                                    <option value="" disabled>
+                                      Select replacement worker
+                                    </option>
+
+                                    {workers.map((worker) => (
+                                      <option
+                                        key={worker.worker_id}
+                                        value={worker.worker_id}
+                                      >
+                                        {formatWorkerLabel(worker)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+
+                                <button
+                                  className="dashboard-refresh"
+                                  onClick={() =>
+                                    cancelBooking(booking.id)
+                                  }
+                                >
+                                  Cancel booking
+                                </button>
                               </div>
                             </div>
                           ) : (
@@ -603,8 +760,7 @@ export default function Bookings() {
                                     ? 'Finding workers...'
                                     : 'Find eligible workers'}
                                 </button>
-                              ) : workers.length ===
-                                0 ? (
+                              ) : workers.length === 0 ? (
                                 <div>
                                   <strong>
                                     No eligible workers
@@ -617,11 +773,9 @@ export default function Bookings() {
                                       opacity: 0.7,
                                     }}
                                   >
-                                    Check worker
-                                    availability,
-                                    service,
-                                    location,
-                                    or schedule.
+                                    Check worker availability,
+                                    service, location, or
+                                    schedule.
                                   </div>
                                 </div>
                               ) : (
@@ -631,46 +785,29 @@ export default function Bookings() {
                                     assigningBookingId ===
                                     booking.id
                                   }
-                                  onChange={(
-                                    event
-                                  ) =>
+                                  onChange={(event) =>
                                     assignWorker(
                                       booking.id,
-                                      event.target
-                                        .value
+                                      event.target.value
                                     )
                                   }
                                 >
-                                  <option
-                                    value=""
-                                    disabled
-                                  >
+                                  <option value="" disabled>
                                     Select worker
                                   </option>
 
-                                  {workers.map(
-                                    (
-                                      worker
-                                    ) => (
-                                      <option
-                                        key={
-                                          worker.worker_id
-                                        }
-                                        value={
-                                          worker.worker_id
-                                        }
-                                      >
-                                        {formatWorkerLabel(
-                                          worker
-                                        )}
-                                      </option>
-                                    )
-                                  )}
+                                  {workers.map((worker) => (
+                                    <option
+                                      key={worker.worker_id}
+                                      value={worker.worker_id}
+                                    >
+                                      {formatWorkerLabel(worker)}
+                                    </option>
+                                  ))}
                                 </select>
                               )}
 
-                              {assigningBookingId ===
-                                booking.id && (
+                              {assigningBookingId === booking.id && (
                                 <div
                                   style={{
                                     fontSize: 12,
