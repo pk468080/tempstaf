@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Alert,
   KeyboardAvoidingView,
@@ -13,6 +13,11 @@ import {
 } from 'react-native'
 
 import { supabase } from '../lib/supabase'
+
+type ServiceOption = {
+  id: string
+  name: string
+}
 
 type Props = {
   onBack: () => void
@@ -29,8 +34,40 @@ export default function WorkerRegistrationScreen({
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] =
     useState('')
-
+  const [services, setServices] = useState<ServiceOption[]>([])
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingServices, setLoadingServices] = useState(true)
+
+  useEffect(() => {
+    const loadServices = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('services')
+          .select('id, name')
+          .eq('is_active', true)
+          .order('name')
+
+        if (error) throw error
+
+        setServices((data ?? []) as ServiceOption[])
+      } catch (error: any) {
+        console.error('[TempStaff Worker] Failed to load services:', error)
+      } finally {
+        setLoadingServices(false)
+      }
+    }
+
+    void loadServices()
+  }, [])
+
+  const toggleService = (serviceId: string) => {
+    setSelectedServiceIds(current =>
+      current.includes(serviceId)
+        ? current.filter(id => id !== serviceId)
+        : [...current, serviceId]
+    )
+  }
 
   const registerWorker = async () => {
     const cleanName = fullName.trim()
@@ -82,6 +119,14 @@ export default function WorkerRegistrationScreen({
       Alert.alert(
         'Password mismatch',
         'Password and confirm password must match.'
+      )
+      return
+    }
+
+    if (selectedServiceIds.length === 0) {
+      Alert.alert(
+        'Select a service',
+        'Choose at least one service you can work.'
       )
       return
     }
@@ -145,10 +190,21 @@ export default function WorkerRegistrationScreen({
         return
       }
 
-      /*
-       * The database trigger has already created
-       * the worker profile and draft application.
-       */
+      const { data: serviceData, error: serviceError } = await supabase.rpc(
+        'set_worker_services',
+        {
+          p_service_ids: selectedServiceIds,
+        }
+      )
+
+      if (serviceError) {
+        throw serviceError
+      }
+
+      if (!serviceData?.success) {
+        throw new Error(serviceData?.error || 'Unable to save your services.')
+      }
+
       Alert.alert(
         'Account created',
         'Your worker account has been created successfully. You can now continue with worker onboarding.',
@@ -280,6 +336,43 @@ export default function WorkerRegistrationScreen({
             </Text>
 
             <Text style={styles.label}>
+              Services you can work
+            </Text>
+
+            {loadingServices ? (
+              <Text style={styles.helperText}>Loading services...</Text>
+            ) : services.length === 0 ? (
+              <Text style={styles.helperText}>No active services available.</Text>
+            ) : (
+              <View style={styles.serviceGrid}>
+                {services.map(service => {
+                  const selected = selectedServiceIds.includes(service.id)
+
+                  return (
+                    <TouchableOpacity
+                      key={service.id}
+                      style={[
+                        styles.serviceChip,
+                        selected && styles.serviceChipSelected,
+                      ]}
+                      onPress={() => toggleService(service.id)}
+                      disabled={loading}
+                    >
+                      <Text
+                        style={[
+                          styles.serviceChipText,
+                          selected && styles.serviceChipTextSelected,
+                        ]}
+                      >
+                        {service.name}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+            )}
+
+            <Text style={styles.label}>
               Confirm Password
             </Text>
 
@@ -407,6 +500,43 @@ const styles = StyleSheet.create({
     color: '#98A2B3',
     fontSize: 12,
     marginTop: 6,
+  },
+
+  helperText: {
+    color: '#667085',
+    fontSize: 13,
+    marginBottom: 10,
+  },
+
+  serviceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  serviceChip: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D9DEE5',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+
+  serviceChipSelected: {
+    backgroundColor: '#0B1F33',
+    borderColor: '#0B1F33',
+  },
+
+  serviceChipText: {
+    color: '#0B1F33',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  serviceChipTextSelected: {
+    color: '#FFFFFF',
   },
 
   createButton: {

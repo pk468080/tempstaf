@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -14,9 +15,11 @@ import { COLORS } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import {
   CustomerBooking,
+  customerBookingAction,
   getCustomerBooking,
-} from '../services/customerBookings'
+} from '../services/booking'
 import { useBooking } from '../context/BookingContext'
+import { supabase } from '../lib/supabase'
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -73,6 +76,7 @@ export default function BookingDetailsScreen({
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [canceling, setCanceling] = useState(false)
 
   const loadBooking = useCallback(async () => {
     try {
@@ -99,9 +103,74 @@ export default function BookingDetailsScreen({
     }
   }, [bookingId])
 
+  const handleCancelBooking = async () => {
+    if (!booking) {
+      return
+    }
+
+    Alert.alert(
+      'Cancel booking',
+      'Are you sure you want to cancel this booking?',
+      [
+        { text: 'Keep booking', style: 'cancel' },
+        {
+          text: 'Cancel booking',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setCanceling(true)
+              await customerBookingAction(
+                booking.id,
+                'cancel'
+              )
+              await loadBooking()
+              Alert.alert(
+                'Booking cancelled',
+                'Your booking has been cancelled successfully.'
+              )
+            } catch (err) {
+              console.error(
+                '[TempStaff] Booking cancellation error:',
+                err
+              )
+              Alert.alert(
+                'Unable to cancel booking',
+                err instanceof Error
+                  ? err.message
+                  : 'Please try again.'
+              )
+            } finally {
+              setCanceling(false)
+            }
+          },
+        },
+      ]
+    )
+  }
+
   useEffect(() => {
     loadBooking()
-  }, [loadBooking])
+
+    const detailChannel = supabase
+      .channel(`booking-details-${bookingId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'bookings',
+          filter: `id=eq.${bookingId}`,
+        },
+        () => {
+          void loadBooking()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(detailChannel)
+    }
+  }, [bookingId, loadBooking])
 
   if (loading) {
     return (
@@ -387,20 +456,28 @@ export default function BookingDetailsScreen({
           </View>
         )}
 
+        {!['cancelled', 'completed', 'expired', 'payment_failed'].includes(
+          booking.status
+        ) && (
+          <TouchableOpacity
+            style={[
+              styles.cancelButton,
+              canceling && styles.cancelButtonDisabled,
+            ]}
+            onPress={handleCancelBooking}
+            disabled={canceling}
+          >
+            <Text style={styles.cancelButtonText}>
+              {canceling ? 'Cancelling...' : 'Cancel Booking'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {canTrack && (
           <TouchableOpacity
             style={styles.trackButton}
             onPress={() => {
-              /*
-               * Store the exact booking being viewed
-               * in BookingContext before opening Tracking.
-               */
               setBookingId(booking.id)
-
-              /*
-               * Push a completely new Tracking screen
-               * with the exact booking ID.
-               */
               navigation.push('Tracking', {
                 bookingId: booking.id,
               })
@@ -677,6 +754,27 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     fontSize: 14,
     lineHeight: 21,
+  },
+
+  cancelButton: {
+    backgroundColor: '#FDECEC',
+    borderWidth: 1,
+    borderColor: '#F1B4B4',
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+
+  cancelButtonDisabled: {
+    opacity: 0.7,
+  },
+
+  cancelButtonText: {
+    color: '#B42318',
+    fontSize: 16,
+    fontWeight: '800',
   },
 
   trackButton: {

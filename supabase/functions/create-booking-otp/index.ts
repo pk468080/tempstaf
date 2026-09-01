@@ -122,15 +122,28 @@ Deno.serve(async req => {
       throw insertError
     }
 
+    const isDevelopment =
+      Deno.env.get('ENVIRONMENT') === 'development'
+
+    /*
+     * Support secure development testing by returning the OTP only
+     * in development. Production must never expose OTP values.
+     */
+    if (isDevelopment) {
+      console.log('[create-booking-otp] Generated OTP for testing:', {
+        bookingId,
+        otpType,
+        otp,
+        expiresAt,
+      })
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
-
-        // DEVELOPMENT ONLY.
-        // Remove this before production.
-        otp,
-
+        message: 'OTP generated successfully. Check your email or SMS.',
         expiresAt,
+        ...(isDevelopment ? { otp } : {}),
       }),
       {
         status: 200,

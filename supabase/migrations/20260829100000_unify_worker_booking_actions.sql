@@ -83,6 +83,12 @@ begin
       );
     end if;
 
+    update public.bookings
+    set worker_accepted_at = now(),
+        updated_at = now()
+    where id = v_booking.id
+      and worker_id = auth.uid();
+
     v_new_status := 'assigned'::public.booking_status;
 
   /*
@@ -393,7 +399,12 @@ begin
     'booking_id', v_booking.id,
     'action', v_action,
     'old_status', v_old_status::text,
-    'status', v_new_status::text
+    'status', v_new_status::text,
+    'worker_accepted_at',
+      case
+        when v_action = 'accept' then v_booking.worker_accepted_at::text
+        else null
+      end
   );
 end;
 $function$;

@@ -18,6 +18,7 @@ import ScheduleScreen from '../screens/ScheduleScreen'
 import CheckoutScreen from '../screens/CheckoutScreen'
 import BookingConfirmedScreen from '../screens/BookingConfirmedScreen'
 import TrackingScreen from '../screens/TrackingScreen'
+import WorkerProfileScreen from '../screens/WorkerProfileScreen'
 
 import MyBookingsScreen from '../screens/MyBookingsScreen'
 import BookingDetailsScreen from '../screens/BookingDetailsScreen'
@@ -85,6 +86,11 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Workers"
           component={WorkersScreen}
+        />
+
+        <Stack.Screen
+          name="WorkerProfile"
+          component={WorkerProfileScreen}
         />
 
         <Stack.Screen

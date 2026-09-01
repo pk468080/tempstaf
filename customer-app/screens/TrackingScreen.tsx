@@ -354,7 +354,15 @@ export default function TrackingScreen({
             'start'
           )
 
-        setStartOtp(result.otp)
+        if (result.otp) {
+          setStartOtp(result.otp)
+        } else {
+          setStartOtp(null)
+          Alert.alert(
+            'OTP generated',
+            'Development-only OTP is hidden in production. Use the server logs when testing locally.'
+          )
+        }
       } catch (error: any) {
         console.error(
           '[TempStaff] Failed to generate Start OTP:',
@@ -386,7 +394,15 @@ export default function TrackingScreen({
             'end'
           )
 
-        setEndOtp(result.otp)
+        if (result.otp) {
+          setEndOtp(result.otp)
+        } else {
+          setEndOtp(null)
+          Alert.alert(
+            'OTP generated',
+            'Development-only OTP is hidden in production. Use the server logs when testing locally.'
+          )
+        }
       } catch (error: any) {
         console.error(
           '[TempStaff] Failed to generate End OTP:',

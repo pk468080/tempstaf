@@ -16,8 +16,9 @@ import { RootStackParamList } from '../types'
 import {
   CustomerBooking,
   getCustomerBookings,
-} from '../services/customerBookings'
+} from '../services/booking'
 import CustomerBottomNav from '../components/CustomerBottomNav'
+import { supabase } from '../lib/supabase'
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -273,6 +274,35 @@ export default function MyBookingsScreen({
 
   useEffect(() => {
     loadBookings()
+
+    const customerChannel = supabase
+      .channel('customer-bookings-live')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookings',
+        },
+        payload => {
+          const booking = payload.new as { customer_id?: string } | null
+
+          if (!booking?.customer_id) {
+            return
+          }
+
+          void supabase.auth.getUser().then(({ data: { user } }) => {
+            if (user && booking.customer_id === user.id) {
+              void loadBookings(false)
+            }
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(customerChannel)
+    }
   }, [loadBookings])
 
   const onRefresh = () => {

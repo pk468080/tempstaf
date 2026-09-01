@@ -474,24 +474,25 @@ Deno.serve(async (req) => {
     }
 
     /*
-     * Determine next booking status.
+     * Determine next action to perform.
      */
-    const nextStatus =
+    const nextAction =
       otpType === 'start'
-        ? 'in_progress'
-        : 'completed'
+        ? 'start'
+        : 'complete'
 
     /*
-     * Update booking using RPC.
+     * Update booking status using worker_booking_action RPC.
+     * This RPC handles all validation and status transitions.
      */
     const {
-      data: updatedBooking,
+      data: rpcResult,
       error: statusError,
     } = await authClient.rpc(
-      'update_worker_booking_status',
+      'worker_booking_action',
       {
         p_booking_id: bookingId,
-        p_status: nextStatus,
+        p_action: nextAction,
       }
     )
 
@@ -509,6 +510,25 @@ Deno.serve(async (req) => {
             statusError.message,
         },
         500
+      )
+    }
+
+    /*
+     * Check if RPC succeeded.
+     */
+    if (!rpcResult?.success) {
+      console.error(
+        '[verify-booking-otp] RPC returned failure:',
+        rpcResult
+      )
+
+      return jsonResponse(
+        {
+          error:
+            rpcResult?.error ||
+            'Unable to complete booking action.',
+        },
+        400
       )
     }
 
@@ -551,16 +571,16 @@ Deno.serve(async (req) => {
       {
         bookingId,
         otpType,
-        nextStatus,
+        action: nextAction,
         userId: user.id,
       }
     )
 
     return jsonResponse({
       success: true,
-      booking:
-        updatedBooking ?? null,
-      status: nextStatus,
+      booking_id: bookingId,
+      action: nextAction,
+      status: rpcResult?.status,
     })
   } catch (error) {
     console.error(

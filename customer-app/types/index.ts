@@ -3,8 +3,11 @@ export type Worker = {
   name: string
   service: string
   rating: number
-  jobs: number
-  distance: string
+  jobs?: number
+  distance?: string
+  completedJobs?: number
+  verified?: boolean
+  available?: boolean
 }
 
 export type BookingMode =
@@ -41,6 +44,12 @@ export type RootStackParamList = {
 
   BookingDetails: {
     bookingId: string
+  }
+
+  WorkerProfile: {
+    worker: Worker
+    service?: string
+    duration?: string
   }
 
   Tracking: {
