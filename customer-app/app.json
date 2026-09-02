@@ -8,7 +8,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.customerapp"
+      "bundleIdentifier": "com.anonymous.customerapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,13 +27,18 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-  "expo-sqlite",
-  [
-    "react-native-maps",
-    {
-      "androidGoogleMapsApiKey": "process.env.GOOGLE_MAPS_API_KEY"
+      "expo-sqlite",
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "process.env.GOOGLE_MAPS_API_KEY"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ffb7571c-8602-4e99-a378-8dd7b43fc4f8"
+      }
     }
-  ]
-]
   }
 }

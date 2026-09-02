@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { adminAction } from '../lib/adminAction'
 
 type Customer = {
   id: string
@@ -171,16 +172,14 @@ export default function Customers() {
     setError(null)
 
     const {
-      error: rpcError,
-    } = await supabase.rpc(
-      'admin_set_customer_active',
-      {
-        p_customer_id:
-          customer.id,
-        p_is_active:
-          nextState,
-      }
-    )
+  error: rpcError,
+} = await adminAction(
+  'admin_set_customer_active',
+  {
+    p_customer_id: customer.id,
+    p_is_active: nextState,
+  }
+)
 
     setProcessingId(null)
 

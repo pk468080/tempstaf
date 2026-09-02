@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { adminAction } from '../lib/adminAction'
 
 type Booking = {
   id: string
@@ -377,15 +378,14 @@ export default function Bookings() {
     setError(null)
 
     const {
-      error: rpcError,
-    } = await supabase.rpc(
-      'admin_cancel_booking',
-      {
-        p_booking_id: bookingId,
-        p_reason:
-          reason.trim() || null,
-      }
-    )
+  error: rpcError,
+} = await adminAction(
+  'admin_cancel_booking',
+  {
+    p_booking_id: bookingId,
+    p_reason: reason.trim() || null,
+  }
+)
 
     if (rpcError) {
       console.error(
@@ -437,16 +437,16 @@ export default function Bookings() {
     setAssigningBookingId(bookingId)
     setError(null)
 
-    const {
-      data,
-      error: rpcError,
-    } = await supabase.rpc(
-      'admin_assign_booking_worker',
-      {
-        p_booking_id: bookingId,
-        p_worker_id: workerId,
-      }
-    )
+   const {
+  data,
+  error: rpcError,
+} = await adminAction(
+  'admin_assign_booking_worker',
+  {
+    p_booking_id: bookingId,
+    p_worker_id: workerId,
+  }
+)
 
     setAssigningBookingId(null)
 
