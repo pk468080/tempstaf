@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { adminAction } from '../lib/adminAction'
 
 type Worker = {
   id: string
@@ -266,10 +267,36 @@ export default function WorkerDetail() {
     setError('')
     setSuccess('')
 
-    const { error: updateError } = await supabase
-      .from('worker_profiles')
-      .update(values)
-      .eq('id', workerId)
+    const { error: updateError } = await adminAction(
+      'admin_update_worker',
+      {
+        p_worker_id: workerId,
+        p_full_name:
+          typeof values.full_name === 'string'
+            ? values.full_name
+            : undefined,
+        p_phone:
+          typeof values.phone === 'string'
+            ? values.phone
+            : undefined,
+        p_worker_status:
+          typeof values.worker_status === 'string'
+            ? values.worker_status
+            : undefined,
+        p_is_verified:
+          typeof values.is_verified === 'boolean'
+            ? values.is_verified
+            : undefined,
+        p_service_radius_km:
+          typeof values.service_radius_km === 'number'
+            ? values.service_radius_km
+            : undefined,
+        p_is_featured:
+          typeof values.is_featured === 'boolean'
+            ? values.is_featured
+            : undefined,
+      }
+    )
 
     if (updateError) {
       setError(updateError.message)
@@ -291,28 +318,17 @@ export default function WorkerDetail() {
     setError('')
     setSuccess('')
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      setError('Admin session not found. Please sign in again.')
-      setSaving(false)
-      return
-    }
-
-    const updateValues: Record<string, unknown> = {
-      status,
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: user.id,
-      rejection_reason:
-        status === 'rejected' ? rejectionReason?.trim() || null : null,
-    }
-
-    const { error: updateError } = await supabase
-      .from('worker_documents')
-      .update(updateValues)
-      .eq('id', documentId)
+    const { error: updateError } = await adminAction(
+      'admin_review_worker_document',
+      {
+        p_document_id: documentId,
+        p_status: status,
+        p_rejection_reason:
+          status === 'rejected'
+            ? rejectionReason?.trim() || null
+            : null,
+      }
+    )
 
     if (updateError) {
       setError(updateError.message)
@@ -321,17 +337,24 @@ export default function WorkerDetail() {
     }
 
     if (status === 'rejected' && application) {
-      await supabase
-        .from('worker_applications')
-        .update({
-          status: 'changes_required',
-          review_notes:
+      const { error: applicationError } = await adminAction(
+        'admin_review_worker_application',
+        {
+          p_application_id: application.id,
+          p_status: 'changes_required',
+          p_notes:
             rejectionReason?.trim() ||
             'One or more worker documents were rejected.',
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user.id,
-        })
-        .eq('id', application.id)
+        }
+      )
+
+      if (applicationError) {
+        setError(
+          `Document rejected, but application status update failed: ${applicationError.message}`
+        )
+        setSaving(false)
+        return
+      }
     }
 
     setRejectDocumentId(null)
@@ -371,28 +394,14 @@ export default function WorkerDetail() {
     setError('')
     setSuccess('')
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      setError('Admin session not found. Please sign in again.')
-      setSaving(false)
-      return
-    }
-
-    const now = new Date().toISOString()
-
-    const { error: applicationError } = await supabase
-      .from('worker_applications')
-      .update({
-        status: 'approved',
-        reviewed_at: now,
-        reviewed_by: user.id,
-        review_notes: 'Application approved by admin.',
-        reapply_after: null,
-      })
-      .eq('id', application.id)
+    const { error: applicationError } = await adminAction(
+      'admin_review_worker_application',
+      {
+        p_application_id: application.id,
+        p_status: 'approved',
+        p_notes: 'Application approved by admin.',
+      }
+    )
 
     if (applicationError) {
       setError(applicationError.message)
@@ -400,12 +409,13 @@ export default function WorkerDetail() {
       return
     }
 
-    const { error: workerError } = await supabase
-      .from('worker_profiles')
-      .update({
-        is_verified: true,
-      })
-      .eq('id', workerId)
+    const { error: workerError } = await adminAction(
+      'admin_update_worker',
+      {
+        p_worker_id: workerId,
+        p_is_verified: true,
+      }
+    )
 
     if (workerError) {
       setError(
@@ -437,29 +447,14 @@ export default function WorkerDetail() {
     setError('')
     setSuccess('')
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      setError('Admin session not found. Please sign in again.')
-      setSaving(false)
-      return
-    }
-
-    const reapplyDate = new Date()
-    reapplyDate.setDate(reapplyDate.getDate() + 30)
-
-    const { error: applicationError } = await supabase
-      .from('worker_applications')
-      .update({
-        status: 'rejected',
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: user.id,
-        review_notes: reason,
-        reapply_after: reapplyDate.toISOString(),
-      })
-      .eq('id', application.id)
+    const { error: applicationError } = await adminAction(
+      'admin_review_worker_application',
+      {
+        p_application_id: application.id,
+        p_status: 'rejected',
+        p_notes: reason,
+      }
+    )
 
     if (applicationError) {
       setError(applicationError.message)
@@ -467,12 +462,13 @@ export default function WorkerDetail() {
       return
     }
 
-    const { error: workerError } = await supabase
-      .from('worker_profiles')
-      .update({
-        is_verified: false,
-      })
-      .eq('id', workerId)
+    const { error: workerError } = await adminAction(
+      'admin_update_worker',
+      {
+        p_worker_id: workerId,
+        p_is_verified: false,
+      }
+    )
 
     if (workerError) {
       setError(
@@ -484,6 +480,9 @@ export default function WorkerDetail() {
 
     setRejectApplicationOpen(false)
     setRejectApplicationReason('')
+
+    const reapplyDate = new Date()
+    reapplyDate.setDate(reapplyDate.getDate() + 30)
 
     setSuccess(
       `Application rejected. Worker can apply again after ${formatDate(
