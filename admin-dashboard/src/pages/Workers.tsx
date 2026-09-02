@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { adminAction } from '../lib/adminAction'
 
 type Worker = {
   id: string
@@ -188,40 +189,49 @@ export default function Workers() {
     await loadWorkers()
   }
 
-  async function updateStatus(workerId: string, status: string) {
-    const { error } = await supabase
-      .from('worker_profiles')
-      .update({
-        worker_status: status,
-      })
-      .eq('id', workerId)
+  async function updateStatus(
+  workerId: string,
+  status: string
+) {
+  setError('')
 
-    if (error) {
-      alert(error.message)
-      return
+  const { error } = await adminAction(
+    'admin_set_worker_status',
+    {
+      p_worker_id: workerId,
+      p_status: status,
     }
+  )
 
-    await loadWorkers()
+  if (error) {
+    setError(error.message)
+    return
   }
+
+  await loadWorkers()
+}
 
   async function toggleVerification(
-    workerId: string,
-    verified: boolean
-  ) {
-    const { error } = await supabase
-      .from('worker_profiles')
-      .update({
-        is_verified: verified,
-      })
-      .eq('id', workerId)
+  workerId: string,
+  verified: boolean
+) {
+  setError('')
 
-    if (error) {
-      alert(error.message)
-      return
+  const { error } = await adminAction(
+    'admin_update_worker',
+    {
+      p_worker_id: workerId,
+      p_is_verified: verified,
     }
+  )
 
-    await loadWorkers()
+  if (error) {
+    setError(error.message)
+    return
   }
+
+  await loadWorkers()
+}
 
   async function updateWorker(
     workerId: string,
@@ -240,54 +250,55 @@ export default function Workers() {
     await loadWorkers()
   }
 
-  async function toggleFeatured(workerId: string, isFeatured: boolean) {
-    const { error } = await supabase
-      .from('worker_profiles')
-      .update({ is_featured: isFeatured })
-      .eq('id', workerId)
+  async function toggleFeatured(
+  workerId: string,
+  isFeatured: boolean
+) {
+  setError('')
 
-    if (error) {
-      setError(error.message)
-      return
+  const { error } = await adminAction(
+    'admin_update_worker',
+    {
+      p_worker_id: workerId,
+      p_is_featured: isFeatured,
     }
+  )
 
-    await loadWorkers()
+  if (error) {
+    setError(error.message)
+    return
   }
 
-  async function removeWorker(workerId: string) {
-    const confirmed = window.confirm(
-      'Remove this worker from active operations? This will suspend the worker and disable their account.'
-    )
+  await loadWorkers()
+}
 
-    if (!confirmed) {
-      return
-    }
+  async function removeWorker(
+  workerId: string
+) {
+  const confirmed = window.confirm(
+    'Remove this worker from active operations? This will suspend the worker and disable their account.'
+  )
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_active: false })
-      .eq('id', workerId)
-
-    if (error) {
-      setError(error.message)
-      return
-    }
-
-    const profileUpdate = await supabase
-      .from('worker_profiles')
-      .update({
-        worker_status: 'suspended',
-        is_verified: false,
-      })
-      .eq('id', workerId)
-
-    if (profileUpdate.error) {
-      setError(profileUpdate.error.message)
-      return
-    }
-
-    await loadWorkers()
+  if (!confirmed) {
+    return
   }
+
+  setError('')
+
+  const { error } = await adminAction(
+    'admin_remove_worker',
+    {
+      p_worker_id: workerId,
+    }
+  )
+
+  if (error) {
+    setError(error.message)
+    return
+  }
+
+  await loadWorkers()
+}
 
   function openEditWorker(worker: Worker) {
     setEditingWorkerId(worker.id)
@@ -303,51 +314,45 @@ export default function Workers() {
   }
 
   async function saveWorkerEdit() {
-    if (!editingWorkerId) {
-      return
-    }
-
-    const trimmedEmail = editForm.email.trim()
-    const trimmedName = editForm.fullName.trim()
-
-    if (!trimmedName) {
-      setError('Worker name is required.')
-      return
-    }
-
-    const profileUpdate = await supabase
-      .from('profiles')
-      .update({
-        full_name: trimmedName,
-        email: trimmedEmail || null,
-        phone: editForm.phone.trim() || null,
-      })
-      .eq('id', editingWorkerId)
-
-    if (profileUpdate.error) {
-      setError(profileUpdate.error.message)
-      return
-    }
-
-    const workerUpdate = await supabase
-      .from('worker_profiles')
-      .update({
-        worker_status: editForm.worker_status,
-        is_verified: editForm.is_verified,
-        service_radius_km: editForm.service_radius_km,
-        is_featured: editForm.is_featured,
-      })
-      .eq('id', editingWorkerId)
-
-    if (workerUpdate.error) {
-      setError(workerUpdate.error.message)
-      return
-    }
-
-    setEditingWorkerId(null)
-    setError('')
-    await loadWorkers()
+  if (!editingWorkerId) {
+    return
   }
+
+  const trimmedEmail = editForm.email.trim()
+  const trimmedName = editForm.fullName.trim()
+  const trimmedPhone = editForm.phone.trim()
+
+  if (!trimmedName) {
+    setError('Worker name is required.')
+    return
+  }
+
+  setError('')
+
+  const { error } = await adminAction(
+    'admin_update_worker',
+    {
+      p_worker_id: editingWorkerId,
+      p_full_name: trimmedName,
+      p_phone: trimmedPhone || null,
+      p_worker_status: editForm.worker_status,
+      p_is_verified: editForm.is_verified,
+      p_service_radius_km:
+        editForm.service_radius_km,
+      p_is_featured:
+        editForm.is_featured,
+    }
+  )
+
+  if (error) {
+    setError(error.message)
+    return
+  }
+
+  setEditingWorkerId(null)
+
+  await loadWorkers()
+}
 
   useEffect(() => {
     loadWorkers()
