@@ -170,88 +170,115 @@ export default function ServicesScreen({
     }
   }
 
-  const handleContinue = async () => {
-    if (!selectedService || !selectedPackage) {
-      return
-    }
-
-    if (!selectedServiceRecord) {
-      Alert.alert(
-        'Service unavailable',
-        'This service could not be found. Please select it again.'
-      )
-      return
-    }
-
-    try {
-      setCheckingAvailability(true)
-
-      const permission =
-        await Location.requestForegroundPermissionsAsync()
-
-      if (permission.status !== 'granted') {
-        Alert.alert(
-          'Location Required',
-          'Please allow location access so we can check whether staff are available in your area.'
-        )
-        return
-      }
-
-      const current =
-        await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        })
-
-      const { latitude, longitude } =
-        current.coords
-
-      const availability =
-        await checkServiceAvailability(
-          selectedServiceRecord.id,
-          latitude,
-          longitude
-        )
-
-      if (!availability.available) {
-        Alert.alert(
-          'Not Available Yet',
-          `There are currently no verified ${selectedService.toLowerCase()} staff available in your area.\n\nWould you like to be notified when this service becomes available?`,
-          [
-            {
-              text: 'Not Now',
-              style: 'cancel',
-            },
-            {
-              text: 'Notify Me',
-              onPress: () =>
-                handleNotifyMe(
-                  selectedServiceRecord.id,
-                  latitude,
-                  longitude,
-                  selectedServiceRecord.name
-                ),
-            },
-          ]
-        )
-
-        return
-      }
-
-      navigation.navigate('Summary')
-    } catch (error) {
-      console.error(
-        '[TempStaff] Availability check failed:',
-        error
-      )
-
-      Alert.alert(
-        'Unable to Check Availability',
-        'We could not check staff availability right now. Please try again.'
-      )
-    } finally {
-      setCheckingAvailability(false)
-    }
+ const handleContinue = async () => {
+  if (!selectedService || !selectedPackage) {
+    return
   }
+
+  if (!selectedServiceRecord) {
+    Alert.alert(
+      'Service unavailable',
+      'This service could not be found. Please select it again.'
+    )
+    return
+  }
+
+  try {
+    setCheckingAvailability(true)
+
+    const permission =
+      await Location.requestForegroundPermissionsAsync()
+
+    if (permission.status !== 'granted') {
+      Alert.alert(
+        'Location Required',
+        'Please allow location access so we can check your current service area.',
+        [
+          {
+            text: 'Change Location',
+            onPress: () => navigation.navigate('Summary'),
+          },
+          {
+            text: 'Try Again',
+            style: 'cancel',
+          },
+        ]
+      )
+
+      return
+    }
+
+    const current =
+      await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      })
+
+    const { latitude, longitude } =
+      current.coords
+
+    const availability =
+      await checkServiceAvailability(
+        selectedServiceRecord.id,
+        latitude,
+        longitude
+      )
+
+    if (!availability.available) {
+      Alert.alert(
+        'Not Available at Current Location',
+        `${selectedServiceRecord.name} is not currently available at your current location.\n\nYou can choose another service location manually. Availability will be checked again for that exact location.`,
+        [
+          {
+            text: 'Not Now',
+            style: 'cancel',
+          },
+          {
+            text: 'Notify Me',
+            onPress: () =>
+              handleNotifyMe(
+                selectedServiceRecord.id,
+                latitude,
+                longitude,
+                selectedServiceRecord.name
+              ),
+          },
+          {
+            text: 'Change Location',
+            onPress: () =>
+              navigation.navigate('Summary'),
+          },
+        ]
+      )
+
+      return
+    }
+
+    navigation.navigate('Summary')
+  } catch (error) {
+    console.error(
+      '[TempStaff] Availability check failed:',
+      error
+    )
+
+    Alert.alert(
+      'Unable to Check Availability',
+      'We could not check your current location right now. You can still choose the service location manually.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Choose Location',
+          onPress: () =>
+            navigation.navigate('Summary'),
+        },
+      ]
+    )
+  } finally {
+    setCheckingAvailability(false)
+  }
+}
 
   const selectedPackagePrice =
     selectedPackage?.price ?? 0
