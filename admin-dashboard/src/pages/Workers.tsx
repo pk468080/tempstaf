@@ -234,21 +234,49 @@ export default function Workers() {
 }
 
   async function updateWorker(
-    workerId: string,
-    values: Record<string, unknown>
-  ) {
-    const { error: updateError } = await supabase
-      .from('worker_profiles')
-      .update(values)
-      .eq('id', workerId)
+  workerId: string,
+  values: Record<string, unknown>
+) {
+  setError('')
 
-    if (updateError) {
-      setError(updateError.message)
-      return
+  const { error } = await adminAction(
+    'admin_update_worker',
+    {
+      p_worker_id: workerId,
+      p_full_name:
+        typeof values.full_name === 'string'
+          ? values.full_name
+          : undefined,
+      p_phone:
+        typeof values.phone === 'string'
+          ? values.phone
+          : undefined,
+      p_worker_status:
+        typeof values.worker_status === 'string'
+          ? values.worker_status
+          : undefined,
+      p_is_verified:
+        typeof values.is_verified === 'boolean'
+          ? values.is_verified
+          : undefined,
+      p_service_radius_km:
+        typeof values.service_radius_km === 'number'
+          ? values.service_radius_km
+          : undefined,
+      p_is_featured:
+        typeof values.is_featured === 'boolean'
+          ? values.is_featured
+          : undefined,
     }
+  )
 
-    await loadWorkers()
+  if (error) {
+    setError(error.message)
+    return
   }
+
+  await loadWorkers()
+}
 
   async function toggleFeatured(
   workerId: string,
@@ -511,10 +539,8 @@ export default function Workers() {
                       <button
                         style={styles.verifiedButton}
                         onClick={() =>
-                          updateWorker(worker.id, {
-                            is_verified: false,
-                          })
-                        }
+  toggleVerification(worker.id, false)
+}
                       >
                         Verified
                       </button>
