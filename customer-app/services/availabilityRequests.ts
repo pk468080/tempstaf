@@ -37,7 +37,7 @@ async function getAuthenticatedUserId(): Promise<string> {
 export async function requestServiceAvailability(
   input: ServiceAvailabilityRequestInput
 ): Promise<ServiceAvailabilityRequest> {
-  const customerId = await getAuthenticatedUserId()
+  await getAuthenticatedUserId()
 
   if (!input.serviceId) {
     throw new Error('Service is required.')
@@ -45,88 +45,56 @@ export async function requestServiceAvailability(
 
   if (
     !Number.isFinite(input.latitude) ||
-    !Number.isFinite(input.longitude)
+    !Number.isFinite(input.longitude) ||
+    input.latitude < -90 ||
+    input.latitude > 90 ||
+    input.longitude < -180 ||
+    input.longitude > 180
   ) {
     throw new Error('A valid location is required.')
   }
 
-  const { data: existing, error: existingError } = await supabase
-    .from('service_availability_requests')
-    .select('*')
-    .eq('customer_id', customerId)
-    .eq('service_id', input.serviceId)
-    .eq('status', 'pending')
-    .maybeSingle()
+  const { data, error } = await supabase.rpc(
+    'request_service_availability',
+    {
+      p_service_id: input.serviceId,
+      p_latitude: input.latitude,
+      p_longitude: input.longitude,
+    }
+  )
 
-  if (existingError) {
+  if (error) {
     console.error(
-      '[TempStaff] Failed to check availability request:',
-      existingError
+      '[TempStaff] Failed to request service availability:',
+      error
     )
-    throw existingError
+
+    throw error
   }
 
-  if (existing) {
-    return existing as ServiceAvailabilityRequest
+  if (!data) {
+    throw new Error(
+      'Unable to request service availability.'
+    )
   }
 
-  const { data, error } = await supabase
-    .from('service_availability_requests')
-    .insert({
-      customer_id: customerId,
-      service_id: input.serviceId,
-      latitude: input.latitude,
-      longitude: input.longitude,
-      status: 'pending',
-    })
-    .select('*')
-    .single()
-
-  if (!error && data) {
-    return data as ServiceAvailabilityRequest
-  }
-
-  if (error?.code === '23505') {
-    const { data: concurrent, error: concurrentError } =
-      await supabase
-        .from('service_availability_requests')
-        .select('*')
-        .eq('customer_id', customerId)
-        .eq('service_id', input.serviceId)
-        .eq('status', 'pending')
-        .maybeSingle()
-
-    if (concurrentError) {
-      throw concurrentError
-    }
-
-    if (concurrent) {
-      return concurrent as ServiceAvailabilityRequest
-    }
-  }
-
-  console.error(
-  '[TempStaff] Failed to request service availability:',
-  JSON.stringify(error, null, 2)
-)
-
-throw error ?? new Error(
-  'Unable to request service availability.'
-)
-
+  return data as ServiceAvailabilityRequest
 }
 
 export async function cancelServiceAvailabilityRequest(
   serviceId: string
 ): Promise<void> {
-  const customerId = await getAuthenticatedUserId()
+  await getAuthenticatedUserId()
+
+  if (!serviceId) {
+    throw new Error('Service is required.')
+  }
 
   const { error } = await supabase
     .from('service_availability_requests')
     .update({
       status: 'cancelled',
     })
-    .eq('customer_id', customerId)
     .eq('service_id', serviceId)
     .eq('status', 'pending')
 
@@ -135,6 +103,7 @@ export async function cancelServiceAvailabilityRequest(
       '[TempStaff] Failed to cancel availability request:',
       error
     )
+
     throw error
   }
 }
