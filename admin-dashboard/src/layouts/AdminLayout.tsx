@@ -3,6 +3,7 @@ import {
   Outlet,
   useNavigate,
 } from 'react-router-dom'
+
 import { supabase } from '../lib/supabase'
 
 const navigation = [
@@ -32,6 +33,11 @@ const navigation = [
     icon: '◆',
   },
   {
+    label: 'Service Areas',
+    path: '/service-areas',
+    icon: '⌖',
+  },
+  {
     label: 'Payments',
     path: '/payments',
     icon: '₹',
@@ -53,7 +59,10 @@ export default function AdminLayout() {
 
   async function handleLogout() {
     await supabase.auth.signOut()
-    navigate('/login', { replace: true })
+
+    navigate('/login', {
+      replace: true,
+    })
   }
 
   return (
@@ -80,13 +89,15 @@ export default function AdminLayout() {
             MANAGEMENT
           </div>
 
-          {navigation.map((item) => (
+          {navigation.map(item => (
             <NavLink
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
                 `nav-item ${
-                  isActive ? 'active' : ''
+                  isActive
+                    ? 'active'
+                    : ''
                 }`
               }
             >
@@ -94,7 +105,9 @@ export default function AdminLayout() {
                 {item.icon}
               </span>
 
-              <span>{item.label}</span>
+              <span>
+                {item.label}
+              </span>
             </NavLink>
           ))}
         </nav>
@@ -108,7 +121,9 @@ export default function AdminLayout() {
               ⇥
             </span>
 
-            <span>Logout</span>
+            <span>
+              Logout
+            </span>
           </button>
         </div>
       </aside>

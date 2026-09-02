@@ -13,6 +13,7 @@ import AdminLayout from './layouts/AdminLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 import Bookings from './pages/Bookings'
 import Services from './pages/Services'
+import ServiceAreas from './pages/ServiceAreas'
 import Customers from './pages/Customers'
 import Payments from './pages/Payments'
 import Reviews from './pages/Reviews'
@@ -27,8 +28,12 @@ export default function App() {
           element={<Login />}
         />
 
-        <Route element={<ProtectedRoute />}>
-          <Route element={<AdminLayout />}>
+        <Route
+          element={<ProtectedRoute />}
+        >
+          <Route
+            element={<AdminLayout />}
+          >
             <Route
               path="/dashboard"
               element={<Dashboard />}
@@ -57,6 +62,11 @@ export default function App() {
             <Route
               path="/services"
               element={<Services />}
+            />
+
+            <Route
+              path="/service-areas"
+              element={<ServiceAreas />}
             />
 
             <Route
