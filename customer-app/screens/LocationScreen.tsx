@@ -25,6 +25,12 @@ import { RootStackParamList } from '../types'
 import { useBooking } from '../context/BookingContext'
 import { getCurrentLocation } from '../services/location'
 import { supabase } from '../lib/supabase'
+import {
+  checkServiceAvailability,
+} from '../services/serviceAvailability'
+import {
+  requestServiceAvailability,
+} from '../services/serviceAvailabilityRequests'
 import PrimaryButton from '../components/PrimaryButton'
 import Header from '../components/Header'
 
@@ -49,6 +55,8 @@ export default function LocationScreen({
   navigation,
 }: Props) {
   const {
+    selectedServiceId,
+    selectedService,
     setAddress,
     setAddressId,
     setCoordinates,
@@ -134,9 +142,8 @@ export default function LocationScreen({
         place.street || ''
 
       const resolvedArea =
-  place.district ||
-  place.subregion ||
-  ''
+        place.district ||
+        place.subregion ||
         ''
 
       const resolvedCity =
@@ -304,6 +311,22 @@ export default function LocationScreen({
       return
     }
 
+    if (!selectedServiceId) {
+      Alert.alert(
+        'Service not selected',
+        'Please go back and select a service before choosing the service location.'
+      )
+      return
+    }
+
+    if (latitude === null || longitude === null) {
+      Alert.alert(
+        'Location required',
+        'Please select the exact service location on the map.'
+      )
+      return
+    }
+
     try {
       setSaving(true)
 
@@ -320,6 +343,73 @@ export default function LocationScreen({
         throw new Error(
           'Customer is not authenticated.'
         )
+      }
+
+      /*
+       * IMPORTANT:
+       * The first location check happens before this screen
+       * in ServicesScreen using the customer's current GPS.
+       *
+       * This second check is the authoritative UI check for
+       * the exact service location selected on this screen.
+       *
+       * Therefore, if the customer moves the pin from their
+       * current location to another area, availability is
+       * recalculated for the new service location.
+       */
+      const availability =
+        await checkServiceAvailability(
+          selectedServiceId,
+          latitude,
+          longitude
+        )
+
+      if (!availability.available) {
+        setSaving(false)
+
+        Alert.alert(
+          'Not Available Yet',
+          selectedService
+            ? `${selectedService} is not currently available at this service location.`
+            : 'This service is not currently available at this service location.',
+          [
+            {
+              text: 'Not Now',
+              style: 'cancel',
+            },
+            {
+              text: 'Notify Me',
+              onPress: async () => {
+                try {
+                  await requestServiceAvailability({
+                    serviceId:
+                      selectedServiceId,
+                    latitude,
+                    longitude,
+                  })
+
+                  Alert.alert(
+                    'Notification Set',
+                    'We will notify you when this service becomes available at this location.'
+                  )
+                } catch (error: any) {
+                  console.error(
+                    '[TempStaff] Service availability request failed:',
+                    error
+                  )
+
+                  Alert.alert(
+                    'Unable to Set Notification',
+                    error?.message ||
+                      'We could not save your notification request. Please try again.'
+                  )
+                }
+              },
+            },
+          ]
+        )
+
+        return
       }
 
       const fullAddress = buildAddress()
@@ -358,9 +448,9 @@ export default function LocationScreen({
       )
 
       Alert.alert(
-        'Unable to save address',
+        'Unable to continue',
         error?.message ||
-          'We could not save your service address. Please try again.'
+          'We could not verify this service location. Please try again.'
       )
     } finally {
       setSaving(false)
@@ -901,7 +991,7 @@ export default function LocationScreen({
             <PrimaryButton
               title={
                 saving
-                  ? 'Saving address...'
+                  ? 'Checking availability...'
                   : 'Continue'
               }
               disabled={!canContinue}
@@ -924,8 +1014,8 @@ export default function LocationScreen({
                   styles.bottomHint
                 }
               >
-                Next: choose your payment
-                method.
+                We will verify service availability
+                for this exact location.
               </Text>
             )}
           </View>
