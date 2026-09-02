@@ -27,10 +27,10 @@ import { getCurrentLocation } from '../services/location'
 import { supabase } from '../lib/supabase'
 import {
   checkServiceAvailability,
-} from '../services/serviceAvailability'
+} from '../services/availability'
 import {
   requestServiceAvailability,
-} from '../services/serviceAvailabilityRequests'
+} from '../services/availabilityRequests'
 import PrimaryButton from '../components/PrimaryButton'
 import Header from '../components/Header'
 
