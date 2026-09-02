@@ -1,3 +1,29 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function json(
+  body: Record<string, unknown>,
+  status = 200,
+) {
+  return new Response(
+    JSON.stringify(body),
+    {
+      status,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+}
+
 const ALLOWED_ACTIONS = new Set([
   "admin_assign_booking_worker",
   "admin_cancel_booking",
@@ -19,3 +45,186 @@ const ALLOWED_ACTIONS = new Set([
   "get_eligible_workers",
   "write_admin_audit",
 ]);
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", {
+      headers: corsHeaders,
+    });
+  }
+
+  if (req.method !== "POST") {
+    return json(
+      {
+        success: false,
+        error: "Method not allowed",
+      },
+      405,
+    );
+  }
+
+  try {
+    const authorization =
+      req.headers.get("Authorization");
+
+    if (!authorization) {
+      return json(
+        {
+          success: false,
+          error: "Authentication required.",
+        },
+        401,
+      );
+    }
+
+    const url =
+      Deno.env.get("SUPABASE_URL");
+
+    const serviceRoleKey =
+      Deno.env.get(
+        "SUPABASE_SERVICE_ROLE_KEY",
+      );
+
+    if (!url || !serviceRoleKey) {
+      throw new Error(
+        "Supabase server configuration is missing.",
+      );
+    }
+
+    const adminClient =
+      createClient(
+        url,
+        serviceRoleKey,
+      );
+
+    const userClient =
+      createClient(
+        url,
+        serviceRoleKey,
+        {
+          global: {
+            headers: {
+              Authorization:
+                authorization,
+            },
+          },
+        },
+      );
+
+    const {
+      data: { user },
+      error: userError,
+    } =
+      await userClient.auth.getUser();
+
+    if (userError || !user) {
+      return json(
+        {
+          success: false,
+          error: "Invalid authentication.",
+        },
+        401,
+      );
+    }
+
+    const {
+      data: profile,
+      error: profileError,
+    } =
+      await adminClient
+        .from("profiles")
+        .select(
+          "id, role, is_active",
+        )
+        .eq("id", user.id)
+        .maybeSingle();
+
+    if (profileError) {
+      throw profileError;
+    }
+
+    if (
+      !profile ||
+      profile.role !== "admin" ||
+      profile.is_active !== true
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Administrator access required.",
+        },
+        403,
+      );
+    }
+
+    const body = await req.json();
+
+    const action =
+      typeof body?.action === "string"
+        ? body.action
+        : "";
+
+    const params =
+      body?.params &&
+      typeof body.params === "object" &&
+      !Array.isArray(body.params)
+        ? body.params
+        : {};
+
+    if (!ALLOWED_ACTIONS.has(action)) {
+      return json(
+        {
+          success: false,
+          error:
+            "Unsupported admin action.",
+        },
+        400,
+      );
+    }
+
+    const {
+      data,
+      error,
+    } = await userClient.rpc(
+      action,
+      params,
+    );
+
+    if (error) {
+      console.error(
+        `[TempStaff] admin-action ${action}:`,
+        error,
+      );
+
+      return json(
+        {
+          success: false,
+          error: error.message,
+        },
+        400,
+      );
+    }
+
+    return json({
+      success: true,
+      data: data ?? null,
+    });
+  } catch (error) {
+    console.error(
+      "[TempStaff] admin-action error:",
+      error,
+    );
+
+    return json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unexpected server error.",
+      },
+      500,
+    );
+  }
+});
