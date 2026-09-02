@@ -306,14 +306,14 @@ export default function Bookings() {
     setError(null)
 
     const {
-      data,
-      error: rpcError,
-    } = await supabase.rpc(
-      'get_eligible_workers',
-      {
-        p_booking_id: bookingId,
-      }
-    )
+  data,
+  error: rpcError,
+} = await adminAction(
+  'get_eligible_workers',
+  {
+    p_booking_id: bookingId,
+  }
+)
 
     setLoadingWorkersFor(null)
 
