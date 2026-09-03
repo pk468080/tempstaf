@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 import {
   ActivityIndicator,
@@ -12,6 +12,7 @@ import { supabase } from './lib/supabase'
 
 import LoginScreen from './screens/LoginScreen'
 import WorkerRegistrationScreen from './screens/WorkerRegistrationScreen'
+import WorkerOnboardingScreen from './screens/WorkerOnboardingScreen'
 import WorkerDashboard from './screens/WorkerDashboard'
 import EarningsScreen from './screens/EarningsScreen'
 import MyBookingsScreen from './screens/MyBookingsScreen'
@@ -56,23 +57,47 @@ export default function App() {
   const [showSettings, setShowSettings] =
     useState(false)
 
+  const [accessRefreshKey, setAccessRefreshKey] =
+    useState(0)
+
+  /*
+   * ------------------------------------------------------------
+   * AUTH SESSION
+   * ------------------------------------------------------------
+   */
   useEffect(() => {
     let mounted = true
 
     const checkExistingSession =
       async () => {
-        const { data } =
-          await supabase.auth.getSession()
+        try {
+          const { data, error } =
+            await supabase.auth.getSession()
 
-        if (!mounted) {
-          return
+          if (error) {
+            throw error
+          }
+
+          if (!mounted) {
+            return
+          }
+
+          setLoggedIn(
+            Boolean(data.session)
+          )
+
+          setSessionReady(true)
+        } catch (error) {
+          console.error(
+            '[TempStaff Worker] Failed to load session:',
+            error
+          )
+
+          if (mounted) {
+            setLoggedIn(false)
+            setSessionReady(true)
+          }
         }
-
-        setLoggedIn(
-          Boolean(data.session)
-        )
-
-        setSessionReady(true)
       }
 
     void checkExistingSession()
@@ -86,11 +111,22 @@ export default function App() {
             return
           }
 
-          setLoggedIn(
+          const signedIn =
             Boolean(session)
-          )
 
-          if (!session) {
+          setLoggedIn(signedIn)
+
+          if (signedIn) {
+            /*
+             * Force the worker access check to run
+             * after login / signup.
+             */
+            setAccessRefreshKey(
+              current => current + 1
+            )
+          }
+
+          if (!signedIn) {
             setAuthScreen('login')
             setActiveTab('home')
             setShowEditProfile(false)
@@ -106,6 +142,14 @@ export default function App() {
     }
   }, [])
 
+  /*
+   * ------------------------------------------------------------
+   * WORKER ACCESS GATE
+   *
+   * ONLY application.status === 'approved'
+   * can enter the dashboard.
+   * ------------------------------------------------------------
+   */
   useEffect(() => {
     if (!loggedIn) {
       return
@@ -113,96 +157,157 @@ export default function App() {
 
     let mounted = true
 
-    const loadWorkerAccess = async () => {
-      setWorkerAccess('loading')
-
-      try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser()
-
-        if (userError) {
-          throw userError
+    const loadWorkerAccess =
+      async () => {
+        if (!mounted) {
+          return
         }
 
-        if (!user) {
-          throw new Error(
-            'Worker is not authenticated.'
-          )
-        }
+        setWorkerAccess('loading')
 
-        const {
-          data: profile,
-          error: profileError,
-        } = await supabase
-          .from('profiles')
-          .select('role, is_active')
-          .eq('id', user.id)
-          .maybeSingle()
+        try {
+          /*
+           * Get authenticated user.
+           */
+          const {
+            data: { user },
+            error: userError,
+          } =
+            await supabase.auth.getUser()
 
-        if (profileError) {
-          throw profileError
-        }
-
-        if (
-          profile?.role !== 'worker' ||
-          profile.is_active !== true
-        ) {
-          throw new Error(
-            'This account is not an active worker account.'
-          )
-        }
-
-        const {
-          data: application,
-          error: applicationError,
-        } = await supabase
-          .from('worker_applications')
-          .select('status')
-          .eq('worker_id', user.id)
-          .maybeSingle()
-
-        if (applicationError) {
-          throw applicationError
-        }
-
-        if (
-          application?.status ===
-          'approved'
-        ) {
-          if (mounted) {
-            setWorkerAccess('approved')
+          if (userError) {
+            throw userError
           }
-        } else {
-          if (mounted) {
-            setWorkerAccess('onboarding')
-          }
-        }
-      } catch (error: any) {
-        console.error(
-          '[TempStaff Worker] Failed to determine worker access:',
-          error
-        )
 
-        if (mounted) {
+          if (!user) {
+            throw new Error(
+              'Worker is not authenticated.'
+            )
+          }
+
+          /*
+           * Verify this is an active worker account.
+           */
+          const {
+            data: profile,
+            error: profileError,
+          } =
+            await supabase
+              .from('profiles')
+              .select(
+                'role, is_active'
+              )
+              .eq('id', user.id)
+              .maybeSingle()
+
+          if (profileError) {
+            throw profileError
+          }
+
+          if (
+            profile?.role !==
+              'worker' ||
+            profile.is_active !== true
+          ) {
+            throw new Error(
+              'This account is not an active worker account.'
+            )
+          }
+
+          /*
+           * Get worker application status.
+           */
+          const {
+            data: application,
+            error:
+              applicationError,
+          } =
+            await supabase
+              .from(
+                'worker_applications'
+              )
+              .select(
+                'status'
+              )
+              .eq(
+                'worker_id',
+                user.id
+              )
+              .maybeSingle()
+
+          if (applicationError) {
+            throw applicationError
+          }
+
+          if (!mounted) {
+            return
+          }
+
+          /*
+           * CRITICAL SECURITY / BUSINESS RULE:
+           *
+           * Only APPROVED workers can access
+           * the actual worker dashboard.
+           *
+           * Every other application status goes
+           * to onboarding.
+           */
+          if (
+            application?.status ===
+            'approved'
+          ) {
+            setWorkerAccess(
+              'approved'
+            )
+          } else {
+            setWorkerAccess(
+              'onboarding'
+            )
+          }
+        } catch (error: any) {
+          console.error(
+            '[TempStaff Worker] Failed to determine worker access:',
+            error
+          )
+
+          if (!mounted) {
+            return
+          }
+
           Alert.alert(
             'Unable to verify worker account',
             error?.message ||
               'Please try again.'
           )
-          setWorkerAccess('onboarding')
+
+          /*
+           * Fail closed:
+           * if access cannot be verified,
+           * do NOT show the dashboard.
+           */
+          setWorkerAccess(
+            'onboarding'
+          )
         }
       }
-    }
 
     void loadWorkerAccess()
 
     return () => {
       mounted = false
     }
-  }, [loggedIn])
+  }, [
+    loggedIn,
+    accessRefreshKey,
+  ])
 
+  /*
+   * ------------------------------------------------------------
+   * WORKER BOOKING REALTIME
+   *
+   * This is intentionally enabled ONLY after approval.
+   * ------------------------------------------------------------
+   */
   useEffect(() => {
     if (
       !loggedIn ||
@@ -225,7 +330,10 @@ export default function App() {
         } =
           await supabase.auth.getUser()
 
-        if (!mounted || !user) {
+        if (
+          !mounted ||
+          !user
+        ) {
           return
         }
 
@@ -328,7 +436,10 @@ export default function App() {
                     `Booking #${(
                       booking.id ??
                       ''
-                    ).slice(0, 8)} has been assigned to you.`,
+                    ).slice(
+                      0,
+                      8
+                    )} has been assigned to you.`,
                     [
                       {
                         text: 'View',
@@ -346,25 +457,27 @@ export default function App() {
                 }
               }
             )
-            .subscribe(status => {
-              if (
-                status ===
-                'CHANNEL_ERROR'
-              ) {
-                console.warn(
-                  '[TempStaff Worker] Booking realtime channel error'
-                )
-              }
+            .subscribe(
+              status => {
+                if (
+                  status ===
+                  'CHANNEL_ERROR'
+                ) {
+                  console.warn(
+                    '[TempStaff Worker] Booking realtime channel error'
+                  )
+                }
 
-              if (
-                status ===
-                'TIMED_OUT'
-              ) {
-                console.warn(
-                  '[TempStaff Worker] Booking realtime channel timed out'
-                )
+                if (
+                  status ===
+                  'TIMED_OUT'
+                ) {
+                  console.warn(
+                    '[TempStaff Worker] Booking realtime channel timed out'
+                  )
+                }
               }
-            })
+            )
       }
 
     void subscribeToWorkerBookings()
@@ -378,22 +491,29 @@ export default function App() {
         )
       }
     }
-  }, [loggedIn, workerAccess])
+  }, [
+    loggedIn,
+    workerAccess,
+  ])
 
+  /*
+   * ------------------------------------------------------------
+   * INITIAL SESSION LOADING
+   * ------------------------------------------------------------
+   */
   if (!sessionReady) {
     return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
+      <Centered>
         <ActivityIndicator />
-      </View>
+      </Centered>
     )
   }
 
+  /*
+   * ------------------------------------------------------------
+   * AUTH SCREENS
+   * ------------------------------------------------------------
+   */
   if (!loggedIn) {
     if (
       authScreen ===
@@ -402,11 +522,18 @@ export default function App() {
       return (
         <WorkerRegistrationScreen
           onBack={() =>
-            setAuthScreen('login')
+            setAuthScreen(
+              'login'
+            )
           }
-          onRegistered={() =>
-            setAuthScreen('login')
-          }
+          onRegistered={() => {
+            /*
+             * Do NOT manually open the dashboard.
+             *
+             * Supabase auth state change will
+             * trigger the worker access check.
+             */
+          }}
         />
       )
     }
@@ -417,6 +544,13 @@ export default function App() {
           setLoggedIn(true)
           setActiveTab('home')
           setShowSettings(false)
+
+          /*
+           * Force an immediate access check.
+           */
+          setAccessRefreshKey(
+            current => current + 1
+          )
         }}
         onBecomeWorker={() =>
           setAuthScreen(
@@ -427,18 +561,21 @@ export default function App() {
     )
   }
 
+  /*
+   * ------------------------------------------------------------
+   * CHECKING WORKER ACCESS
+   * ------------------------------------------------------------
+   */
   if (
-    workerAccess === 'loading'
+    workerAccess ===
+    'loading'
   ) {
     return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <ActivityIndicator size="large" />
+      <Centered>
+        <ActivityIndicator
+          size="large"
+        />
+
         <Text
           style={{
             marginTop: 12,
@@ -447,22 +584,45 @@ export default function App() {
         >
           Checking worker account...
         </Text>
-      </View>
+      </Centered>
     )
   }
 
+  /*
+   * ------------------------------------------------------------
+   * ONBOARDING GATE
+   *
+   * This is the critical part.
+   *
+   * Every worker who is NOT approved is blocked
+   * from the dashboard.
+   * ------------------------------------------------------------
+   */
   if (
-    workerAccess === 'onboarding'
+    workerAccess ===
+    'onboarding'
   ) {
     return (
       <WorkerOnboardingScreen
-        onComplete={() =>
-          setWorkerAccess('approved')
-        }
+        onComplete={() => {
+          /*
+           * Never assume completion means approval.
+           *
+           * Re-check Supabase.
+           */
+          setAccessRefreshKey(
+            current => current + 1
+          )
+        }}
       />
     )
   }
 
+  /*
+   * ------------------------------------------------------------
+   * SETTINGS
+   * ------------------------------------------------------------
+   */
   if (showSettings) {
     return (
       <SettingsScreen
@@ -476,6 +636,11 @@ export default function App() {
     )
   }
 
+  /*
+   * ------------------------------------------------------------
+   * EDIT PROFILE
+   * ------------------------------------------------------------
+   */
   if (showEditProfile) {
     return (
       <EditProfileScreen
@@ -489,6 +654,11 @@ export default function App() {
     )
   }
 
+  /*
+   * ------------------------------------------------------------
+   * APPROVED WORKER DASHBOARD
+   * ------------------------------------------------------------
+   */
   return (
     <View
       style={{
@@ -500,40 +670,56 @@ export default function App() {
           flex: 1,
         }}
       >
-        {activeTab === 'home' && (
+        {activeTab ===
+          'home' && (
           <WorkerDashboard
             onOpenEarnings={() =>
-              setActiveTab('earnings')
+              setActiveTab(
+                'earnings'
+              )
             }
           />
         )}
 
-        {activeTab === 'bookings' && (
+        {activeTab ===
+          'bookings' && (
           <MyBookingsScreen
             onBack={() =>
-              setActiveTab('home')
+              setActiveTab(
+                'home'
+              )
             }
           />
         )}
 
-        {activeTab === 'earnings' && (
+        {activeTab ===
+          'earnings' && (
           <EarningsScreen
             onBack={() =>
-              setActiveTab('home')
+              setActiveTab(
+                'home'
+              )
             }
           />
         )}
 
-        {activeTab === 'profile' && (
+        {activeTab ===
+          'profile' && (
           <ProfileScreen
             onBack={() =>
-              setActiveTab('home')
+              setActiveTab(
+                'home'
+              )
             }
             onEditProfile={() =>
-              setShowEditProfile(true)
+              setShowEditProfile(
+                true
+              )
             }
             onSettings={() =>
-              setShowSettings(true)
+              setShowSettings(
+                true
+              )
             }
           />
         )}
@@ -542,11 +728,15 @@ export default function App() {
       <View
         style={{
           height: 76,
-          backgroundColor: 'white',
+          backgroundColor:
+            'white',
           borderTopWidth: 1,
-          borderTopColor: '#e5e7eb',
-          flexDirection: 'row',
-          alignItems: 'center',
+          borderTopColor:
+            '#e5e7eb',
+          flexDirection:
+            'row',
+          alignItems:
+            'center',
           justifyContent:
             'space-around',
           paddingBottom: 8,
@@ -556,12 +746,19 @@ export default function App() {
           label="Home"
           icon="⌂"
           active={
-            activeTab === 'home'
+            activeTab ===
+            'home'
           }
           onPress={() => {
-            setShowEditProfile(false)
-            setShowSettings(false)
-            setActiveTab('home')
+            setShowEditProfile(
+              false
+            )
+            setShowSettings(
+              false
+            )
+            setActiveTab(
+              'home'
+            )
           }}
         />
 
@@ -569,12 +766,19 @@ export default function App() {
           label="My Bookings"
           icon="▣"
           active={
-            activeTab === 'bookings'
+            activeTab ===
+            'bookings'
           }
           onPress={() => {
-            setShowEditProfile(false)
-            setShowSettings(false)
-            setActiveTab('bookings')
+            setShowEditProfile(
+              false
+            )
+            setShowSettings(
+              false
+            )
+            setActiveTab(
+              'bookings'
+            )
           }}
         />
 
@@ -582,12 +786,19 @@ export default function App() {
           label="Earnings"
           icon="₹"
           active={
-            activeTab === 'earnings'
+            activeTab ===
+            'earnings'
           }
           onPress={() => {
-            setShowEditProfile(false)
-            setShowSettings(false)
-            setActiveTab('earnings')
+            setShowEditProfile(
+              false
+            )
+            setShowSettings(
+              false
+            )
+            setActiveTab(
+              'earnings'
+            )
           }}
         />
 
@@ -595,12 +806,19 @@ export default function App() {
           label="Profile"
           icon="●"
           active={
-            activeTab === 'profile'
+            activeTab ===
+            'profile'
           }
           onPress={() => {
-            setShowEditProfile(false)
-            setShowSettings(false)
-            setActiveTab('profile')
+            setShowEditProfile(
+              false
+            )
+            setShowSettings(
+              false
+            )
+            setActiveTab(
+              'profile'
+            )
           }}
         />
       </View>
@@ -608,6 +826,36 @@ export default function App() {
   )
 }
 
+/*
+ * ------------------------------------------------------------
+ * CENTERED LOADING VIEW
+ * ------------------------------------------------------------
+ */
+function Centered({
+  children,
+}: {
+  children: ReactNode
+}) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems:
+          'center',
+        justifyContent:
+          'center',
+      }}
+    >
+      {children}
+    </View>
+  )
+}
+
+/*
+ * ------------------------------------------------------------
+ * TAB BUTTON
+ * ------------------------------------------------------------
+ */
 function TabButton({
   label,
   icon,
@@ -624,17 +872,20 @@ function TabButton({
       onPress={onPress}
       activeOpacity={0.7}
       style={{
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems:
+          'center',
+        justifyContent:
+          'center',
         minWidth: 75,
         paddingVertical: 7,
       }}
     >
       <View
         style={{
-          backgroundColor: active
-            ? '#e8f7f1'
-            : 'transparent',
+          backgroundColor:
+            active
+              ? '#e8f7f1'
+              : 'transparent',
           borderRadius: 14,
           paddingHorizontal: 15,
           paddingVertical: 5,
@@ -643,11 +894,13 @@ function TabButton({
         <Text
           style={{
             fontSize: 20,
-            textAlign: 'center',
+            textAlign:
+              'center',
             color: active
               ? '#0f766e'
               : '#6b7280',
-            fontWeight: '800',
+            fontWeight:
+              '800',
           }}
         >
           {icon}
@@ -669,18 +922,5 @@ function TabButton({
         {label}
       </Text>
     </TouchableOpacity>
-  )
-}
-
-function WorkerOnboardingScreen({
-  onComplete,
-}: {
-  onComplete: () => void
-}) {
-  return (
-    <WorkerRegistrationScreen
-      onBack={() => undefined}
-      onRegistered={onComplete}
-    />
   )
 }
