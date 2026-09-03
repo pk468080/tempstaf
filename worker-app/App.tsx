@@ -29,12 +29,20 @@ type AuthScreen =
   | 'login'
   | 'registration'
 
+type WorkerAccess =
+  | 'loading'
+  | 'onboarding'
+  | 'approved'
+
 export default function App() {
   const [sessionReady, setSessionReady] =
     useState(false)
 
   const [loggedIn, setLoggedIn] =
     useState(false)
+
+  const [workerAccess, setWorkerAccess] =
+    useState<WorkerAccess>('loading')
 
   const [authScreen, setAuthScreen] =
     useState<AuthScreen>('login')
@@ -67,7 +75,7 @@ export default function App() {
         setSessionReady(true)
       }
 
-    checkExistingSession()
+    void checkExistingSession()
 
     const {
       data: { subscription },
@@ -87,6 +95,7 @@ export default function App() {
             setActiveTab('home')
             setShowEditProfile(false)
             setShowSettings(false)
+            setWorkerAccess('loading')
           }
         }
       )
@@ -97,15 +106,108 @@ export default function App() {
     }
   }, [])
 
-  /*
-   * REALTIME WORKER BOOKING LISTENER
-   *
-   * This works independently from push notifications.
-   * It allows the worker app to react immediately while
-   * the app is open.
-   */
   useEffect(() => {
     if (!loggedIn) {
+      return
+    }
+
+    let mounted = true
+
+    const loadWorkerAccess = async () => {
+      setWorkerAccess('loading')
+
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser()
+
+        if (userError) {
+          throw userError
+        }
+
+        if (!user) {
+          throw new Error(
+            'Worker is not authenticated.'
+          )
+        }
+
+        const {
+          data: profile,
+          error: profileError,
+        } = await supabase
+          .from('profiles')
+          .select('role, is_active')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (profileError) {
+          throw profileError
+        }
+
+        if (
+          profile?.role !== 'worker' ||
+          profile.is_active !== true
+        ) {
+          throw new Error(
+            'This account is not an active worker account.'
+          )
+        }
+
+        const {
+          data: application,
+          error: applicationError,
+        } = await supabase
+          .from('worker_applications')
+          .select('status')
+          .eq('worker_id', user.id)
+          .maybeSingle()
+
+        if (applicationError) {
+          throw applicationError
+        }
+
+        if (
+          application?.status ===
+          'approved'
+        ) {
+          if (mounted) {
+            setWorkerAccess('approved')
+          }
+        } else {
+          if (mounted) {
+            setWorkerAccess('onboarding')
+          }
+        }
+      } catch (error: any) {
+        console.error(
+          '[TempStaff Worker] Failed to determine worker access:',
+          error
+        )
+
+        if (mounted) {
+          Alert.alert(
+            'Unable to verify worker account',
+            error?.message ||
+              'Please try again.'
+          )
+          setWorkerAccess('onboarding')
+        }
+      }
+    }
+
+    void loadWorkerAccess()
+
+    return () => {
+      mounted = false
+    }
+  }, [loggedIn])
+
+  useEffect(() => {
+    if (
+      !loggedIn ||
+      workerAccess !== 'approved'
+    ) {
       return
     }
 
@@ -265,18 +367,18 @@ export default function App() {
             })
       }
 
-    subscribeToWorkerBookings()
+    void subscribeToWorkerBookings()
 
     return () => {
       mounted = false
 
       if (channel) {
-        supabase.removeChannel(
+        void supabase.removeChannel(
           channel
         )
       }
     }
-  }, [loggedIn])
+  }, [loggedIn, workerAccess])
 
   if (!sessionReady) {
     return (
@@ -320,6 +422,42 @@ export default function App() {
           setAuthScreen(
             'registration'
           )
+        }
+      />
+    )
+  }
+
+  if (
+    workerAccess === 'loading'
+  ) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <ActivityIndicator size="large" />
+        <Text
+          style={{
+            marginTop: 12,
+            color: '#667085',
+          }}
+        >
+          Checking worker account...
+        </Text>
+      </View>
+    )
+  }
+
+  if (
+    workerAccess === 'onboarding'
+  ) {
+    return (
+      <WorkerOnboardingScreen
+        onComplete={() =>
+          setWorkerAccess('approved')
         }
       />
     )
@@ -531,5 +669,18 @@ function TabButton({
         {label}
       </Text>
     </TouchableOpacity>
+  )
+}
+
+function WorkerOnboardingScreen({
+  onComplete,
+}: {
+  onComplete: () => void
+}) {
+  return (
+    <WorkerRegistrationScreen
+      onBack={() => undefined}
+      onRegistered={onComplete}
+    />
   )
 }
