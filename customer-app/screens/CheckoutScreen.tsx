@@ -25,13 +25,14 @@ import {
 import Header from '../components/Header'
 import PrimaryButton from '../components/PrimaryButton'
 
+
 import {
   createBooking,
-  markBookingPaid,
 } from '../services/booking'
 
 import {
   createRazorpayOrder,
+  verifyRazorpayPayment,
 } from '../services/payment'
 
 type Props =
@@ -285,9 +286,10 @@ export default function CheckoutScreen({
        */
 
       const order =
-        await createRazorpayOrder(
-          selectedPackage.id
-        )
+  await createRazorpayOrder(
+    selectedPackage.id,
+    currentBookingId
+  )
 
       if (
         !order.orderId ||
@@ -348,26 +350,55 @@ export default function CheckoutScreen({
       )
 
       /*
-       * STEP 4
-       * Complete payment in Supabase.
-       */
+ * STEP 4
+ * Verify the Razorpay payment on the server.
+ *
+ * NEVER trust the mobile success callback by itself.
+ */
 
-      if (!currentBookingId) {
-        throw new Error(
-          'Booking ID was not created.'
-        )
-      }
+if (!currentBookingId) {
+  throw new Error(
+    'Booking ID was not created.'
+  )
+}
 
-      await markBookingPaid(
-        currentBookingId
-      )
+if (!payment?.razorpay_order_id) {
+  throw new Error(
+    'Razorpay order ID was not returned.'
+  )
+}
 
-      setPaymentDone(true)
+if (!payment?.razorpay_payment_id) {
+  throw new Error(
+    'Razorpay payment ID was not returned.'
+  )
+}
 
-      console.log(
-        '[TempStaff] Booking payment completed:',
-        currentBookingId
-      )
+if (!payment?.razorpay_signature) {
+  throw new Error(
+    'Razorpay payment signature was not returned.'
+  )
+}
+
+const verification =
+  await verifyRazorpayPayment(
+    currentBookingId,
+    payment.razorpay_order_id,
+    payment.razorpay_payment_id,
+    payment.razorpay_signature
+  )
+
+console.log(
+  '[TempStaff] Razorpay payment verified:',
+  verification
+)
+
+setPaymentDone(true)
+
+console.log(
+  '[TempStaff] Booking payment verified:',
+  currentBookingId
+)
 
       /*
        * STEP 5
