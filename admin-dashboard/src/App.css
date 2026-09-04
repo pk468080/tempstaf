@@ -1604,6 +1604,39 @@ a {
   margin-bottom: 18px;
 }
 
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 20px 22px;
+}
+
+.metric-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.metric-card strong {
+  color: var(--text);
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.metric-card small {
+  color: var(--muted-light);
+  font-size: 11px;
+}
+
 .small-panel {
   min-height: 150px;
 }
@@ -2172,6 +2205,10 @@ a {
 @media (max-width: 700px) {
   .dashboard-header {
     flex-direction: column;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
   }
 
   .stats-grid {

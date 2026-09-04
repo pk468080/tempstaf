@@ -1,8 +1,31 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+type Payment = {
+  id: string
+  booking_id?: string | null
+  amount: number | string | null
+  status: string | null
+  created_at?: string | null
+}
+
+const currency = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  maximumFractionDigits: 0,
+})
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return '—'
+
+  return new Intl.DateTimeFormat('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value))
+}
+
 export default function Payments() {
-  const [payments, setPayments] = useState<any[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -13,16 +36,14 @@ export default function Payments() {
     const { data, error } = await supabase
       .from('payments')
       .select('*')
+      .order('created_at', { ascending: false })
       .limit(100)
-
-    console.log('PAYMENTS DATA:', data)
-    console.log('PAYMENTS ERROR:', error)
 
     if (error) {
       setError(error.message)
       setPayments([])
     } else {
-      setPayments(data || [])
+      setPayments((data || []) as Payment[])
     }
 
     setLoading(false)
@@ -31,6 +52,15 @@ export default function Payments() {
   useEffect(() => {
     loadPayments()
   }, [])
+
+  const paidPayments = payments.filter(
+    payment => payment.status === 'paid'
+  )
+
+  const paidTotal = paidPayments.reduce(
+    (total, payment) => total + Number(payment.amount || 0),
+    0
+  )
 
   return (
     <div className="page-content">
@@ -54,6 +84,30 @@ export default function Payments() {
           Failed to load payments: {error}
         </div>
       )}
+
+      <div className="metric-grid">
+        <div className="panel metric-card">
+          <span className="metric-label">Paid revenue</span>
+          <strong>{currency.format(paidTotal)}</strong>
+          <small>Successful transactions</small>
+        </div>
+
+        <div className="panel metric-card">
+          <span className="metric-label">Successful payments</span>
+          <strong>{paidPayments.length}</strong>
+          <small>Of {payments.length} recent records</small>
+        </div>
+
+        <div className="panel metric-card">
+          <span className="metric-label">Average paid value</span>
+          <strong>
+            {currency.format(
+              paidPayments.length ? paidTotal / paidPayments.length : 0
+            )}
+          </strong>
+          <small>Across successful payments</small>
+        </div>
+      </div>
 
       <div className="panel">
         <div className="panel-header">
@@ -86,23 +140,28 @@ export default function Payments() {
             <table className="bookings-table">
               <thead>
                 <tr>
-                  {Object.keys(payments[0]).map((key) => (
-                    <th key={key}>{key}</th>
-                  ))}
+                  <th>Payment</th>
+                  <th>Booking</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Date</th>
                 </tr>
               </thead>
 
               <tbody>
-                {payments.map((payment, index) => (
-                  <tr key={payment.id || index}>
-                    {Object.keys(payments[0]).map((key) => (
-                      <td key={key}>
-                        {payment[key] === null ||
-                        payment[key] === undefined
-                          ? '—'
-                          : String(payment[key])}
-                      </td>
-                    ))}
+                {payments.map((payment) => (
+                  <tr key={payment.id}>
+                    <td>
+                      <strong>{payment.id.slice(0, 8)}...</strong>
+                    </td>
+                    <td>{payment.booking_id || '—'}</td>
+                    <td>{currency.format(Number(payment.amount || 0))}</td>
+                    <td>
+                      <span className={`booking-status booking-status-${payment.status || 'unknown'}`}>
+                        {payment.status || 'Unknown'}
+                      </span>
+                    </td>
+                    <td>{formatDate(payment.created_at)}</td>
                   </tr>
                 ))}
               </tbody>

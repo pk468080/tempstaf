@@ -12,6 +12,8 @@ import {
 } from 'react-native'
 import * as Location from 'expo-location'
 
+import WorkerDocumentsScreen from './WorkerDocumentsScreen'
+
 import { supabase } from '../lib/supabase'
 
 type ServiceOption = {
@@ -23,7 +25,7 @@ type Props = {
   onComplete: () => void
 }
 
-type Step = 1 | 2 | 3 | 4
+type Step = 1 | 2 | 3 | 4 | 5
 
 type OnboardingRow = {
   date_of_birth: string | null
@@ -64,7 +66,7 @@ export default function WorkerOnboardingScreen({
   const [longitude, setLongitude] = useState<number | null>(null)
   const [consent, setConsent] = useState(false)
 
-  const progress = useMemo(() => `${step} / 4`, [step])
+  const progress = useMemo(() => `${step} / 5`, [step])
 
   useEffect(() => {
     const load = async () => {
@@ -121,7 +123,7 @@ export default function WorkerOnboardingScreen({
           setConsent(Boolean(profile.consent_at))
 
           const savedStep = Number(profile.onboarding_step || 1)
-          if (savedStep >= 1 && savedStep <= 4) {
+          if (savedStep >= 1 && savedStep <= 5) {
             setStep(savedStep as Step)
           }
         }
@@ -309,7 +311,7 @@ export default function WorkerOnboardingScreen({
 
       if (servicesError) throw servicesError
 
-      if (nextStep === 4) {
+      if (nextStep === 5) {
         const {
           error: consentError,
         } = await supabase.rpc(
@@ -326,7 +328,7 @@ export default function WorkerOnboardingScreen({
       if (nextStep === 4) {
         Alert.alert(
           'Profile saved',
-          'Your profile information is complete. The next onboarding stage is document verification.'
+          'Your profile information is complete. Continue with document verification.'
         )
       }
     } catch (error: any) {
@@ -393,7 +395,7 @@ export default function WorkerOnboardingScreen({
           <View
             style={[
               styles.progressFill,
-              { width: `${step * 25}%` },
+              { width: `${step * 20}%` },
             ]}
           />
         </View>
@@ -638,9 +640,16 @@ export default function WorkerOnboardingScreen({
         )}
 
         {step === 4 && (
+          <WorkerDocumentsScreen
+            onContinue={() => setStep(5)}
+            onBack={() => setStep(3)}
+          />
+        )}
+
+        {step === 5 && (
           <Section
-            title="Declaration"
-            subtitle="Review your profile before the document-verification stage."
+            title="Declaration & submission"
+            subtitle="Review your profile and confirm the information before submitting your worker application."
           >
             <View style={styles.reviewCard}>
               <ReviewRow
@@ -701,52 +710,83 @@ export default function WorkerOnboardingScreen({
               </View>
 
               <Text style={styles.consentText}>
-                I confirm that the information I have provided is accurate and I consent to TempStaff verifying my worker application.
+                I confirm that the information and documents I have provided are accurate and I consent to TempStaff verifying my worker application.
               </Text>
             </TouchableOpacity>
           </Section>
         )}
 
-        <View style={styles.actions}>
-          {step > 1 && (
+        {step !== 4 && (
+          <View style={styles.actions}>
+            {step > 1 && (
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() =>
+                  setStep((step - 1) as Step)
+                }
+                disabled={saving}
+              >
+                <Text style={styles.secondaryText}>
+                  Back
+                </Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() =>
-                setStep((step - 1) as Step)
-              }
+              style={[
+                styles.primaryButton,
+                saving && styles.disabled,
+              ]}
+              onPress={async () => {
+                if (step < 5) {
+                  await saveProgress((step + 1) as Step)
+                  return
+                }
+
+                await saveProgress(5)
+
+                try {
+                  setSaving(true)
+                  const { error } = await supabase.rpc(
+                    'submit_worker_application'
+                  )
+
+                  if (error) throw error
+
+                  setApplicationStatus('submitted')
+
+                  Alert.alert(
+                    'Application submitted',
+                    'Your worker application has been submitted for review. You will remain restricted until TempStaff approves your application.'
+                  )
+                } catch (error: any) {
+                  console.error(
+                    '[TempStaff Worker] Failed to submit application:',
+                    error
+                  )
+
+                  Alert.alert(
+                    'Unable to submit application',
+                    error?.message || 'Please complete all required onboarding information and documents.'
+                  )
+                } finally {
+                  setSaving(false)
+                }
+              }}
               disabled={saving}
             >
-              <Text style={styles.secondaryText}>
-                Back
-              </Text>
+              {saving ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.primaryText}>
+                  {step < 5
+                    ? 'Save & Continue'
+                    : 'Submit Application'}
+                </Text>
+              )}
             </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[
-              styles.primaryButton,
-              saving && styles.disabled,
-            ]}
-            onPress={() =>
-              void saveProgress(
-                step < 4
-                  ? ((step + 1) as Step)
-                  : 4
-              )
-            }
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.primaryText}>
-                {step < 4
-                  ? 'Save & Continue'
-                  : 'Save Profile'}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
+          </View>
+        )}
 
         <Text style={styles.footer}>
           Your worker account remains restricted until verification is completed.
