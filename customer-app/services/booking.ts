@@ -53,16 +53,9 @@ export type CreateAddressInput = {
 
 export type CreateBookingInput = {
   fulfillmentType: 'instant' | 'scheduled'
-  serviceId: string
+  serviceVariantId: string
   addressId: string
-  durationValue: number
-  durationUnit: 'hour' | 'day' | 'week' | 'month'
   scheduledStart: string
-  scheduledEnd: string
-  baseAmount: number
-  platformFee: number
-  taxAmount: number
-  totalAmount: number
   notes?: string
 }
 
@@ -299,7 +292,12 @@ export async function createBooking(
 ) {
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser()
+
+  if (userError) {
+    throw userError
+  }
 
   if (!user) {
     throw new Error(
@@ -307,9 +305,9 @@ export async function createBooking(
     )
   }
 
-  if (!input.serviceId) {
+  if (!input.serviceVariantId) {
     throw new Error(
-      'Service is required.'
+      'Service package is required.'
     )
   }
 
@@ -319,78 +317,53 @@ export async function createBooking(
     )
   }
 
-  if (
-    input.fulfillmentType === 'instant' &&
-    !input.scheduledStart
-  ) {
+  if (!input.scheduledStart) {
     throw new Error(
-      'Instant booking start time is required.'
+      'Booking start time is required.'
     )
   }
 
-  if (
-    input.fulfillmentType === 'scheduled' &&
-    !input.scheduledStart
-  ) {
-    throw new Error(
-      'Scheduled booking time is required.'
-    )
-  }
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    'create_customer_booking',
+    {
+      p_service_variant_id:
+        input.serviceVariantId,
 
-  const { data, error } = await supabase
-    .from('bookings')
-    .insert({
-      customer_id: user.id,
+      p_address_id:
+        input.addressId,
 
-      // Never accept a worker selected by the
-      // customer app.
-      worker_id: null,
-
-      service_id: input.serviceId,
-      address_id: input.addressId,
-
-      fulfillment_type:
+      p_fulfillment_type:
         input.fulfillmentType,
 
-      status: 'pending_payment',
-
-      duration_value:
-        input.durationValue,
-
-      duration_unit:
-        input.durationUnit,
-
-      scheduled_start:
+      p_scheduled_start:
         input.scheduledStart,
 
-      scheduled_end:
-        input.scheduledEnd,
-
-      base_amount:
-        input.baseAmount,
-
-      platform_fee:
-        input.platformFee,
-
-      tax_amount:
-        input.taxAmount,
-
-      total_amount:
-        input.totalAmount,
-
-      notes:
+      p_notes:
         input.notes ?? null,
-    })
-    .select()
-    .single()
+    }
+  )
 
   if (error) {
     console.error(
-      '[TempStaff] Failed to create booking:',
+      '[TempStaff] Failed to create secure booking:',
       error
     )
 
     throw error
+  }
+
+  if (!data?.id) {
+    console.error(
+      '[TempStaff] Secure booking RPC returned invalid data:',
+      data
+    )
+
+    throw new Error(
+      'Booking was not created.'
+    )
   }
 
   return data

@@ -226,46 +226,23 @@ export default function CheckoutScreen({
             durationUnit
           )
 
-        const booking =
-          await createBooking({
-            fulfillmentType:
-              bookingMode === 'Instant'
-                ? 'instant'
-                : 'scheduled',
+       const booking = await createBooking({
+  fulfillmentType:
+    bookingMode === 'Instant'
+      ? 'instant'
+      : 'scheduled',
 
-            serviceId:
-              selectedServiceId,
+  serviceVariantId:
+    selectedPackageId,
 
-            addressId,
+  addressId,
 
-            durationValue,
+  scheduledStart:
+    scheduledStart.toISOString(),
 
-            durationUnit:
-              durationUnit as
-                | 'hour'
-                | 'day'
-                | 'week'
-                | 'month',
-
-            scheduledStart:
-              scheduledStart.toISOString(),
-
-            scheduledEnd:
-              scheduledEnd.toISOString(),
-
-            baseAmount:
-              selectedPackage.price,
-
-            platformFee: 0,
-
-            taxAmount: 0,
-
-            totalAmount:
-              selectedPackage.price,
-
-            notes:
-              `Booking created from customer app. Mode: ${bookingMode}`,
-          })
+  notes:
+    `Booking created from customer app. Mode: ${bookingMode}`,
+})
 
         currentBookingId =
           booking.id
