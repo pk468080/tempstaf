@@ -380,15 +380,39 @@ export function BookingProvider({
           formattedPackages
         )
       } catch (error) {
-        console.error(
-          'Failed to load TempStaff catalogue:',
-          error
-        )
+  console.error(
+    '[TempStaff] CATALOGUE LOAD ERROR:',
+    JSON.stringify(error, null, 2)
+  )
 
-        setCatalogueError(
-          'Unable to load services right now. Please try again.'
-        )
-      } finally {
+  if (error && typeof error === 'object') {
+    console.error(
+      '[TempStaff] Catalogue error details:',
+      {
+        message:
+          'message' in error
+            ? error.message
+            : undefined,
+        details:
+          'details' in error
+            ? error.details
+            : undefined,
+        hint:
+          'hint' in error
+            ? error.hint
+            : undefined,
+        code:
+          'code' in error
+            ? error.code
+            : undefined,
+      }
+    )
+  }
+
+  setCatalogueError(
+    'Unable to load services right now. Please try again.'
+  )
+} finally {
         setCatalogueLoading(false)
       }
     }

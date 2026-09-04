@@ -191,46 +191,56 @@ export default function Workers() {
 
   async function updateStatus(
   workerId: string,
-  status: string
+  status: string,
 ) {
-  setError('')
+  try {
+    setError('')
 
-  const { error } = await adminAction(
-    'admin_set_worker_status',
-    {
-      p_worker_id: workerId,
-      p_status: status,
-    }
-  )
+    await adminAction(
+      'admin_set_worker_status',
+      {
+        p_worker_id: workerId,
+        p_status: status,
+      },
+    )
 
-  if (error) {
-    setError(error.message)
-    return
+    await loadWorkers()
+  } catch (err) {
+    console.error(err)
+
+    setError(
+      err instanceof Error
+        ? err.message
+        : 'Unable to update worker status.',
+    )
   }
-
-  await loadWorkers()
 }
 
   async function toggleVerification(
   workerId: string,
-  verified: boolean
+  verified: boolean,
 ) {
-  setError('')
+  try {
+    setError('')
 
-  const { error } = await adminAction(
-    'admin_update_worker',
-    {
-      p_worker_id: workerId,
-      p_is_verified: verified,
-    }
-  )
+    await adminAction(
+      'admin_update_worker',
+      {
+        p_worker_id: workerId,
+        p_is_verified: verified,
+      },
+    )
 
-  if (error) {
-    setError(error.message)
-    return
+    await loadWorkers()
+  } catch (err) {
+    console.error(err)
+
+    setError(
+      err instanceof Error
+        ? err.message
+        : 'Unable to update worker verification.',
+    )
   }
-
-  await loadWorkers()
 }
 
   async function toggleFeatured(

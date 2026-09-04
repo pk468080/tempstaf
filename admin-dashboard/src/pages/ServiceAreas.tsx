@@ -811,11 +811,12 @@ export default function ServiceAreas() {
                 </option>
 
                 {services
-                  .filter(
-                    service =>
-                      service.is_active
-                  )
-                  .map(service => (
+  .filter(
+    service =>
+      service.is_active ||
+      service.id === form.service_id
+  )
+  .map(service => (
                     <option
                       key={
                         service.id
