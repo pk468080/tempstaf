@@ -9,7 +9,7 @@ import {
 } from 'react-native'
 
 import { supabase } from './lib/supabase'
-
+import WorkerPresence from './components/WorkerPresence'
 import LoginScreen from './screens/LoginScreen'
 import WorkerRegistrationScreen from './screens/WorkerRegistrationScreen'
 import WorkerOnboardingScreen from './screens/WorkerOnboardingScreen'
@@ -665,6 +665,7 @@ export default function App() {
         flex: 1,
       }}
     >
+    <WorkerPresence />
       <View
         style={{
           flex: 1,

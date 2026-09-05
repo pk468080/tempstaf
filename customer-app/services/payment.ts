@@ -12,72 +12,57 @@ type RazorpayOrder = {
 
 export async function createRazorpayOrder(
   packageId: string,
-  bookingId: string
-): Promise<RazorpayOrder> {
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession()
-
-  if (sessionError) {
-    throw sessionError
-  }
-
-  if (!session?.access_token) {
-    throw new Error(
-      'Your session has expired. Please log in again.'
-    )
-  }
-
+  bookingId: string,
+) {
   if (!packageId) {
-    throw new Error(
-      'Service package is required.'
-    )
+    throw new Error('Package ID is required.')
   }
 
   if (!bookingId) {
-    throw new Error(
-      'Booking ID is required.'
-    )
+    throw new Error('Booking ID is required.')
   }
 
-  const { data, error } =
-    await supabase.functions.invoke(
-      'create-razorpay-order',
-      {
-        body: {
-          packageId,
-          bookingId,
-        },
-        headers: {
-          Authorization:
-            `Bearer ${session.access_token}`,
-        },
-      }
-    )
+  const {
+    data,
+    error,
+  } = await supabase.functions.invoke(
+    'create-razorpay-order',
+    {
+      body: {
+        packageId,
+        bookingId,
+      },
+    },
+  )
 
   if (error) {
     console.error(
-      '[TempStaff] Razorpay order error:',
-      error
+      '[TempStaff] Failed to create Razorpay order:',
+      error,
     )
 
     throw new Error(
       error.message ||
-        'Unable to create payment order.'
+        'Unable to create Razorpay order.',
     )
   }
 
   if (!data?.success) {
     throw new Error(
       data?.error ||
-        'Unable to create payment order.'
+        'Unable to create Razorpay order.',
     )
   }
 
-  return data as RazorpayOrder
+  return {
+    keyId: String(data.keyId),
+    orderId: String(data.orderId),
+    amount: Number(data.amount),
+    currency: String(
+      data.currency || 'INR',
+    ),
+  }
 }
-
 export async function verifyRazorpayPayment(
   bookingId: string,
   razorpayOrderId: string,

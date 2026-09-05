@@ -265,7 +265,7 @@ export default function CheckoutScreen({
       const order =
   await createRazorpayOrder(
     selectedPackage.id,
-    currentBookingId
+    currentBookingId,
   )
 
       if (
