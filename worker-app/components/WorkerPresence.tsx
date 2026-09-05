@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { AppState } from 'react-native'
+import { AppState, type AppStateStatus } from 'react-native'
 import * as Location from 'expo-location'
-
 import { supabase } from '../lib/supabase'
 
 type WorkerStatus =
@@ -10,147 +9,137 @@ type WorkerStatus =
   | 'busy'
   | 'suspended'
 
-const RENEW_INTERVAL_MS = 5 * 60 * 1000
+const HEARTBEAT_INTERVAL_MS = 60 * 1000
 
 export default function WorkerPresence() {
   const locationSubscription =
     useRef<Location.LocationSubscription | null>(null)
 
-  const renewTimer =
+  const heartbeatTimer =
     useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const activeRef =
-    useRef(false)
+  const activeRef = useRef(false)
+  const mountedRef = useRef(true)
+  const heartbeatInProgressRef = useRef(false)
 
   const stopTracking = () => {
+    activeRef.current = false
+
     if (locationSubscription.current) {
       locationSubscription.current.remove()
       locationSubscription.current = null
     }
 
-    if (renewTimer.current) {
-      clearInterval(renewTimer.current)
-      renewTimer.current = null
-    }
-
-    activeRef.current = false
-  }
-
-  const updateLocation = async () => {
-    if (!activeRef.current) {
-      return
-    }
-
-    try {
-      const position =
-        await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        })
-
-      const { error } =
-        await supabase.rpc(
-          'worker_update_location',
-          {
-            p_latitude:
-              position.coords.latitude,
-            p_longitude:
-              position.coords.longitude,
-            p_booking_id: null,
-          }
-        )
-
-      if (error) {
-        console.error(
-          '[TempStaff Worker] Location update failed:',
-          error
-        )
-      }
-    } catch (error) {
-      console.error(
-        '[TempStaff Worker] Failed to get location:',
-        error
-      )
+    if (heartbeatTimer.current) {
+      clearInterval(heartbeatTimer.current)
+      heartbeatTimer.current = null
     }
   }
 
-  const renewPresence = async () => {
-    if (!activeRef.current) {
+  const heartbeat = async () => {
+    if (
+      !mountedRef.current ||
+      !activeRef.current ||
+      heartbeatInProgressRef.current
+    ) {
       return
     }
+
+    heartbeatInProgressRef.current = true
 
     try {
       const {
         data: worker,
-        error,
+        error: workerError,
       } = await supabase
         .from('worker_profiles')
         .select('worker_status')
         .maybeSingle()
 
-      if (error) {
-        throw error
+      if (workerError) {
+        throw workerError
       }
 
       const status =
-        worker?.worker_status as
-          | WorkerStatus
-          | null
+        worker?.worker_status as WorkerStatus | null
 
       if (status !== 'available') {
         stopTracking()
         return
       }
 
-      const {
-        error: presenceError,
-      } = await supabase.rpc(
-        'worker_set_presence',
-        {
-          p_available: true,
-        }
-      )
+      const position =
+        await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        })
 
-      if (presenceError) {
-        throw presenceError
+      const { data, error } =
+        await supabase.rpc(
+          'worker_presence_heartbeat',
+          {
+            p_latitude:
+              position.coords.latitude,
+            p_longitude:
+              position.coords.longitude,
+          },
+        )
+
+      if (error) {
+        throw error
       }
 
-      await updateLocation()
+      if (!data?.success) {
+        throw new Error(
+          data?.error ||
+            'Worker presence heartbeat failed.',
+        )
+      }
+
+      console.log(
+        '[TempStaff Worker] Presence heartbeat OK:',
+        data.expires_at,
+      )
     } catch (error) {
       console.error(
-        '[TempStaff Worker] Presence renewal failed:',
-        error
+        '[TempStaff Worker] Presence heartbeat failed:',
+        error,
       )
+    } finally {
+      heartbeatInProgressRef.current = false
     }
   }
 
   const startTracking = async () => {
-    if (activeRef.current) {
+    if (
+      !mountedRef.current ||
+      activeRef.current
+    ) {
       return
     }
 
     try {
       const {
-        status,
+        status: permissionStatus,
       } =
         await Location.requestForegroundPermissionsAsync()
 
-      if (status !== 'granted') {
+      if (permissionStatus !== 'granted') {
         console.warn(
-          '[TempStaff Worker] Location permission not granted.'
+          '[TempStaff Worker] Location permission not granted.',
         )
         return
       }
 
       const {
         data: worker,
-        error,
+        error: workerError,
       } = await supabase
         .from('worker_profiles')
         .select('worker_status')
         .maybeSingle()
 
-      if (error) {
-        throw error
+      if (workerError) {
+        throw workerError
       }
 
       if (
@@ -162,85 +151,87 @@ export default function WorkerPresence() {
 
       activeRef.current = true
 
-      await supabase.rpc(
-        'worker_set_presence',
-        {
-          p_available: true,
-        }
-      )
+      // Immediate heartbeat.
+      await heartbeat()
 
-      await updateLocation()
+      if (!activeRef.current) {
+        return
+      }
 
+      // GPS watcher gives us faster updates when
+      // the worker actually moves.
       locationSubscription.current =
         await Location.watchPositionAsync(
           {
-            accuracy:
-              Location.Accuracy.High,
+            accuracy: Location.Accuracy.High,
             timeInterval: 60 * 1000,
             distanceInterval: 100,
           },
           async position => {
-            if (!activeRef.current) {
+            if (
+              !mountedRef.current ||
+              !activeRef.current
+            ) {
               return
             }
 
             try {
-              const {
-                error,
-              } = await supabase.rpc(
-                'worker_update_location',
-                {
-                  p_latitude:
-                    position.coords.latitude,
-                  p_longitude:
-                    position.coords.longitude,
-                  p_booking_id: null,
-                }
-              )
+              const { data, error } =
+                await supabase.rpc(
+                  'worker_presence_heartbeat',
+                  {
+                    p_latitude:
+                      position.coords.latitude,
+                    p_longitude:
+                      position.coords.longitude,
+                  },
+                )
 
               if (error) {
-                console.error(
-                  '[TempStaff Worker] GPS update failed:',
-                  error
-                )
-                return
+                throw error
               }
 
-              await supabase.rpc(
-                'worker_set_presence',
-                {
-                  p_available: true,
-                }
+              if (!data?.success) {
+                throw new Error(
+                  data?.error ||
+                    'Presence heartbeat failed.',
+                )
+              }
+
+              console.log(
+                '[TempStaff Worker] GPS heartbeat OK:',
+                data.expires_at,
               )
             } catch (error) {
               console.error(
-                '[TempStaff Worker] GPS processing failed:',
-                error
+                '[TempStaff Worker] GPS heartbeat failed:',
+                error,
               )
             }
-          }
+          },
         )
 
-      renewTimer.current =
-        setInterval(
-          renewPresence,
-          RENEW_INTERVAL_MS
-        )
+      // Timer guarantees renewal even if the worker
+      // does not move enough to trigger the GPS watcher.
+      heartbeatTimer.current =
+        setInterval(() => {
+          void heartbeat()
+        }, HEARTBEAT_INTERVAL_MS)
     } catch (error) {
       activeRef.current = false
 
       console.error(
         '[TempStaff Worker] Failed to start presence:',
-        error
+        error,
       )
     }
   }
 
   useEffect(() => {
-    let mounted = true
+    mountedRef.current = true
 
     const checkPresence = async () => {
-      if (!mounted) {
+      if (!mountedRef.current) {
         return
       }
 
@@ -268,37 +259,47 @@ export default function WorkerPresence() {
       } catch (error) {
         console.error(
           '[TempStaff Worker] Presence check failed:',
-          error
+          error,
         )
       }
     }
 
     void checkPresence()
 
-    const interval =
+    const presenceCheckTimer =
       setInterval(
-        checkPresence,
-        30 * 1000
+        () => {
+          void checkPresence()
+        },
+        30 * 1000,
       )
+
+    const handleAppStateChange = (
+      nextState: AppStateStatus,
+    ) => {
+      if (
+        nextState === 'active' &&
+        activeRef.current
+      ) {
+        void heartbeat()
+      }
+    }
 
     const subscription =
       AppState.addEventListener(
         'change',
-        nextState => {
-          if (
-            nextState ===
-              'active' &&
-            activeRef.current
-          ) {
-            void renewPresence()
-          }
-        }
+        handleAppStateChange,
       )
 
     return () => {
-      mounted = false
-      clearInterval(interval)
+      mountedRef.current = false
+
+      clearInterval(
+        presenceCheckTimer,
+      )
+
       subscription.remove()
+
       stopTracking()
     }
   }, [])
