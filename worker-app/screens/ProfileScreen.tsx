@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   ActivityIndicator,
@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-
+import * as Location from 'expo-location'
 import { supabase } from '../lib/supabase'
 
 type ProfileScreenProps = {
@@ -49,6 +49,9 @@ export default function ProfileScreen({
 
   const [updatingStatus, setUpdatingStatus] =
     useState(false)
+
+  const locationSubscription =
+    useRef<Location.LocationSubscription | null>(null)
 
   const loadProfile = useCallback(async () => {
     try {
@@ -171,58 +174,160 @@ export default function ProfileScreen({
         )
       }
 
-      console.log(
-        '[TempStaff Worker] Updating worker status:',
-        {
-          userId: user.id,
-          newStatus,
+      if (enabled) {
+        const { status } =
+          await Location.requestForegroundPermissionsAsync()
+
+        if (status !== 'granted') {
+          Alert.alert(
+            'Location permission required',
+            'Location access is required while you are available for jobs.'
+          )
+          return
         }
-      )
 
-      const { data, error } = await supabase
-        .from('worker_profiles')
-        .update({
-          worker_status: newStatus,
-          updated_at: new Date().toISOString(),
+        const currentLocation =
+          await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          })
+
+        const {
+          data: presenceData,
+          error: presenceError,
+        } = await supabase.rpc('worker_set_presence', {
+          p_available: true,
         })
-        .eq('id', user.id)
-        .select('id, worker_status, updated_at')
-        .maybeSingle()
 
-      if (error) {
-        console.error(
-          '[TempStaff Worker] Supabase status update error:',
-          error
-        )
+        if (presenceError) {
+          throw presenceError
+        }
 
-        throw error
-      }
+        if (!presenceData?.success) {
+          throw new Error(
+            presenceData?.error ||
+              'Unable to become available.'
+          )
+        }
 
-      console.log(
-        '[TempStaff Worker] Status update response:',
-        data
-      )
+        const {
+          error: locationError,
+        } = await supabase.rpc('worker_update_location', {
+          p_latitude:
+            currentLocation.coords.latitude,
+          p_longitude:
+            currentLocation.coords.longitude,
+          p_booking_id: null,
+        })
 
-      if (!data) {
-        throw new Error(
-          'No worker profile was updated. Check the worker_profiles row and RLS policy.'
-        )
-      }
+        if (locationError) {
+          throw locationError
+        }
 
-      setProfile(current =>
-        current
-          ? {
-              ...current,
-              worker_status:
-                data.worker_status as WorkerStatus,
+        locationSubscription.current?.remove()
+
+        locationSubscription.current =
+          await Location.watchPositionAsync(
+            {
+              accuracy: Location.Accuracy.High,
+              timeInterval: 60_000,
+              distanceInterval: 100,
+            },
+            async (newLocation) => {
+              try {
+                const {
+                  error: updateError,
+                } = await supabase.rpc(
+                  'worker_update_location',
+                  {
+                    p_latitude:
+                      newLocation.coords.latitude,
+                    p_longitude:
+                      newLocation.coords.longitude,
+                    p_booking_id: null,
+                  }
+                )
+
+                if (updateError) {
+                  console.error(
+                    '[TempStaff Worker] Location update failed:',
+                    updateError
+                  )
+                }
+
+                // Renew the 15-minute availability window.
+                const {
+                  error: presenceRenewError,
+                } = await supabase.rpc(
+                  'worker_set_presence',
+                  {
+                    p_available: true,
+                  }
+                )
+
+                if (presenceRenewError) {
+                  console.error(
+                    '[TempStaff Worker] Availability renewal failed:',
+                    presenceRenewError
+                  )
+                }
+              } catch (watchError) {
+                console.error(
+                  '[TempStaff Worker] Presence watcher error:',
+                  watchError
+                )
+              }
             }
-          : current
-      )
+          )
 
-      Alert.alert(
-        'Availability updated',
-        `You are now ${newStatus}.`
-      )
+        setProfile(current =>
+          current
+            ? {
+                ...current,
+                worker_status: 'available',
+              }
+            : current
+        )
+
+        Alert.alert(
+          'Availability updated',
+          'You are now available for new bookings.'
+        )
+      } else {
+        locationSubscription.current?.remove()
+        locationSubscription.current = null
+
+        const {
+          data: presenceData,
+          error: presenceError,
+        } = await supabase.rpc('worker_set_presence', {
+          p_available: false,
+        })
+
+        if (presenceError) {
+          throw presenceError
+        }
+
+        if (!presenceData?.success) {
+          throw new Error(
+            presenceData?.error ||
+              'Unable to go offline.'
+          )
+        }
+
+        setProfile(current =>
+          current
+            ? {
+                ...current,
+                worker_status: 'offline',
+              }
+            : current
+        )
+
+        Alert.alert(
+          'Availability updated',
+          'You are now offline.'
+        )
+      }
     } catch (error: any) {
       console.error(
         '[TempStaff Worker] Failed to update worker status:',
@@ -334,6 +439,12 @@ export default function ProfileScreen({
         return '#6b7280'
     }
   }
+  useEffect(() => {
+  return () => {
+    locationSubscription.current?.remove()
+    locationSubscription.current = null
+  }
+}, [])
 
   const isAvailable =
     profile?.worker_status === 'available'
