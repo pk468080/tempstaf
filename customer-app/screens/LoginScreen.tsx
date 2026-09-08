@@ -295,6 +295,7 @@ const { data: profile, error: profileError } = await supabase
           email: normalizedEmail,
           options: {
             shouldCreateUser: false,
+            emailRedirectTo: 'tempstaff://auth/callback',
           },
         })
 
