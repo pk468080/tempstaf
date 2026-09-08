@@ -355,21 +355,21 @@ export async function createBooking(
     throw error
   }
 
-  if (!data?.booking_id) {
-  console.error(
-    '[TempStaff] Secure booking RPC returned invalid data:',
-    data
-  )
+if (!data?.booking_id) {
+   console.error(
+     '[TempStaff] Secure booking RPC returned invalid data:',
+     data
+   )
 
-  throw new Error(
-    'Booking was not created.'
-  )
-}
+   throw new Error(
+     'Booking was not created.'
+   )
+ }
 
-return {
-  ...data,
-  id: String(data.booking_id),
-}
+ return {
+   ...data,
+   id: String(data.booking_id),
+ }
 }
 export async function markBookingPaid(
   bookingId: string

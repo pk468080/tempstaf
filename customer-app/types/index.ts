@@ -18,7 +18,6 @@ export type BookingMode =
 export type RootStackParamList = {
   Splash: undefined
   Login: undefined
-  OTP: { phone: string }
 
   CustomerDetails: undefined
 

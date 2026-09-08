@@ -279,6 +279,8 @@ export default function Bookings() {
     serviceFilter,
     profiles,
     services,
+    getProfileName,
+    getServiceName,
   ])
 
   const availableStatuses = useMemo(() => {

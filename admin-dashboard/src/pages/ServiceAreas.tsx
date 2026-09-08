@@ -403,7 +403,7 @@ export default function ServiceAreas() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [form.name, form.radius_km, form.center_latitude, form.center_longitude])
 
   useEffect(() => {
     if (

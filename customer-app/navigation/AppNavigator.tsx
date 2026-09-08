@@ -5,11 +5,10 @@ import { RootStackParamList } from '../types'
 import ManualLocationScreen from '../screens/ManualLocationScreen'
 import SplashScreen from '../screens/SplashScreen'
 import LoginScreen from '../screens/LoginScreen'
-import OtpScreen from '../screens/OtpScreen'
 import CustomerDetailsScreen from '../screens/CustomerDetailsScreen'
 
 import HomeScreen from '../screens/HomeScreen'
-import ServicesScreen from '../screens/ServicesScreen'
+import ServicesScreen from '../screens/ServicesScreen'  
 import LocationScreen from '../screens/LocationScreen'
 import WorkersScreen from '../screens/WorkersScreen'
 import SummaryScreen from '../screens/SummaryScreen'
@@ -54,11 +53,6 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Login"
           component={LoginScreen}
-        />
-
-        <Stack.Screen
-          name="OTP"
-          component={OtpScreen}
         />
 
         <Stack.Screen

@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-
+import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -11,7 +10,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import * as Location from 'expo-location'
 import { supabase } from '../lib/supabase'
 
 type ProfileScreenProps = {
@@ -50,9 +48,6 @@ export default function ProfileScreen({
   const [updatingStatus, setUpdatingStatus] =
     useState(false)
 
-  const locationSubscription =
-    useRef<Location.LocationSubscription | null>(null)
-
   const loadProfile = useCallback(async () => {
     try {
       setLoading(true)
@@ -63,16 +58,18 @@ export default function ProfileScreen({
 
       if (!user) {
         throw new Error(
-          'Worker is not authenticated.'
+          'Worker is not authenticated.',
         )
       }
 
-      const { data: profileData, error: profileError } =
-        await supabase
-          .from('profiles')
-          .select('full_name, phone')
-          .eq('id', user.id)
-          .maybeSingle()
+      const {
+        data: profileData,
+        error: profileError,
+      } = await supabase
+        .from('profiles')
+        .select('full_name, phone')
+        .eq('id', user.id)
+        .maybeSingle()
 
       if (profileError) {
         throw profileError
@@ -114,13 +111,13 @@ export default function ProfileScreen({
     } catch (error: any) {
       console.error(
         '[TempStaff Worker] Failed to load profile:',
-        error
+        error,
       )
 
       Alert.alert(
         'Unable to load profile',
         error?.message ||
-          'Please try again.'
+          'Please try again.',
       )
     } finally {
       setLoading(false)
@@ -128,11 +125,11 @@ export default function ProfileScreen({
   }, [])
 
   useEffect(() => {
-    loadProfile()
+    void loadProfile()
   }, [loadProfile])
 
   const updateWorkerStatus = async (
-    enabled: boolean
+    enabled: boolean,
   ) => {
     if (!profile) {
       return
@@ -146,198 +143,66 @@ export default function ProfileScreen({
         'Status cannot be changed',
         profile.worker_status === 'busy'
           ? 'You cannot change availability while you are busy.'
-          : 'Your account is suspended.'
+          : 'Your account is suspended.',
       )
 
       return
     }
 
-    const newStatus = enabled
-      ? 'available'
-      : 'offline'
-
     try {
       setUpdatingStatus(true)
 
       const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
+        data: presenceData,
+        error: presenceError,
+      } = await supabase.rpc(
+        'worker_set_presence',
+        {
+          p_available: enabled,
+        },
+      )
 
-      if (userError) {
-        throw userError
+      if (presenceError) {
+        throw presenceError
       }
 
-      if (!user) {
+      if (!presenceData?.success) {
         throw new Error(
-          'Worker is not authenticated.'
+          presenceData?.error ||
+            'Unable to update availability.',
         )
       }
 
-      if (enabled) {
-        const { status } =
-          await Location.requestForegroundPermissionsAsync()
+      const nextStatus: WorkerStatus =
+        enabled
+          ? 'available'
+          : 'offline'
 
-        if (status !== 'granted') {
-          Alert.alert(
-            'Location permission required',
-            'Location access is required while you are available for jobs.'
-          )
-          return
-        }
-
-        const currentLocation =
-          await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          })
-
-        const {
-          data: presenceData,
-          error: presenceError,
-        } = await supabase.rpc('worker_set_presence', {
-          p_available: true,
-        })
-
-        if (presenceError) {
-          throw presenceError
-        }
-
-        if (!presenceData?.success) {
-          throw new Error(
-            presenceData?.error ||
-              'Unable to become available.'
-          )
-        }
-
-        const {
-          error: locationError,
-        } = await supabase.rpc('worker_update_location', {
-          p_latitude:
-            currentLocation.coords.latitude,
-          p_longitude:
-            currentLocation.coords.longitude,
-          p_booking_id: null,
-        })
-
-        if (locationError) {
-          throw locationError
-        }
-
-        locationSubscription.current?.remove()
-
-        locationSubscription.current =
-          await Location.watchPositionAsync(
-            {
-              accuracy: Location.Accuracy.High,
-              timeInterval: 60_000,
-              distanceInterval: 100,
-            },
-            async (newLocation) => {
-              try {
-                const {
-                  error: updateError,
-                } = await supabase.rpc(
-                  'worker_update_location',
-                  {
-                    p_latitude:
-                      newLocation.coords.latitude,
-                    p_longitude:
-                      newLocation.coords.longitude,
-                    p_booking_id: null,
-                  }
-                )
-
-                if (updateError) {
-                  console.error(
-                    '[TempStaff Worker] Location update failed:',
-                    updateError
-                  )
-                }
-
-                // Renew the 15-minute availability window.
-                const {
-                  error: presenceRenewError,
-                } = await supabase.rpc(
-                  'worker_set_presence',
-                  {
-                    p_available: true,
-                  }
-                )
-
-                if (presenceRenewError) {
-                  console.error(
-                    '[TempStaff Worker] Availability renewal failed:',
-                    presenceRenewError
-                  )
-                }
-              } catch (watchError) {
-                console.error(
-                  '[TempStaff Worker] Presence watcher error:',
-                  watchError
-                )
-              }
+      setProfile(current =>
+        current
+          ? {
+              ...current,
+              worker_status: nextStatus,
             }
-          )
+          : current,
+      )
 
-        setProfile(current =>
-          current
-            ? {
-                ...current,
-                worker_status: 'available',
-              }
-            : current
-        )
-
-        Alert.alert(
-          'Availability updated',
-          'You are now available for new bookings.'
-        )
-      } else {
-        locationSubscription.current?.remove()
-        locationSubscription.current = null
-
-        const {
-          data: presenceData,
-          error: presenceError,
-        } = await supabase.rpc('worker_set_presence', {
-          p_available: false,
-        })
-
-        if (presenceError) {
-          throw presenceError
-        }
-
-        if (!presenceData?.success) {
-          throw new Error(
-            presenceData?.error ||
-              'Unable to go offline.'
-          )
-        }
-
-        setProfile(current =>
-          current
-            ? {
-                ...current,
-                worker_status: 'offline',
-              }
-            : current
-        )
-
-        Alert.alert(
-          'Availability updated',
-          'You are now offline.'
-        )
-      }
+      Alert.alert(
+        'Availability updated',
+        enabled
+          ? 'You are now available for new bookings.'
+          : 'You are now offline.',
+      )
     } catch (error: any) {
       console.error(
         '[TempStaff Worker] Failed to update worker status:',
-        error
+        error,
       )
 
       Alert.alert(
         'Unable to update availability',
         error?.message ||
-          'Please try again.'
+          'Please try again.',
       )
     } finally {
       setUpdatingStatus(false)
@@ -353,11 +218,9 @@ export default function ProfileScreen({
           text: 'Cancel',
           style: 'cancel',
         },
-
         {
           text: 'Logout',
           style: 'destructive',
-
           onPress: async () => {
             try {
               setLoggingOut(true)
@@ -374,17 +237,17 @@ export default function ProfileScreen({
               Alert.alert(
                 'Logout failed',
                 error?.message ||
-                  'Please try again.'
+                  'Please try again.',
               )
             }
           },
         },
-      ]
+      ],
     )
   }
 
   const getStatusLabel = (
-    status: WorkerStatus
+    status: WorkerStatus,
   ) => {
     switch (status) {
       case 'available':
@@ -403,7 +266,7 @@ export default function ProfileScreen({
   }
 
   const getStatusDescription = (
-    status: WorkerStatus
+    status: WorkerStatus,
   ) => {
     switch (status) {
       case 'available':
@@ -422,7 +285,7 @@ export default function ProfileScreen({
   }
 
   const getStatusColor = (
-    status: WorkerStatus
+    status: WorkerStatus,
   ) => {
     switch (status) {
       case 'available':
@@ -439,12 +302,6 @@ export default function ProfileScreen({
         return '#6b7280'
     }
   }
-  useEffect(() => {
-  return () => {
-    locationSubscription.current?.remove()
-    locationSubscription.current = null
-  }
-}, [])
 
   const isAvailable =
     profile?.worker_status === 'available'
@@ -489,7 +346,7 @@ export default function ProfileScreen({
   }
 
   const statusColor = getStatusColor(
-    profile.worker_status
+    profile.worker_status,
   )
 
   return (
@@ -520,7 +377,7 @@ export default function ProfileScreen({
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
               {getInitials(
-                profile.full_name
+                profile.full_name,
               )}
             </Text>
           </View>
@@ -562,7 +419,7 @@ export default function ProfileScreen({
               ]}
             >
               {getStatusLabel(
-                profile.worker_status
+                profile.worker_status,
               )}
             </Text>
           </View>
@@ -638,7 +495,7 @@ export default function ProfileScreen({
                 style={styles.statusTitle}
               >
                 {getStatusLabel(
-                  profile.worker_status
+                  profile.worker_status,
                 )}
               </Text>
 
@@ -646,7 +503,7 @@ export default function ProfileScreen({
                 style={styles.statusText}
               >
                 {getStatusDescription(
-                  profile.worker_status
+                  profile.worker_status,
                 )}
               </Text>
             </View>
@@ -679,7 +536,9 @@ export default function ProfileScreen({
               <ActivityIndicator size="small" />
 
               <Text
-                style={styles.statusLoadingText}
+                style={
+                  styles.statusLoadingText
+                }
               >
                 Updating availability...
               </Text>
@@ -763,24 +622,23 @@ export default function ProfileScreen({
 
         {/* SETTINGS */}
 
-
         <TouchableOpacity
           style={styles.settingsButton}
           onPress={onSettings}
           disabled={loggingOut}
         >
-          <Text style={styles.settingsButtonText}>
+          <Text
+            style={styles.settingsButtonText}
+          >
             Settings
           </Text>
         </TouchableOpacity>
-
-      
 
         {/* EDIT PROFILE */}
 
         <TouchableOpacity
           style={styles.editButton}
-          onPress={onEditProfile} 
+          onPress={onEditProfile}
           disabled={loggingOut}
         >
           <Text
@@ -838,7 +696,7 @@ function InfoRow({
 }
 
 function getInitials(
-  name: string | null | undefined
+  name: string | null | undefined,
 ) {
   if (!name) {
     return 'W'
@@ -1143,19 +1001,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
-  settingsButton: {
-  backgroundColor: '#ffffff',
-  borderRadius: 15,
-  paddingVertical: 15,
-  alignItems: 'center',
-  marginTop: 12,
-  borderWidth: 1,
-  borderColor: '#d1d5db',
-},
 
-settingsButtonText: {
-  color: '#0b1f3a',
-  fontSize: 15,
-  fontWeight: '800',
-},
+  settingsButton: {
+    backgroundColor: '#ffffff',
+    borderRadius: 15,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+
+  settingsButtonText: {
+    color: '#0b1f3a',
+    fontSize: 15,
+    fontWeight: '800',
+  },
 })
