@@ -11,6 +11,7 @@ import SplashScreen from '../screens/SplashScreen'
 import LoginScreen from '../screens/LoginScreen'
 import VerifyOtpScreen from '../screens/VerifyOtpScreen'
 import CustomerDetailsScreen from '../screens/CustomerDetailsScreen'
+import CustomerLocationScreen from '../screens/CustomerLocationScreen'
 import HomeScreen from '../screens/HomeScreen'
 import ServicesScreen from '../screens/ServicesScreen'
 import LocationScreen from '../screens/LocationScreen'
@@ -67,6 +68,10 @@ export default function AppNavigator() {
           name="CustomerDetails"
           component={CustomerDetailsScreen}
         />
+        <Stack.Screen
+  name="CustomerLocation"
+  component={CustomerLocationScreen}
+/>
 
         <Stack.Screen
           name="Home"

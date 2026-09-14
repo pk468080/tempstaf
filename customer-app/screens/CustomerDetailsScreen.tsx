@@ -68,9 +68,13 @@ export default function CustomerDetailsScreen({
       })
 
       navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      })
+  index: 0,
+  routes: [
+    {
+      name: 'CustomerLocation',
+    },
+  ],
+})
     } catch (error: any) {
       console.error(
         '[TempStaff] Customer profile save failed:',

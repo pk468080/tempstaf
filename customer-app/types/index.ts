@@ -25,7 +25,10 @@ export type RootStackParamList = {
 
   CustomerDetails: undefined
 
-  Home:
+CustomerLocation: undefined
+
+Home:
+
     | undefined
     | {
         latitude: number
