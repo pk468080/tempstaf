@@ -19,17 +19,22 @@ export type RootStackParamList = {
   Splash: undefined
   Login: undefined
 
+  VerifyOtp: {
+    phone: string
+  }
+
   CustomerDetails: undefined
 
   Home:
-  | undefined
-  | {
-      latitude: number
-      longitude: number
-      label: string
-      detail: string
-    }
-    ManualLocation: undefined
+    | undefined
+    | {
+        latitude: number
+        longitude: number
+        label: string
+        detail: string
+      }
+
+  ManualLocation: undefined
   Services: undefined
   Location: undefined
   Workers: undefined
