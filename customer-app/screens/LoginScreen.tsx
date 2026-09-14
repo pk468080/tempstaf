@@ -9,20 +9,36 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 
 import { COLORS, LOGO } from '../constants/theme'
 import { RootStackParamList } from '../types'
-import { supabase } from '../lib/supabase'
 import PrimaryButton from '../components/PrimaryButton'
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
   'Login'
 >
+
+/*
+ * ============================================================
+ * DEVELOPMENT OTP MODE
+ * ============================================================
+ *
+ * TEMPORARY ONLY.
+ *
+ * When true:
+ * - Supabase/Twilio OTP sending is bypassed.
+ * - No SMS is sent.
+ * - The user is taken directly to VerifyOtp.
+ *
+ * Set this to false before production.
+ */
+export const DEV_HARDCODED_OTP_MODE = true
+
+export const DEV_HARDCODED_OTP = '123456'
 
 function normalizePhone(value: string) {
   return value.replace(/[^\d+]/g, '')
@@ -61,18 +77,51 @@ export default function LoginScreen({
     try {
       setLoading(true)
 
-      const { error } =
-        await supabase.auth.signInWithOtp({
+      /*
+       * ========================================================
+       * TEMPORARY DEVELOPMENT BYPASS
+       * ========================================================
+       *
+       * The real Supabase/Twilio code is intentionally kept
+       * below but disabled while testing the application flow.
+       */
+
+      if (DEV_HARDCODED_OTP_MODE) {
+        console.log(
+          '[TempStaff] DEV OTP MODE: bypassing Supabase/Twilio OTP'
+        )
+
+        navigation.navigate('VerifyOtp', {
           phone: normalizedPhone,
         })
 
-      if (error) {
-        throw error
+        return
       }
 
-      navigation.navigate('VerifyOtp', {
-        phone: normalizedPhone,
-      })
+      /*
+       * ========================================================
+       * PRODUCTION OTP FLOW
+       * ========================================================
+       *
+       * Re-enable this by setting:
+       *
+       * DEV_HARDCODED_OTP_MODE = false
+       *
+       * Supabase will then send the real SMS OTP.
+       */
+
+      // const { error } =
+      //   await supabase.auth.signInWithOtp({
+      //     phone: normalizedPhone,
+      //   })
+      //
+      // if (error) {
+      //   throw error
+      // }
+      //
+      // navigation.navigate('VerifyOtp', {
+      //   phone: normalizedPhone,
+      // })
     } catch (error: any) {
       console.error(
         '[TempStaff] Failed to send customer OTP:',
@@ -130,8 +179,7 @@ export default function LoginScreen({
             </Text>
 
             <Text style={styles.subtitle}>
-              Enter your mobile number and we'll
-              send you a one-time verification code.
+              Enter your mobile number to continue.
             </Text>
 
             <Text style={styles.label}>
@@ -168,12 +216,28 @@ export default function LoginScreen({
             <PrimaryButton
               title={
                 loading
-                  ? 'Sending OTP...'
-                  : 'Send OTP'
+                  ? 'Continuing...'
+                  : 'Continue'
               }
               onPress={handleSendOtp}
               disabled={loading || !validPhone}
             />
+
+            {DEV_HARDCODED_OTP_MODE && (
+              <View style={styles.devNotice}>
+                <Text style={styles.devNoticeTitle}>
+                  DEVELOPMENT MODE
+                </Text>
+
+                <Text style={styles.devNoticeText}>
+                  SMS is temporarily disabled.
+                </Text>
+
+                <Text style={styles.devOtp}>
+                  Test OTP: {DEV_HARDCODED_OTP}
+                </Text>
+              </View>
+            )}
 
             <Text style={styles.securityText}>
               Your mobile number is used to securely
@@ -298,6 +362,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: '#6B7280',
+  },
+
+  devNotice: {
+    marginTop: 18,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+
+  devNoticeTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+
+  devNoticeText: {
+    fontSize: 12,
+    color: '#92400E',
+  },
+
+  devOtp: {
+    marginTop: 6,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#92400E',
   },
 
   securityText: {

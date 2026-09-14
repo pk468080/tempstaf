@@ -14,9 +14,15 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 
 import { COLORS } from '../constants/theme'
-import { RootStackParamList } from '../types'
 import { supabase } from '../lib/supabase'
+import { RootStackParamList } from '../types'
 import PrimaryButton from '../components/PrimaryButton'
+import {
+  DEV_HARDCODED_OTP,
+  DEV_HARDCODED_OTP_MODE,
+} from './LoginScreen'
+
+
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -39,7 +45,6 @@ export default function VerifyOtpScreen({
 
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
-  const [resending, setResending] = useState(false)
 
   const cleanOtp = useMemo(
     () => otp.replace(/\D/g, '').slice(0, 6),
@@ -58,90 +63,98 @@ export default function VerifyOtpScreen({
     try {
       setLoading(true)
 
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.verifyOtp({
-        phone,
-        token: cleanOtp,
-        type: 'sms',
-      })
-
-      if (error) {
-        throw error
-      }
-
-      if (!user) {
-        throw new Error(
-          'Authentication succeeded without returning a user.'
-        )
-      }
-
       /*
-       * The authenticated user's phone is authoritative.
-       * Never trust the phone entered on the previous screen
-       * after OTP verification.
+       * ========================================================
+       * TEMPORARY DEVELOPMENT OTP
+       * ========================================================
        */
-      const verifiedPhone =
-        user.phone || phone
 
-      const {
-        data: existingProfile,
-        error: profileError,
-      } = await supabase
-        .from('profiles')
-        .select(
-          'id, full_name, phone, email, role, is_active, company_name'
-        )
-        .eq('id', user.id)
-        .maybeSingle()
-
-      if (profileError) {
-        await supabase.auth.signOut()
-        throw profileError
-      }
-
-      /*
-       * New phone-authenticated users may not have a
-       * profile row yet. The profiles table defaults role
-       * to customer and is_active to true, while the
-       * server-side trigger protects privileged fields.
-       */
-      if (!existingProfile) {
-        const {
-          data: createdProfile,
-          error: createProfileError,
-        } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            phone: verifiedPhone,
-            email: user.email ?? null,
-          })
-          .select(
-            'id, full_name, phone, email, role, is_active, company_name'
-          )
-          .single()
-
-        if (createProfileError) {
-          await supabase.auth.signOut()
-          throw createProfileError
-        }
-
-        if (
-          !createdProfile ||
-          createdProfile.role !== 'customer' ||
-          createdProfile.is_active !== true
-        ) {
-          await supabase.auth.signOut()
-
+      if (DEV_HARDCODED_OTP_MODE) {
+        if (cleanOtp !== DEV_HARDCODED_OTP) {
           Alert.alert(
-            'Account unavailable',
-            'Your account could not be configured as an active customer account.'
+            'Invalid OTP',
+            `For development testing, use ${DEV_HARDCODED_OTP}.`
           )
 
           return
         }
+
+        console.log(
+          '[TempStaff] DEV OTP accepted'
+        )
+
+        /*
+         * Create a real Supabase development session.
+         *
+         * This uses the existing development helper in
+         * services/booking.ts. It creates an anonymous
+         * Supabase session and a customer profile.
+         *
+         * This is TEMPORARY and must not be used as
+         * production authentication.
+         */
+        /*
+ * ========================================================
+ * TEMPORARY DEVELOPMENT SUPABASE SESSION
+ * ========================================================
+ *
+ * The real SMS OTP is currently disabled.
+ * Create an anonymous Supabase session so the rest
+ * of the customer app can be tested with normal RLS.
+ */
+
+const {
+  data: sessionData,
+  error: sessionError,
+} = await supabase.auth.signInAnonymously()
+
+if (sessionError) {
+  throw sessionError
+}
+
+if (
+  !sessionData.session ||
+  !sessionData.user
+) {
+  throw new Error(
+    'Supabase did not return a development authentication session.'
+  )
+}
+
+const developmentUser =
+  sessionData.user
+
+const {
+  error: profileError,
+} = await supabase
+  .from('profiles')
+  .upsert(
+    {
+      id: developmentUser.id,
+      phone,
+      role: 'customer',
+      is_active: true,
+    },
+    {
+      onConflict: 'id',
+    }
+  )
+
+if (profileError) {
+  console.error(
+    '[TempStaff] Failed to create development customer profile:',
+    profileError
+  )
+
+  await supabase.auth.signOut()
+
+  throw profileError
+}
+
+console.log(
+  '[TempStaff] DEV Supabase session created:',
+  developmentUser.id
+)
 
         navigation.reset({
           index: 0,
@@ -155,87 +168,21 @@ export default function VerifyOtpScreen({
         return
       }
 
-      if (
-        existingProfile.role !== 'customer'
-      ) {
-        await supabase.auth.signOut()
-
-        Alert.alert(
-          'Wrong account type',
-          'This account cannot be used in the TempStaff customer app.'
-        )
-
-        return
-      }
-
-      if (
-        existingProfile.is_active !== true
-      ) {
-        await supabase.auth.signOut()
-
-        Alert.alert(
-          'Account inactive',
-          'Your TempStaff customer account is currently inactive.'
-        )
-
-        return
-      }
-
       /*
-       * Keep the customer's profile phone/email aligned
-       * with the authenticated Supabase user.
+       * ========================================================
+       * PRODUCTION SUPABASE OTP FLOW
+       * ========================================================
+       *
+       * This remains disabled while development OTP mode
+       * is active.
+       *
+       * When ready for production:
+       *
+       * DEV_HARDCODED_OTP_MODE = false
+       *
+       * Then restore the normal Supabase verifyOtp flow.
        */
-      const profileUpdates: {
-        phone?: string
-        email?: string | null
-      } = {}
 
-      if (
-        existingProfile.phone !== verifiedPhone
-      ) {
-        profileUpdates.phone = verifiedPhone
-      }
-
-      const verifiedEmail =
-        user.email ?? null
-
-      if (
-        existingProfile.email !== verifiedEmail
-      ) {
-        profileUpdates.email = verifiedEmail
-      }
-
-      if (
-        Object.keys(profileUpdates).length > 0
-      ) {
-        const { error: updateError } =
-          await supabase
-            .from('profiles')
-            .update(profileUpdates)
-            .eq('id', user.id)
-
-        if (updateError) {
-          await supabase.auth.signOut()
-          throw updateError
-        }
-      }
-
-      const profileComplete =
-        (existingProfile.full_name ?? '')
-          .trim().length >= 2 &&
-        (existingProfile.company_name ?? '')
-          .trim().length >= 2
-
-      navigation.reset({
-        index: 0,
-        routes: [
-          {
-            name: profileComplete
-              ? 'Home'
-              : 'CustomerDetails',
-          },
-        ],
-      })
     } catch (error: any) {
       console.error(
         '[TempStaff] Customer OTP verification failed:',
@@ -245,45 +192,10 @@ export default function VerifyOtpScreen({
       Alert.alert(
         'OTP verification failed',
         error?.message ||
-          'The verification code is invalid or expired. Please request a new code.'
+          'The verification code could not be verified. Please try again.'
       )
     } finally {
       setLoading(false)
-    }
-  }
-
-  const resendOtp = async () => {
-    try {
-      setResending(true)
-
-      const { error } =
-        await supabase.auth.signInWithOtp({
-          phone,
-        })
-
-      if (error) {
-        throw error
-      }
-
-      setOtp('')
-
-      Alert.alert(
-        'OTP sent',
-        'A new verification code has been sent to your mobile number.'
-      )
-    } catch (error: any) {
-      console.error(
-        '[TempStaff] Failed to resend customer OTP:',
-        error
-      )
-
-      Alert.alert(
-        'Unable to resend OTP',
-        error?.message ||
-          'Please wait before requesting another code.'
-      )
-    } finally {
-      setResending(false)
     }
   }
 
@@ -300,12 +212,11 @@ export default function VerifyOtpScreen({
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() =>
-              navigation.goBack()
-            }
+            onPress={() => navigation.goBack()}
             disabled={loading}
           >
             <Text style={styles.backText}>
@@ -319,12 +230,28 @@ export default function VerifyOtpScreen({
             </Text>
 
             <Text style={styles.subtitle}>
-              Enter the 6-digit code sent to
+              Enter the 6-digit code for
             </Text>
 
             <Text style={styles.phone}>
               {getFriendlyPhone(phone)}
             </Text>
+
+            {DEV_HARDCODED_OTP_MODE && (
+              <View style={styles.devNotice}>
+                <Text style={styles.devNoticeTitle}>
+                  DEVELOPMENT MODE
+                </Text>
+
+                <Text style={styles.devNoticeText}>
+                  SMS verification is temporarily disabled.
+                </Text>
+
+                <Text style={styles.devOtp}>
+                  Test OTP: {DEV_HARDCODED_OTP}
+                </Text>
+              </View>
+            )}
 
             <Text style={styles.label}>
               Verification code
@@ -346,7 +273,7 @@ export default function VerifyOtpScreen({
             />
 
             <Text style={styles.helper}>
-              Enter the 6-digit OTP from the SMS.
+              Enter the 6-digit verification code.
             </Text>
 
             <PrimaryButton
@@ -362,29 +289,8 @@ export default function VerifyOtpScreen({
               }
             />
 
-            <TouchableOpacity
-              style={styles.resendButton}
-              onPress={resendOtp}
-              disabled={
-                loading || resending
-              }
-            >
-              <Text
-                style={[
-                  styles.resendText,
-                  (loading || resending) &&
-                    styles.disabledText,
-                ]}
-              >
-                {resending
-                  ? 'Sending...'
-                  : 'Resend OTP'}
-              </Text>
-            </TouchableOpacity>
-
             <Text style={styles.note}>
-              For security, verification codes expire
-              and repeated requests are rate-limited.
+              Development OTP is temporarily enabled.
             </Text>
           </View>
         </ScrollView>
@@ -441,10 +347,38 @@ const styles = StyleSheet.create({
 
   phone: {
     marginTop: 5,
-    marginBottom: 32,
+    marginBottom: 24,
     fontSize: 17,
     fontWeight: '700',
     color: '#111827',
+  },
+
+  devNotice: {
+    marginBottom: 24,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+
+  devNoticeTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+
+  devNoticeText: {
+    fontSize: 12,
+    color: '#92400E',
+  },
+
+  devOtp: {
+    marginTop: 6,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#92400E',
   },
 
   label: {
@@ -474,23 +408,8 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
 
-  resendButton: {
-    alignItems: 'center',
-    paddingVertical: 18,
-  },
-
-  resendText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F766E',
-  },
-
-  disabledText: {
-    color: '#9CA3AF',
-  },
-
   note: {
-    marginTop: 12,
+    marginTop: 20,
     fontSize: 12,
     lineHeight: 18,
     color: '#6B7280',
