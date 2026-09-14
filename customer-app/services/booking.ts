@@ -69,78 +69,7 @@ export function createDevelopmentBookingId() {
   return `TS-${Date.now().toString().slice(-8)}`
 }
 
-export function verifyDevelopmentLoginOtp(otp: string) {
-  return otp === '123456'
-}
 
-export async function ensureDevelopmentSession(
-  phone?: string
-) {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (session?.user) {
-    const { data: profile, error: profileError } =
-      await supabase
-        .from('profiles')
-        .select('id, role, is_active')
-        .eq('id', session.user.id)
-        .maybeSingle()
-
-    if (
-      !profileError &&
-      profile &&
-      profile.role === 'customer' &&
-      profile.is_active === true
-    ) {
-      return session
-    }
-
-    await supabase.auth.signOut()
-  }
-
-  const { data, error } =
-    await supabase.auth.signInAnonymously()
-
-  if (error) {
-    throw error
-  }
-
-  if (!data.session || !data.user) {
-    throw new Error(
-      'Supabase did not return an authentication session.'
-    )
-  }
-
-  const { error: profileError } =
-    await supabase
-      .from('profiles')
-      .upsert(
-        {
-          id: data.user.id,
-          phone: phone ?? null,
-          role: 'customer',
-          is_active: true,
-        },
-        {
-          onConflict: 'id',
-        }
-      )
-
-  if (profileError) {
-    console.error(
-      '[TempStaff] Failed to create customer profile:',
-      profileError
-    )
-
-    await supabase.auth.signOut()
-
-    throw profileError
-  }
-
-  return data.session
-}
 
 /*
  * =============================================================================

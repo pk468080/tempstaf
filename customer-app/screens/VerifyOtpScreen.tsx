@@ -22,8 +22,6 @@ import {
   DEV_HARDCODED_OTP_MODE,
 } from './LoginScreen'
 
-
-
 type Props = NativeStackScreenProps<
   RootStackParamList,
   'VerifyOtp'
@@ -35,6 +33,65 @@ function getFriendlyPhone(phone: string) {
   }
 
   return `${phone.slice(0, 4)} ${phone.slice(4, -4)} ${phone.slice(-4)}`
+}
+
+async function getCustomerProfileStatus() {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+
+  if (userError) {
+    throw userError
+  }
+
+  if (!user) {
+    throw new Error(
+      'Supabase did not return an authenticated user.'
+    )
+  }
+
+  const {
+    data: profile,
+    error: profileError,
+  } = await supabase
+    .from('profiles')
+    .select(
+      `
+        id,
+        full_name,
+        company_name,
+        phone,
+        role,
+        is_active
+      `
+    )
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (profileError) {
+    throw profileError
+  }
+
+  if (
+    profile &&
+    profile.role === 'customer' &&
+    profile.is_active === true &&
+    (profile.full_name ?? '').trim().length >= 2 &&
+    (profile.company_name ?? '').trim().length >= 2
+  ) {
+    return {
+      user,
+      profile,
+      complete: true,
+    }
+  }
+
+  return {
+    user,
+    profile,
+    complete: false,
+  }
 }
 
 export default function VerifyOtpScreen({
@@ -65,8 +122,17 @@ export default function VerifyOtpScreen({
 
       /*
        * ========================================================
-       * TEMPORARY DEVELOPMENT OTP
+       * DEVELOPMENT OTP FLOW
        * ========================================================
+       *
+       * Temporary testing only.
+       *
+       * NOTE:
+       * Anonymous Supabase authentication cannot identify the
+       * same phone number across separate registrations.
+       *
+       * Therefore this development mode is still temporary.
+       * Production must use Supabase Phone OTP.
        */
 
       if (DEV_HARDCODED_OTP_MODE) {
@@ -83,78 +149,155 @@ export default function VerifyOtpScreen({
           '[TempStaff] DEV OTP accepted'
         )
 
-        /*
-         * Create a real Supabase development session.
-         *
-         * This uses the existing development helper in
-         * services/booking.ts. It creates an anonymous
-         * Supabase session and a customer profile.
-         *
-         * This is TEMPORARY and must not be used as
-         * production authentication.
-         */
-        /*
- * ========================================================
- * TEMPORARY DEVELOPMENT SUPABASE SESSION
- * ========================================================
- *
- * The real SMS OTP is currently disabled.
- * Create an anonymous Supabase session so the rest
- * of the customer app can be tested with normal RLS.
+       let developmentUser = null
+
+/*
+ * First check whether the existing development session
+ * belongs to this phone number.
  */
-
 const {
-  data: sessionData,
-  error: sessionError,
-} = await supabase.auth.signInAnonymously()
+  data: existingSessionData,
+} =
+  await supabase.auth.getSession()
 
-if (sessionError) {
-  throw sessionError
+if (existingSessionData.session?.user) {
+  const currentUser =
+    existingSessionData.session.user
+
+  const {
+    data: currentProfile,
+    error: currentProfileError,
+  } =
+    await supabase
+      .from('profiles')
+      .select(
+        `
+          id,
+          full_name,
+          company_name,
+          phone,
+          role,
+          is_active
+        `
+      )
+      .eq('id', currentUser.id)
+      .maybeSingle()
+
+  if (currentProfileError) {
+    throw currentProfileError
+  }
+
+  /*
+   * Reuse the existing development user only when
+   * the stored phone matches the phone being entered.
+   */
+  if (
+    currentProfile?.phone === phone
+  ) {
+    developmentUser = currentUser
+
+    console.log(
+      '[TempStaff] Reusing existing development customer:',
+      currentUser.id
+    )
+
+    if (
+      currentProfile.role === 'customer' &&
+      currentProfile.is_active === true &&
+      (currentProfile.full_name ?? '').trim().length >= 2 &&
+      (currentProfile.company_name ?? '').trim().length >= 2
+    ) {
+      console.log(
+        '[TempStaff] Existing customer profile complete; skipping details'
+      )
+
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'CustomerLocation',
+          },
+        ],
+      })
+
+      return
+    }
+  } else {
+    /*
+     * A different phone number was entered.
+     * Start a new development identity.
+     */
+    console.log(
+      '[TempStaff] Different phone detected; creating new development customer'
+    )
+
+    await supabase.auth.signOut()
+  }
 }
 
-if (
-  !sessionData.session ||
-  !sessionData.user
-) {
-  throw new Error(
-    'Supabase did not return a development authentication session.'
+/*
+ * No matching development session exists.
+ * Create a new anonymous Supabase user.
+ */
+if (!developmentUser) {
+  const {
+    data: sessionData,
+    error: sessionError,
+  } =
+    await supabase.auth.signInAnonymously()
+
+  if (sessionError) {
+    throw sessionError
+  }
+
+  if (
+    !sessionData.session ||
+    !sessionData.user
+  ) {
+    throw new Error(
+      'Supabase did not return a development authentication session.'
+    )
+  }
+
+  developmentUser =
+    sessionData.user
+
+  console.log(
+    '[TempStaff] New development customer created:',
+    developmentUser.id
   )
 }
 
-const developmentUser =
-  sessionData.user
-
+/*
+ * New customer / incomplete profile.
+ * Create the profile record but leave name/company empty.
+ * CustomerDetailsScreen will complete it.
+ */
 const {
   error: profileError,
-} = await supabase
-  .from('profiles')
-  .upsert(
-    {
-      id: developmentUser.id,
-      phone,
-      role: 'customer',
-      is_active: true,
-    },
-    {
-      onConflict: 'id',
-    }
-  )
+} =
+  await supabase
+    .from('profiles')
+    .upsert(
+      {
+        id: developmentUser.id,
+        phone,
+        role: 'customer',
+        is_active: true,
+      },
+      {
+        onConflict: 'id',
+      }
+    )
 
 if (profileError) {
-  console.error(
-    '[TempStaff] Failed to create development customer profile:',
-    profileError
-  )
-
   await supabase.auth.signOut()
-
   throw profileError
 }
 
-console.log(
-  '[TempStaff] DEV Supabase session created:',
-  developmentUser.id
-)
+        console.log(
+          '[TempStaff] New customer profile requires details'
+        )
 
         navigation.reset({
           index: 0,
@@ -170,19 +313,85 @@ console.log(
 
       /*
        * ========================================================
-       * PRODUCTION SUPABASE OTP FLOW
+       * PRODUCTION SUPABASE PHONE OTP
        * ========================================================
-       *
-       * This remains disabled while development OTP mode
-       * is active.
-       *
-       * When ready for production:
-       *
-       * DEV_HARDCODED_OTP_MODE = false
-       *
-       * Then restore the normal Supabase verifyOtp flow.
        */
 
+      const {
+        data,
+        error,
+      } = await supabase.auth.verifyOtp({
+        phone,
+        token: cleanOtp,
+        type: 'sms',
+      })
+
+      if (error) {
+        throw error
+      }
+
+      if (!data.session || !data.user) {
+        throw new Error(
+          'OTP was accepted but no authenticated session was returned.'
+        )
+      }
+
+      const {
+        complete,
+      } = await getCustomerProfileStatus()
+
+      if (complete) {
+        console.log(
+          '[TempStaff] Existing customer verified; skipping details'
+        )
+
+        navigation.reset({
+          index: 0,
+          routes: [
+            {
+              name: 'CustomerLocation',
+            },
+          ],
+        })
+
+        return
+      }
+
+      /*
+       * New customer or incomplete profile.
+       */
+      const {
+        error: profileError,
+      } = await supabase
+        .from('profiles')
+        .upsert(
+          {
+            id: data.user.id,
+            phone,
+            role: 'customer',
+            is_active: true,
+          },
+          {
+            onConflict: 'id',
+          }
+        )
+
+      if (profileError) {
+        throw profileError
+      }
+
+      console.log(
+        '[TempStaff] New customer verified; details required'
+      )
+
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'CustomerDetails',
+          },
+        ],
+      })
     } catch (error: any) {
       console.error(
         '[TempStaff] Customer OTP verification failed:',
