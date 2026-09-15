@@ -391,6 +391,18 @@ $function$;
 
 
 -- ============================================================
+-- Remove the previous parameterized overload if it exists.
+--
+-- The dispatch policy is now database-configured, so callers
+-- must not be able to supply worker-limit or offer-duration
+-- overrides.
+-- ============================================================
+
+drop function if exists
+  public.dispatch_booking_worker_offers(uuid, integer, integer);
+
+
+-- ============================================================
 -- Permissions
 -- ============================================================
 
