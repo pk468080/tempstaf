@@ -318,6 +318,17 @@ $function$;
 -- role-specific RPCs until those wrappers are migrated.
 -- ============================================================
 
+-- ============================================================
+-- Security
+-- ============================================================
+--
+-- This is an internal SECURITY DEFINER primitive.
+-- It must NOT be callable directly by application users.
+--
+-- Existing role-specific RPCs remain the authorization
+-- boundaries and will call this function internally.
+-- ============================================================
+
 revoke execute
 on function public.transition_booking_state(
   uuid,
@@ -326,15 +337,4 @@ on function public.transition_booking_state(
   boolean,
   boolean
 )
-from public, anon;
-
-
-grant execute
-on function public.transition_booking_state(
-  uuid,
-  public.booking_status,
-  uuid,
-  boolean,
-  boolean
-)
-to authenticated;
+from public, anon, authenticated;
