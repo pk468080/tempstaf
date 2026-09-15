@@ -8,12 +8,12 @@ begin;
 -- IMPORTANT:
 -- This function does NOT assign the booking.
 -- The first worker to successfully accept an offer wins.
+--
+-- Dispatch policy is read from public.platform_settings.
 -- ============================================================
 
 create or replace function public.dispatch_booking_worker_offers(
-  p_booking_id uuid,
-  p_worker_limit integer default 5,
-  p_offer_minutes integer default 5
+  p_booking_id uuid
 )
 returns jsonb
 language plpgsql
@@ -30,6 +30,8 @@ declare
   v_created_count integer := 0;
   v_existing_count integer := 0;
 
+  v_worker_limit integer;
+  v_offer_minutes integer;
   v_offer_expires_at timestamptz;
 
   v_is_admin boolean := false;
@@ -42,24 +44,55 @@ begin
 
 
   -- ==========================================================
-  -- Validate parameters.
+  -- Read dispatch configuration from the database.
   -- ==========================================================
 
-  if p_worker_limit is null
-     or p_worker_limit < 1
-     or p_worker_limit > 50 then
+  select
+    case
+      when jsonb_typeof(value -> 'value') = 'number'
+      then (value ->> 'value')::integer
+      else null
+    end
+  into v_worker_limit
+  from public.platform_settings
+  where key = 'dispatch.worker_offer_limit'
+    and is_active = true;
 
-    raise exception 'Worker limit must be between 1 and 50';
 
+  select
+    case
+      when jsonb_typeof(value -> 'value') = 'number'
+      then (value ->> 'value')::integer
+      else null
+    end
+  into v_offer_minutes
+  from public.platform_settings
+  where key = 'dispatch.worker_offer_duration_minutes'
+    and is_active = true;
+
+
+  if v_worker_limit is null then
+    raise exception
+      'Dispatch setting dispatch.worker_offer_limit is not configured';
   end if;
 
 
-  if p_offer_minutes is null
-     or p_offer_minutes < 1
-     or p_offer_minutes > 60 then
+  if v_offer_minutes is null then
+    raise exception
+      'Dispatch setting dispatch.worker_offer_duration_minutes is not configured';
+  end if;
 
-    raise exception 'Offer duration must be between 1 and 60 minutes';
 
+  -- Defensive validation of database configuration.
+  if v_worker_limit < 1 then
+    raise exception
+      'Dispatch worker offer limit must be at least 1';
+  end if;
+
+
+  if v_offer_minutes < 1 then
+    raise exception
+      'Dispatch worker offer duration must be at least 1 minute';
   end if;
 
 
@@ -77,11 +110,16 @@ begin
   into v_is_admin;
 
 
+  if not v_is_admin then
+    raise exception 'Admin access required';
+  end if;
+
+
   -- ==========================================================
   -- Lock booking.
   --
-  -- This prevents two dispatch requests from simultaneously
-  -- creating competing offer sets for the same booking.
+  -- Prevents simultaneous dispatch requests from creating
+  -- competing offer sets for the same booking.
   -- ==========================================================
 
   select *
@@ -94,11 +132,6 @@ begin
   if not found then
     raise exception 'Booking not found';
   end if;
-
-
- if not v_is_admin then
-  raise exception 'Admin access required';
-end if;
 
 
   -- ==========================================================
@@ -160,13 +193,13 @@ end if;
   -- ==========================================================
 
   v_offer_expires_at :=
-    now() + make_interval(mins => p_offer_minutes);
+    now() + make_interval(mins => v_offer_minutes);
 
 
   -- ==========================================================
-  -- Find workers.
+  -- Find eligible workers.
   --
-  -- Current eligibility requirements:
+  -- Current eligibility:
   --   - worker provides the booking service
   --   - verified
   --   - available worker status
@@ -175,8 +208,8 @@ end if;
   --   - inside service radius
   --   - no conflicting active booking
   --
-  -- Scheduling-table integration will be added separately after
-  -- the multi-day service-duration semantics are finalized.
+  -- Scheduling-table integration remains separate until the
+  -- multi-day service-duration semantics are finalized.
   -- ==========================================================
 
   for v_worker in
@@ -262,7 +295,7 @@ end if;
       wp.total_completed_jobs desc nulls last,
       wp.id
 
-    limit p_worker_limit
+    limit v_worker_limit
 
   loop
 
@@ -357,13 +390,17 @@ end;
 $function$;
 
 
+-- ============================================================
+-- Permissions
+-- ============================================================
+
 revoke execute
-on function public.dispatch_booking_worker_offers(uuid, integer, integer)
+on function public.dispatch_booking_worker_offers(uuid)
 from public, anon;
 
 
 grant execute
-on function public.dispatch_booking_worker_offers(uuid, integer, integer)
+on function public.dispatch_booking_worker_offers(uuid)
 to authenticated;
 
 
