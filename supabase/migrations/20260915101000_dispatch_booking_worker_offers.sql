@@ -96,12 +96,9 @@ begin
   end if;
 
 
-  if not v_is_admin
-     and v_booking.customer_id <> auth.uid() then
-
-    raise exception 'Booking access denied';
-
-  end if;
+ if not v_is_admin then
+  raise exception 'Admin access required';
+end if;
 
 
   -- ==========================================================
