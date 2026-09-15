@@ -273,9 +273,20 @@ export default function MyBookingsScreen({
   )
 
   useEffect(() => {
-    loadBookings()
+  loadBookings()
 
-    const customerChannel = supabase
+  let customerChannel:
+    ReturnType<typeof supabase.channel> | null =
+    null
+
+  const setupRealtime = async () => {
+    await supabase.removeChannel(
+      supabase.channel(
+        'customer-bookings-live'
+      )
+    )
+
+    customerChannel = supabase
       .channel('customer-bookings-live')
       .on(
         'postgres_changes',
@@ -285,25 +296,51 @@ export default function MyBookingsScreen({
           table: 'bookings',
         },
         payload => {
-          const booking = payload.new as { customer_id?: string } | null
+          const booking =
+            payload.new as {
+              customer_id?: string
+            } | null
 
-          if (!booking?.customer_id) {
+          if (
+            !booking?.customer_id
+          ) {
             return
           }
 
-          void supabase.auth.getUser().then(({ data: { user } }) => {
-            if (user && booking.customer_id === user.id) {
-              void loadBookings(false)
-            }
-          })
+          void supabase.auth
+            .getUser()
+            .then(
+              ({
+                data: {
+                  user,
+                },
+              }) => {
+                if (
+                  user &&
+                  booking.customer_id ===
+                    user.id
+                ) {
+                  void loadBookings(
+                    false
+                  )
+                }
+              }
+            )
         }
       )
       .subscribe()
+  }
 
-    return () => {
-      supabase.removeChannel(customerChannel)
+  void setupRealtime()
+
+  return () => {
+    if (customerChannel) {
+      void supabase.removeChannel(
+        customerChannel
+      )
     }
-  }, [loadBookings])
+  }
+}, [loadBookings])
 
   const onRefresh = () => {
     setRefreshing(true)
