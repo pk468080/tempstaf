@@ -454,18 +454,7 @@ begin
 -- Mark the winning worker busy/unavailable.
 -- ==========================================================
 
-update public.worker_profiles
-set
-  worker_status = 'busy'::public.worker_status,
-  updated_at = now()
-where id = v_worker_id;
 
-update public.worker_presence
-set
-  is_available = false,
-  expires_at = now(),
-  updated_at = now()
-where worker_id = v_worker_id;
 
 
   -- ==========================================================
