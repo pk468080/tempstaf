@@ -111,10 +111,8 @@ begin
         where worker_id = v_old_worker_id;
 
         update public.worker_presence
-        set
-          is_available = true,
-          expires_at = now()
-        where worker_id = v_old_worker_id;
+set is_available = true
+where worker_id = v_old_worker_id;
       end if;
     end if;
 
@@ -282,10 +280,8 @@ begin
       where worker_id = v_old_worker_id;
 
       update public.worker_presence
-      set
-        is_available = true,
-        expires_at = now()
-      where worker_id = v_old_worker_id;
+set is_available = true
+where worker_id = v_old_worker_id;
 
     end if;
   end if;
