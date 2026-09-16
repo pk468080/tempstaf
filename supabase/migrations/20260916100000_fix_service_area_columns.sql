@@ -40,7 +40,6 @@ declare
   v_last_working_date date;
 
   v_day_of_week smallint;
-
   v_working_day_count integer;
 
   v_candidate_start_local timestamp;
@@ -65,6 +64,12 @@ declare
   v_window_end_local timestamp;
 
 begin
+
+  /*
+   * ============================================================
+   * AUTHENTICATION / INPUT
+   * ============================================================
+   */
 
   if v_customer_id is null then
     raise exception 'Authentication required';
@@ -94,7 +99,9 @@ begin
 
 
   /*
-   * Customer address
+   * ============================================================
+   * CUSTOMER ADDRESS
+   * ============================================================
    */
 
   select coalesce(
@@ -120,7 +127,9 @@ begin
 
 
   /*
-   * Existing catalogue remains the source of truth.
+   * ============================================================
+   * EXISTING SERVICE CATALOGUE
+   * ============================================================
    */
 
   select
@@ -151,7 +160,9 @@ begin
 
 
   /*
-   * Scheduling rules come from the database.
+   * ============================================================
+   * SCHEDULING RULES
+   * ============================================================
    */
 
   select
@@ -193,14 +204,13 @@ begin
 
 
   /*
-   * SERVICE AREA
+   * ============================================================
+   * SERVICE AREA — ALWAYS THE FIRST BUSINESS GATE
    *
    * Service-specific areas take precedence.
-   * If none exist, global areas are used.
+   * If no service-specific area exists, global areas are used.
    * If neither exists, no artificial restriction is invented.
-   *
-   * IMPORTANT:
-   * service_areas uses center_latitude / center_longitude.
+   * ============================================================
    */
 
   if exists (
@@ -277,10 +287,20 @@ begin
 
 
   /*
-   * Find workers capable of performing the service.
+   * ============================================================
+   * WORKER SCHEDULE SOURCE
    *
-   * Current online presence is deliberately NOT required here.
-   * Future scheduling uses worker schedules.
+   * IMPORTANT:
+   *
+   * Scheduled booking does NOT require:
+   *   - worker online presence
+   *   - worker current_location
+   *   - worker heartbeat
+   *
+   * Worker schedule is the source for actual known slots.
+   *
+   * Service-area eligibility has already been checked above.
+   * ============================================================
    */
 
   for v_worker in
@@ -300,9 +320,6 @@ begin
 
     where ws.service_id = v_service_id
       and wp.is_verified = true
-      and wp.current_location is not null
-      and wp.service_radius_km is not null
-      and wp.service_radius_km > 0
       and wss.slot_interval_minutes is not null
       and wss.slot_interval_minutes > 0
 
@@ -313,7 +330,9 @@ begin
 
 
     /*
-     * CONTINUOUS
+     * ============================================================
+     * CONTINUOUS SERVICES
+     * ============================================================
      */
 
     if v_scheduling_mode = 'continuous' then
@@ -326,6 +345,7 @@ begin
           extract(
             dow from v_date
           )::smallint;
+
 
         for v_window in
 
@@ -376,6 +396,7 @@ begin
           v_candidate_start_local :=
             v_window_start_local;
 
+
           while v_candidate_start_local < v_window_end_local loop
 
             v_candidate_end_local :=
@@ -407,6 +428,7 @@ begin
 
               end;
 
+
             if v_candidate_end_local <= v_window_end_local then
 
               v_candidate_start :=
@@ -417,8 +439,12 @@ begin
                 v_candidate_end_local
                 at time zone v_timezone;
 
+
               if v_candidate_start > now()
 
+                 /*
+                  * Explicit unavailable exception.
+                  */
                  and not exists (
                    select 1
                    from public.worker_schedule_exceptions e
@@ -436,18 +462,13 @@ begin
                      )
                  )
 
-                 and exists (
-                   select 1
-                   from public.worker_profiles wp2
-                   where wp2.id = v_worker.worker_id
-                     and wp2.current_location is not null
-                     and st_dwithin(
-                       wp2.current_location,
-                       v_customer_location,
-                       wp2.service_radius_km * 1000
-                     )
-                 )
-
+                 /*
+                  * Existing active booking conflict.
+                  *
+                  * Searching/paid/unassigned bookings are not
+                  * treated as worker occupation here because no
+                  * worker has been assigned yet.
+                  */
                  and not exists (
                    select 1
                    from public.bookings b
@@ -473,6 +494,7 @@ begin
 
             end if;
 
+
             v_candidate_start_local :=
               v_candidate_start_local
               + make_interval(
@@ -483,13 +505,16 @@ begin
 
         end loop;
 
+
         v_date := v_date + 1;
 
       end loop;
 
 
     /*
-     * WORKING DAYS
+     * ============================================================
+     * WORKING-DAYS SERVICES
+     * ============================================================
      */
 
     elsif v_scheduling_mode = 'working_days' then
@@ -502,6 +527,7 @@ begin
           extract(
             dow from v_date
           )::smallint;
+
 
         for v_window in
 
@@ -547,6 +573,7 @@ begin
             v_date::timestamp
             + v_window.start_time;
 
+
           if v_daily_duration_minutes is null then
 
             v_daily_start_local :=
@@ -576,6 +603,11 @@ begin
           end if;
 
 
+          /*
+           * First working day must still be in the future.
+           *
+           * No current worker-location check.
+           */
           if v_first_day_start_local
              at time zone v_timezone > now()
 
@@ -593,18 +625,6 @@ begin
                      v_daily_start_local::time < e.end_time
                      and v_daily_end_local::time > e.start_time
                    )
-                 )
-             )
-
-             and exists (
-               select 1
-               from public.worker_profiles wp2
-               where wp2.id = v_worker.worker_id
-                 and wp2.current_location is not null
-                 and st_dwithin(
-                   wp2.current_location,
-                   v_customer_location,
-                   wp2.service_radius_km * 1000
                  )
              )
 
@@ -642,9 +662,14 @@ begin
           end if;
 
 
+          /*
+           * Find subsequent working days.
+           */
+
           v_candidate_date := v_date + 1;
           v_working_day_count := 1;
           v_last_working_date := v_date;
+
 
           while
             v_candidate_date <= p_end_date
@@ -657,6 +682,7 @@ begin
               extract(
                 dow from v_candidate_date
               )::smallint;
+
 
             for v_day_window in
 
@@ -700,6 +726,7 @@ begin
                 v_candidate_date::timestamp
                 + v_day_window.start_time;
 
+
               if v_daily_duration_minutes is null then
 
                 v_day_end_local :=
@@ -724,6 +751,9 @@ begin
               end if;
 
 
+              /*
+               * Explicit unavailable exception.
+               */
               if exists (
                 select 1
                 from public.worker_schedule_exceptions e
@@ -745,6 +775,9 @@ begin
               end if;
 
 
+              /*
+               * Existing worker booking conflict.
+               */
               if exists (
                 select 1
                 from public.bookings b
@@ -772,6 +805,7 @@ begin
 
 
               v_day_found := true;
+
               exit;
 
             end loop;
@@ -794,6 +828,10 @@ begin
           end loop;
 
 
+          /*
+           * Complete multi-day working-days slot.
+           */
+
           if v_working_day_count >= v_working_days then
 
             v_day_of_week :=
@@ -802,6 +840,7 @@ begin
               )::smallint;
 
             v_last_day_end_local := null;
+
 
             for v_day_window in
 
@@ -844,6 +883,7 @@ begin
               v_day_start_local :=
                 v_last_working_date::timestamp
                 + v_day_window.start_time;
+
 
               if v_daily_duration_minutes is null then
 
@@ -934,6 +974,7 @@ begin
                 v_last_day_end_local
                 at time zone v_timezone;
 
+
               if v_candidate_start > now() then
 
                 slot_start := v_candidate_start;
@@ -949,6 +990,7 @@ begin
 
         end loop;
 
+
         v_date := v_date + 1;
 
       end loop;
@@ -957,9 +999,11 @@ begin
 
   end loop;
 
+
   return;
 
 end;
+
 $function$;
 
 commit;
