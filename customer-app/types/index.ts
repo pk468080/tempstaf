@@ -39,7 +39,14 @@ Home:
 
   ManualLocation: undefined
   Services: undefined
-  Location: undefined
+    Location:
+    | undefined
+    | {
+        savedAddressId?: string
+        savedAddressLine?: string
+        savedLatitude?: number
+        savedLongitude?: number
+      }
   Workers: undefined
   Summary: undefined
   Payment: undefined

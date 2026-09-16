@@ -16,6 +16,7 @@ import { RootStackParamList } from '../types'
 import { supabase } from '../lib/supabase'
 import Header from '../components/Header'
 import PrimaryButton from '../components/PrimaryButton'
+import { useBooking } from '../context/BookingContext'
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -35,6 +36,12 @@ export default function SavedAddressesScreen({
 }: Props) {
   const [addresses, setAddresses] =
     useState<SavedAddress[]>([])
+      const {
+    selectedServiceId,
+    setAddress,
+    setAddressId,
+    setCoordinates,
+  } = useBooking()
 
   const [loading, setLoading] =
     useState(true)
@@ -178,17 +185,42 @@ export default function SavedAddressesScreen({
     }
   }
 
-  const selectAddress = (
+    const selectAddress = (
     address: SavedAddress
   ) => {
+    if (
+      address.latitude === null ||
+      address.longitude === null
+    ) {
+      Alert.alert(
+        'Location unavailable',
+        'This saved address does not have a valid map location. Please edit the address and select its location again.'
+      )
+
+      return
+    }
+
+    setAddress(address.address_line)
+    setAddressId(address.id)
+
+    setCoordinates(
+      `${address.latitude},${address.longitude}`
+    )
+
+    if (selectedServiceId) {
+      navigation.navigate('Location', {
+        savedAddressId: address.id,
+        savedAddressLine: address.address_line,
+        savedLatitude: address.latitude,
+        savedLongitude: address.longitude,
+      })
+
+      return
+    }
+
     Alert.alert(
       'Address selected',
-      address.address_line,
-      [
-        {
-          text: 'OK',
-        },
-      ]
+      'This address is now selected for your next booking.'
     )
   }
 

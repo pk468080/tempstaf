@@ -53,6 +53,7 @@ const DEFAULT_LOCATION = {
 
 export default function LocationScreen({
   navigation,
+  route,
 }: Props) {
   const {
     selectedServiceId,
@@ -86,6 +87,52 @@ export default function LocationScreen({
     useState<FieldName | null>(null)
 
   const [mapReady, setMapReady] = useState(false)
+    const [selectedSavedAddressId, setSelectedSavedAddressId] =
+    useState<string | null>(null)
+
+  useEffect(() => {
+    const params = route.params
+
+    if (
+      !params ||
+      typeof params.savedLatitude !== 'number' ||
+      typeof params.savedLongitude !== 'number'
+    ) {
+      return
+    }
+
+    setSelectedSavedAddressId(
+      params.savedAddressId ?? null
+    )
+
+    setLatitude(params.savedLatitude)
+    setLongitude(params.savedLongitude)
+
+    setCoordinates(
+      `${params.savedLatitude},${params.savedLongitude}`
+    )
+
+    const addressLine =
+      params.savedAddressLine?.trim() ?? ''
+
+    if (addressLine) {
+      const parts = addressLine
+        .split(',')
+        .map(part => part.trim())
+        .filter(Boolean)
+
+      setHouseNumber(parts[0] ?? '')
+      setStreet(parts[1] ?? '')
+      setArea(parts[2] ?? '')
+      setCity(parts[3] ?? '')
+      setPincode(
+        parts[4]?.replace(/\D/g, '').slice(0, 6) ?? ''
+      )
+    }
+  }, [
+    route.params,
+    setCoordinates,
+  ])
 
   const mapRegion: Region = useMemo(() => {
     return {
@@ -311,13 +358,7 @@ export default function LocationScreen({
       return
     }
 
-    if (!selectedServiceId) {
-      Alert.alert(
-        'Service not selected',
-        'Please go back and select a service before choosing the service location.'
-      )
-      return
-    }
+    
 
     if (latitude === null || longitude === null) {
       Alert.alert(
@@ -413,8 +454,37 @@ export default function LocationScreen({
 
       const fullAddress = buildAddress()
 
-      const { data, error } =
-        await supabase
+            let data:
+        | {
+            id: string
+            address_line: string
+            latitude: number | null
+            longitude: number | null
+          }
+        | null = null
+
+      if (selectedSavedAddressId) {
+        const result = await supabase
+          .from('addresses')
+          .update({
+            address_line: fullAddress,
+            latitude,
+            longitude,
+          })
+          .eq('id', selectedSavedAddressId)
+          .eq('user_id', user.id)
+          .select(
+            'id, address_line, latitude, longitude'
+          )
+          .single()
+
+        if (result.error) {
+          throw result.error
+        }
+
+        data = result.data
+      } else {
+        const result = await supabase
           .from('addresses')
           .insert({
             user_id: user.id,
@@ -428,8 +498,19 @@ export default function LocationScreen({
           )
           .single()
 
-      if (error) {
-        throw error
+        if (result.error) {
+          throw result.error
+        }
+
+        data = result.data
+      }
+
+    
+
+           if (!data) {
+        throw new Error(
+          'The address could not be saved.'
+        )
       }
 
       setAddress(data.address_line)
@@ -439,7 +520,11 @@ export default function LocationScreen({
         `${data.latitude},${data.longitude}`
       )
 
-      navigation.navigate('Payment')
+      if (selectedServiceId) {
+        navigation.navigate('Payment')
+      } else {
+        navigation.goBack()
+      }
     } catch (error: any) {
       console.error(
         '[TempStaff] Address save failed:',
