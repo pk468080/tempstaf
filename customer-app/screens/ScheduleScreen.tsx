@@ -1,95 +1,144 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+
 import {
   Alert,
-  ActivityIndicator,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native'
-import { NativeStackScreenProps } from '@react-navigation/native-stack'
+
+import {
+  NativeStackScreenProps,
+} from '@react-navigation/native-stack'
 
 import { COLORS } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import { useBooking } from '../context/BookingContext'
 import { supabase } from '../lib/supabase'
+
 import Header from '../components/Header'
 import PrimaryButton from '../components/PrimaryButton'
 
-type Props = NativeStackScreenProps<
-  RootStackParamList,
-  'Schedule'
->
+type Props =
+  NativeStackScreenProps<
+    RootStackParamList,
+    'Schedule'
+  >
 
-type AvailabilitySlot = {
-  slot_start: string
-  slot_end: string
+type ScheduleOccurrence = {
+  occurrence_date: string
+  scheduled_start: string
+  scheduled_end: string
 }
 
-type DateOption = {
-  value: string
-  weekday: string
-  date: string
-  month: string
-}
-
-type TimeOption = {
-  value: string
-  label: string
-  slotStart: string
-  slotEnd: string
-}
+const WEEKDAYS = [
+  { value: 0, label: 'Sun' },
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+]
 
 function toDateKey(date: Date) {
   return [
     date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
+    String(
+      date.getMonth() + 1
+    ).padStart(2, '0'),
+    String(
+      date.getDate()
+    ).padStart(2, '0'),
   ].join('-')
 }
 
-function formatTime(
-  value: string,
-) {
-  const date = new Date(value)
-
-  return date.toLocaleTimeString(
-    'en-IN',
-    {
-      hour: 'numeric',
-      minute: '2-digit',
-    },
+function fromDateKey(value: string) {
+  return new Date(
+    `${value}T00:00:00`
   )
 }
 
-function formatDateParts(
+function addDays(
   value: string,
-): DateOption {
-  const date = new Date(`${value}T00:00:00`)
+  amount: number
+) {
+  const date = fromDateKey(value)
 
-  return {
-    value,
-    weekday: date.toLocaleDateString(
-      'en-IN',
-      {
-        weekday: 'short',
-      },
-    ),
-    date: date.toLocaleDateString(
-      'en-IN',
-      {
-        day: 'numeric',
-      },
-    ),
-    month: date.toLocaleDateString(
-      'en-IN',
-      {
-        month: 'short',
-      },
-    ),
+  date.setDate(
+    date.getDate() + amount
+  )
+
+  return toDateKey(date)
+}
+
+function weekdayForDate(
+  value: string
+) {
+  return fromDateKey(value).getDay()
+}
+
+function formatDate(
+  value: string
+) {
+  return fromDateKey(
+    value
+  ).toLocaleDateString(
+    'en-IN',
+    {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    }
+  )
+}
+
+function isValidTime(
+  value: string
+) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(
+    value
+  )
+}
+
+function timeToMinutes(
+  value: string
+) {
+  const [
+    hours,
+    minutes,
+  ] = value
+    .split(':')
+    .map(Number)
+
+  return (
+    hours * 60 +
+    minutes
+  )
+}
+
+function dateRange(
+  start: string,
+  end: string
+) {
+  const result: string[] = []
+
+  let current = start
+
+  while (current <= end) {
+    result.push(current)
+
+    current = addDays(
+      current,
+      1
+    )
   }
+
+  return result
 }
 
 export default function ScheduleScreen({
@@ -97,217 +146,427 @@ export default function ScheduleScreen({
 }: Props) {
   const {
     selectedService,
-    selectedPackageId,
     selectedPackage,
+    selectedPackageId,
     addressId,
+    bookingMode,
+
     setBookingMode,
     setScheduledDate,
+
+    setScheduleStartDate,
+    setScheduleEndDate,
+    setScheduleDailyStartTime,
+    setScheduleDailyEndTime,
+    setScheduleSelectedWeekdays,
+    setScheduleOffDates,
+    setScheduleTotalWorkingHours,
+    setScheduleOccurrences,
   } = useBooking()
 
-  const [availability, setAvailability] =
-    useState<AvailabilitySlot[]>([])
+  const today = useMemo(
+    () => toDateKey(new Date()),
+    []
+  )
 
-  const [selectedDate, setSelectedDate] =
+  const [startDate, setStartDate] =
+    useState(today)
+
+  const [endDate, setEndDate] =
+    useState(today)
+
+  const [startTime, setStartTime] =
     useState('')
 
-  const [selectedTime, setSelectedTime] =
+  const [endTime, setEndTime] =
     useState('')
+
+  const [
+    selectedWeekdays,
+    setSelectedWeekdays,
+  ] = useState<number[]>([])
+
+  const [offDates, setOffDates] =
+    useState<string[]>([])
+
+  const [rangeStep, setRangeStep] =
+    useState<
+      'start' | 'end'
+    >('start')
 
   const [loading, setLoading] =
     useState(false)
 
-  const [error, setError] =
-    useState('')
+  const [schedule, setSchedule] =
+    useState<{
+      totalWorkingHours: number
+      occurrences: ScheduleOccurrence[]
+    } | null>(null)
 
-  const loadAvailability =
+  const days = useMemo(() => {
+    const result: string[] = []
+
+    for (
+      let index = 0;
+      index < 31;
+      index += 1
+    ) {
+      result.push(
+        addDays(today, index)
+      )
+    }
+
+    return result
+  }, [today])
+
+  const multiDay =
+    startDate !== endDate
+
+  const applicableWeekdays =
+    useMemo(() => {
+      if (!multiDay) {
+        return [
+          weekdayForDate(
+            startDate
+          ),
+        ]
+      }
+
+      return selectedWeekdays
+    }, [
+      multiDay,
+      selectedWeekdays,
+      startDate,
+    ])
+
+  const selectableDates =
+    useMemo(() => {
+      if (!startDate || !endDate) {
+        return []
+      }
+
+      if (startDate > endDate) {
+        return []
+      }
+
+      return dateRange(
+        startDate,
+        endDate
+      )
+    }, [
+      startDate,
+      endDate,
+    ])
+
+  const toggleWeekday = (
+    weekday: number
+  ) => {
+    setSelectedWeekdays(
+      current => {
+        if (
+          current.includes(
+            weekday
+          )
+        ) {
+          return current.filter(
+            value =>
+              value !== weekday
+          )
+        }
+
+        return [
+          ...current,
+          weekday,
+        ].sort(
+          (a, b) => a - b
+        )
+      }
+    )
+
+    setSchedule(null)
+  }
+
+  const toggleOffDate = (
+    date: string
+  ) => {
+    setOffDates(
+      current =>
+        current.includes(date)
+          ? current.filter(
+              value =>
+                value !== date
+            )
+          : [
+              ...current,
+              date,
+            ].sort()
+    )
+
+    setSchedule(null)
+  }
+
+  const selectStartDate = (
+    date: string
+  ) => {
+    if (
+      rangeStep === 'start'
+    ) {
+      setStartDate(date)
+
+      if (
+        endDate < date
+      ) {
+        setEndDate(date)
+      }
+
+      setRangeStep('end')
+      setOffDates([])
+      setSchedule(null)
+
+      return
+    }
+
+    if (date < startDate) {
+      setStartDate(date)
+      setEndDate(
+        endDate < date
+          ? date
+          : endDate
+      )
+    } else {
+      setEndDate(date)
+    }
+
+    setRangeStep('start')
+    setOffDates([])
+    setSchedule(null)
+  }
+
+  const calculateSchedule =
     async () => {
       if (
         !selectedPackageId ||
         !addressId
       ) {
-        setAvailability([])
-        setSelectedDate('')
-        setSelectedTime('')
+        Alert.alert(
+          'Booking information missing',
+          'Please select a service package and service location first.'
+        )
+
+        return
+      }
+
+      if (
+        !startDate ||
+        !endDate
+      ) {
+        Alert.alert(
+          'Select dates',
+          'Please select a booking date.'
+        )
+
+        return
+      }
+
+      if (
+        startDate > endDate
+      ) {
+        Alert.alert(
+          'Invalid date range',
+          'The end date must be on or after the start date.'
+        )
+
+        return
+      }
+
+      if (
+        !isValidTime(startTime) ||
+        !isValidTime(endTime)
+      ) {
+        Alert.alert(
+          'Enter working hours',
+          'Enter time using HH:MM, for example 09:00 or 18:00.'
+        )
+
+        return
+      }
+
+      if (
+        timeToMinutes(
+          endTime
+        ) <=
+        timeToMinutes(
+          startTime
+        )
+      ) {
+        Alert.alert(
+          'Invalid working hours',
+          'End time must be later than start time.'
+        )
+
+        return
+      }
+
+      if (
+        multiDay &&
+        selectedWeekdays.length === 0
+      ) {
+        Alert.alert(
+          'Select working days',
+          'Choose at least one weekday for a multi-day booking.'
+        )
+
         return
       }
 
       setLoading(true)
-      setError('')
-      setSelectedDate('')
-      setSelectedTime('')
 
       try {
-        const today = new Date()
-
-        const startDate =
-          toDateKey(today)
-
-        const end = new Date(today)
-
-        end.setDate(
-          end.getDate() + 30,
-        )
-
-        const endDate =
-          toDateKey(end)
-
         const {
           data,
-          error: rpcError,
-        } = await supabase.rpc(
-          'get_customer_scheduled_slots',
-          {
-            p_service_variant_id:
-              selectedPackageId,
-            p_address_id:
-              addressId,
-            p_start_date:
-              startDate,
-            p_end_date:
-              endDate,
-          },
-        )
+          error,
+        } =
+          await supabase.rpc(
+            'calculate_customer_booking_schedule',
+            {
+              p_service_variant_id:
+                selectedPackageId,
 
-        if (rpcError) {
-          throw rpcError
+              p_address_id:
+                addressId,
+
+              p_start_date:
+                startDate,
+
+              p_end_date:
+                endDate,
+
+              p_daily_start_time:
+                startTime,
+
+              p_daily_end_time:
+                endTime,
+
+              p_selected_weekdays:
+                applicableWeekdays,
+
+              p_off_dates:
+                offDates,
+            }
+          )
+
+        if (error) {
+          throw error
         }
 
-        const slots =
-          (data ?? []) as AvailabilitySlot[]
+        const result =
+          data as {
+            total_working_hours?: number
+            occurrences?: ScheduleOccurrence[]
+          }
 
-        setAvailability(slots)
-      } catch (rpcError) {
+        const occurrences =
+          Array.isArray(
+            result?.occurrences
+          )
+            ? result.occurrences
+            : []
+
+        const totalWorkingHours =
+          Number(
+            result?.total_working_hours ??
+              0
+          )
+
+        if (
+          occurrences.length === 0 ||
+          totalWorkingHours <= 0
+        ) {
+          Alert.alert(
+            'No working dates',
+            'The selected schedule does not contain any working dates.'
+          )
+
+          setSchedule(null)
+
+          return
+        }
+
+        setSchedule({
+          totalWorkingHours,
+          occurrences,
+        })
+      } catch (error) {
         console.error(
-          '[TempStaff] SCHEDULE AVAILABILITY ERROR:',
-          JSON.stringify(
-            rpcError,
-            null,
-            2,
-          ),
+          '[TempStaff] Schedule calculation failed:',
+          error
         )
 
-        setAvailability([])
-
-        setError(
-          'Unable to load available schedule times right now.',
+        Alert.alert(
+          'Schedule unavailable',
+          'Unable to calculate this schedule right now. Please try again.'
         )
       } finally {
         setLoading(false)
       }
     }
 
-  useEffect(() => {
-    loadAvailability()
-  }, [
-    selectedPackageId,
-    addressId,
-  ])
-
-  const dates = useMemo<
-    DateOption[]
-  >(() => {
-    const uniqueDates =
-      Array.from(
-        new Set(
-          availability.map(
-            slot =>
-              slot.slot_start.slice(
-                0,
-                10,
-              ),
-          ),
-        ),
-      )
-
-    return uniqueDates.map(
-      formatDateParts,
-    )
-  }, [availability])
-
-  const timeSlots = useMemo<
-    TimeOption[]
-  >(() => {
-    if (!selectedDate) {
-      return []
-    }
-
-    const seen =
-      new Set<string>()
-
-    return availability
-      .filter(slot =>
-        slot.slot_start.startsWith(
-          selectedDate,
-        ),
-      )
-      .filter(slot => {
-        const key =
-          `${slot.slot_start}|${slot.slot_end}`
-
-        if (seen.has(key)) {
-          return false
-        }
-
-        seen.add(key)
-
-        return true
-      })
-      .map(slot => ({
-        value: slot.slot_start,
-        label: formatTime(
-          slot.slot_start,
-        ),
-        slotStart:
-          slot.slot_start,
-        slotEnd:
-          slot.slot_end,
-      }))
-  }, [
-    availability,
-    selectedDate,
-  ])
-
-  const selectedDateObject =
-    dates.find(
-      date =>
-        date.value === selectedDate,
-    )
-
-  const selectedTimeObject =
-    timeSlots.find(
-      time =>
-        time.value === selectedTime,
-    )
-
-  const canContinue =
-    Boolean(
-      selectedDate &&
-      selectedTime &&
-      selectedTimeObject,
-    )
-
   const continueToCheckout =
     () => {
-      if (
-        !canContinue ||
-        !selectedTimeObject
-      ) {
+      if (!schedule) {
         Alert.alert(
-          'Select date and time',
-          'Please choose an available date and time for your booking.',
+          'Review schedule',
+          'Please calculate and review your schedule before continuing.'
         )
 
         return
       }
 
-      setBookingMode('Scheduled')
+      setBookingMode(
+        bookingMode === 'Recurring'
+          ? 'Recurring'
+          : 'Scheduled'
+      )
+
+      setScheduleStartDate(
+        startDate
+      )
+
+      setScheduleEndDate(
+        endDate
+      )
+
+      setScheduleDailyStartTime(
+        startTime
+      )
+
+      setScheduleDailyEndTime(
+        endTime
+      )
+
+      setScheduleSelectedWeekdays(
+        applicableWeekdays
+      )
+
+      setScheduleOffDates(
+        offDates
+      )
+
+      setScheduleTotalWorkingHours(
+        schedule.totalWorkingHours
+      )
+
+      setScheduleOccurrences(
+        schedule.occurrences
+      )
 
       setScheduledDate(
-        selectedTimeObject.slotStart,
+        schedule.occurrences[0]
+          ?.scheduled_start ?? ''
       )
 
       navigation.navigate(
-        'Checkout',
+        'Checkout'
       )
     }
 
@@ -317,7 +576,7 @@ export default function ScheduleScreen({
     >
       <ScrollView
         contentContainerStyle={
-          styles.page
+          styles.content
         }
         showsVerticalScrollIndicator={
           false
@@ -329,1068 +588,837 @@ export default function ScheduleScreen({
           }
         />
 
-        <View
-          style={
-            styles.progressContainer
+        <Text style={styles.eyebrow}>
+          {bookingMode === 'Recurring'
+            ? 'RECURRING BOOKING'
+            : 'SCHEDULED BOOKING'}
+        </Text>
+
+        <Text style={styles.title}>
+          Plan your service
+        </Text>
+
+        <Text
+          style={styles.subtitle}
+        >
+          Choose the date and working
+          hours that fit your schedule.
+        </Text>
+
+        <View style={styles.serviceCard}>
+          <Text style={styles.cardLabel}>
+            SERVICE
+          </Text>
+
+          <Text style={styles.serviceName}>
+            {selectedService ||
+              'Staff service'}
+          </Text>
+
+          <Text style={styles.packageName}>
+            {selectedPackage?.name ||
+              'Staffing package'}
+          </Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>
+          Select date
+        </Text>
+
+        <Text style={styles.helper}>
+          Tap once for a single day.
+          Tap again to create a date
+          range.
+        </Text>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={
+            false
+          }
+          contentContainerStyle={
+            styles.dateRow
           }
         >
-          <View
-            style={
-              styles.progressTrack
-            }
-          >
-            <View
-              style={
-                styles.progressFill
-              }
-            />
-          </View>
+          {days.map(date => {
+            const active =
+              date >= startDate &&
+              date <= endDate
 
-          <Text
-            style={
-              styles.progressText
-            }
-          >
-            SCHEDULE · DATE & TIME
-          </Text>
-        </View>
+            const first =
+              date === startDate
 
-        <View
-          style={styles.heading}
-        >
-          <Text
-            style={styles.title}
-          >
-            Schedule your service
-          </Text>
+            const last =
+              date === endDate
 
-          <Text
-            style={styles.subtitle}
-          >
-            Choose an available date
-            and time for your
-            TempStaff worker.
-          </Text>
-        </View>
-
-        <View
-          style={styles.summaryCard}
-        >
-          <View
-            style={styles.summaryIcon}
-          >
-            <Text
-              style={
-                styles.summaryEmoji
-              }
-            >
-              📅
-            </Text>
-          </View>
-
-          <View
-            style={styles.summaryContent}
-          >
-            <Text
-              style={
-                styles.summaryLabel
-              }
-            >
-              SCHEDULED BOOKING
-            </Text>
-
-            <Text
-              style={
-                styles.serviceName
-              }
-              numberOfLines={2}
-            >
-              {selectedService ||
-                'Staff service'}
-            </Text>
-
-            <Text
-              style={
-                styles.packageName
-              }
-              numberOfLines={2}
-            >
-              {selectedPackage?.name ||
-                'Staffing package'}
-            </Text>
-          </View>
-        </View>
-
-        <View
-          style={styles.sectionHeader}
-        >
-          <View>
-            <Text
-              style={
-                styles.sectionTitle
-              }
-            >
-              Select date
-            </Text>
-
-            <Text
-              style={
-                styles.sectionSubtitle
-              }
-            >
-              Dates are based on worker
-              availability.
-            </Text>
-          </View>
-
-          {selectedDateObject ? (
-            <View
-              style={
-                styles.selectedBadge
-              }
-            >
-              <Text
-                style={
-                  styles.selectedBadgeText
+            return (
+              <TouchableOpacity
+                key={date}
+                onPress={() =>
+                  selectStartDate(
+                    date
+                  )
                 }
+                style={[
+                  styles.dateCard,
+                  active &&
+                    styles.dateCardActive,
+                  first &&
+                    styles.dateCardFirst,
+                  last &&
+                    styles.dateCardLast,
+                ]}
+                activeOpacity={0.85}
               >
-                SELECTED
-              </Text>
-            </View>
-          ) : null}
-        </View>
-
-        {loading ? (
-          <View
-            style={styles.loadingCard}
-          >
-            <ActivityIndicator
-              size="small"
-              color={COLORS.teal}
-            />
-
-            <Text
-              style={
-                styles.loadingText
-              }
-            >
-              Checking available
-              schedules...
-            </Text>
-          </View>
-        ) : error ? (
-          <View
-            style={styles.errorCard}
-          >
-            <Text
-              style={
-                styles.errorTitle
-              }
-            >
-              Schedule unavailable
-            </Text>
-
-            <Text
-              style={styles.errorText}
-            >
-              {error}
-            </Text>
-
-            <TouchableOpacity
-              style={
-                styles.retryButton
-              }
-              onPress={
-                loadAvailability
-              }
-              activeOpacity={0.85}
-            >
-              <Text
-                style={
-                  styles.retryText
-                }
-              >
-                Try again
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : dates.length === 0 ? (
-          <View
-            style={styles.emptyCard}
-          >
-            <Text
-              style={
-                styles.emptyTitle
-              }
-            >
-              No dates available
-            </Text>
-
-            <Text
-              style={
-                styles.emptyText
-              }
-            >
-              There are currently no
-              matching worker schedules
-              for this service and
-              location.
-            </Text>
-          </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={
-              false
-            }
-            contentContainerStyle={
-              styles.dateList
-            }
-          >
-            {dates.map(date => {
-              const active =
-                selectedDate ===
-                date.value
-
-              return (
-                <TouchableOpacity
-                  key={date.value}
+                <Text
                   style={[
-                    styles.dateCard,
+                    styles.dateWeekday,
                     active &&
-                      styles.dateCardActive,
+                      styles.activeText,
                   ]}
-                  onPress={() => {
-                    setSelectedDate(
-                      date.value,
-                    )
-                    setSelectedTime('')
-                  }}
-                  activeOpacity={0.85}
                 >
-                  <Text
-                    style={[
-                      styles.dateWeekday,
-                      active &&
-                        styles.activeText,
-                    ]}
-                  >
-                    {date.weekday}
-                  </Text>
+                  {fromDateKey(
+                    date
+                  ).toLocaleDateString(
+                    'en-IN',
+                    {
+                      weekday: 'short',
+                    }
+                  )}
+                </Text>
 
-                  <Text
-                    style={[
-                      styles.dateNumber,
-                      active &&
-                        styles.activeText,
-                    ]}
-                  >
-                    {date.date}
-                  </Text>
+                <Text
+                  style={[
+                    styles.dateNumber,
+                    active &&
+                      styles.activeText,
+                  ]}
+                >
+                  {fromDateKey(
+                    date
+                  ).getDate()}
+                </Text>
 
-                  <Text
-                    style={[
-                      styles.dateMonth,
-                      active &&
-                        styles.activeText,
-                    ]}
-                  >
-                    {date.month}
-                  </Text>
-                </TouchableOpacity>
-              )
-            })}
-          </ScrollView>
-        )}
+                <Text
+                  style={[
+                    styles.dateMonth,
+                    active &&
+                      styles.activeText,
+                  ]}
+                >
+                  {fromDateKey(
+                    date
+                  ).toLocaleDateString(
+                    'en-IN',
+                    {
+                      month: 'short',
+                    }
+                  )}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
 
-        <View
-          style={styles.sectionHeader}
-        >
-          <View>
+        {multiDay ? (
+          <>
             <Text
-              style={
-                styles.sectionTitle
-              }
+              style={[
+                styles.sectionTitle,
+                styles.sectionSpacing,
+              ]}
             >
-              Select time
+              Working days
             </Text>
 
             <Text
-              style={
-                styles.sectionSubtitle
-              }
+              style={styles.helper}
             >
-              Times are generated from
-              worker schedules.
+              Select any weekdays you
+              need. There are no fixed
+              weekly days.
             </Text>
-          </View>
-        </View>
 
-        {selectedDate ? (
-          timeSlots.length > 0 ? (
             <View
-              style={styles.timeGrid}
+              style={styles.weekdayRow}
             >
-              {timeSlots.map(time => {
+              {WEEKDAYS.map(day => {
                 const active =
-                  selectedTime ===
-                  time.value
+                  selectedWeekdays.includes(
+                    day.value
+                  )
 
                 return (
                   <TouchableOpacity
-                    key={
-                      `${time.slotStart}-${time.slotEnd}`
-                    }
-                    style={[
-                      styles.timeCard,
-                      active &&
-                        styles.timeCardActive,
-                    ]}
+                    key={day.value}
                     onPress={() =>
-                      setSelectedTime(
-                        time.value,
+                      toggleWeekday(
+                        day.value
                       )
                     }
+                    style={[
+                      styles.weekday,
+                      active &&
+                        styles.weekdayActive,
+                    ]}
                     activeOpacity={0.85}
                   >
-                    <View
-                      style={[
-                        styles.timeRadio,
-                        active &&
-                          styles.timeRadioActive,
-                      ]}
-                    >
-                      {active ? (
-                        <View
-                          style={
-                            styles.timeRadioDot
-                          }
-                        />
-                      ) : null}
-                    </View>
-
                     <Text
                       style={[
-                        styles.timeText,
+                        styles.weekdayText,
                         active &&
-                          styles.activeTimeText,
+                          styles.activeText,
                       ]}
                     >
-                      {time.label}
+                      {day.label}
                     </Text>
                   </TouchableOpacity>
                 )
               })}
             </View>
-          ) : (
-            <View
-              style={styles.emptyCard}
-            >
-              <Text
-                style={
-                  styles.emptyTitle
-                }
-              >
-                No times available
-              </Text>
+          </>
+        ) : null}
 
-              <Text
-                style={styles.emptyText}
-              >
-                No worker schedule matches
-                the selected date.
-              </Text>
-            </View>
-          )
-        ) : (
+        <Text
+          style={[
+            styles.sectionTitle,
+            styles.sectionSpacing,
+          ]}
+        >
+          Working hours
+        </Text>
+
+        <Text
+          style={styles.helper}
+        >
+          Enter the working hours for
+          each selected working date.
+        </Text>
+
+        <View
+          style={styles.timeRow}
+        >
           <View
-            style={styles.emptyCard}
+            style={styles.timeField}
           >
             <Text
-              style={styles.emptyText}
+              style={styles.fieldLabel}
             >
-              Select an available date
-              to see its times.
+              START
             </Text>
+
+            <TextInput
+              value={startTime}
+              onChangeText={value => {
+                setStartTime(value)
+                setSchedule(null)
+              }}
+              placeholder="09:00"
+              placeholderTextColor={
+                COLORS.gray
+              }
+              keyboardType="numbers-and-punctuation"
+              maxLength={5}
+              style={styles.input}
+            />
           </View>
-        )}
+
+          <Text
+            style={styles.timeSeparator}
+          >
+            →
+          </Text>
+
+          <View
+            style={styles.timeField}
+          >
+            <Text
+              style={styles.fieldLabel}
+            >
+              END
+            </Text>
+
+            <TextInput
+              value={endTime}
+              onChangeText={value => {
+                setEndTime(value)
+                setSchedule(null)
+              }}
+              placeholder="18:00"
+              placeholderTextColor={
+                COLORS.gray
+              }
+              keyboardType="numbers-and-punctuation"
+              maxLength={5}
+              style={styles.input}
+            />
+          </View>
+        </View>
+
+        {multiDay &&
+        selectableDates.length > 0 ? (
+          <>
+            <Text
+              style={[
+                styles.sectionTitle,
+                styles.sectionSpacing,
+              ]}
+            >
+              Optional off dates
+            </Text>
+
+            <Text
+              style={styles.helper}
+            >
+              Tap any selected working
+              date to remove it from this
+              booking.
+            </Text>
+
+            <View
+              style={styles.offDateList}
+            >
+              {selectableDates
+                .filter(date =>
+                  applicableWeekdays.includes(
+                    weekdayForDate(
+                      date
+                    )
+                  )
+                )
+                .map(date => {
+                  const off =
+                    offDates.includes(
+                      date
+                    )
+
+                  return (
+                    <TouchableOpacity
+                      key={date}
+                      onPress={() =>
+                        toggleOffDate(
+                          date
+                        )
+                      }
+                      style={[
+                        styles.offDate,
+                        off &&
+                          styles.offDateActive,
+                      ]}
+                      activeOpacity={
+                        0.85
+                      }
+                    >
+                      <View
+                        style={[
+                          styles.checkbox,
+                          off &&
+                            styles.checkboxActive,
+                        ]}
+                      >
+                        {off ? (
+                          <Text
+                            style={
+                              styles.checkmark
+                            }
+                          >
+                            ✓
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <Text
+                        style={
+                          styles.offDateText
+                        }
+                      >
+                        {formatDate(
+                          date
+                        )}
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.offDateStatus,
+                          off &&
+                            styles.offStatus,
+                        ]}
+                      >
+                        {off
+                          ? 'OFF'
+                          : 'WORK'}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
+            </View>
+          </>
+        ) : null}
 
         <View
           style={styles.previewCard}
         >
-          <View
-            style={styles.previewIcon}
+          <Text
+            style={styles.previewLabel}
           >
-            <Text
-              style={
-                styles.previewEmoji
-              }
-            >
-              🕐
-            </Text>
-          </View>
-
-          <View
-            style={styles.previewContent}
-          >
-            <Text
-              style={
-                styles.previewLabel
-              }
-            >
-              YOUR SCHEDULE
-            </Text>
-
-            {canContinue ? (
-              <>
-                <Text
-                  style={
-                    styles.previewValue
-                  }
-                >
-                  {selectedDateObject?.weekday},{' '}
-                  {selectedDateObject?.date}{' '}
-                  {selectedDateObject?.month}
-                </Text>
-
-                <Text
-                  style={
-                    styles.previewTime
-                  }
-                >
-                  {formatTime(
-                    selectedTimeObject!.slotStart,
-                  )}
-                </Text>
-              </>
-            ) : (
-              <Text
-                style={
-                  styles.previewEmpty
-                }
-              >
-                Select an available date
-                and time
-              </Text>
-            )}
-          </View>
-        </View>
-
-        <View
-          style={styles.infoCard}
-        >
-          <View
-            style={styles.infoIcon}
-          >
-            <Text
-              style={
-                styles.infoIconText
-              }
-            >
-              ✓
-            </Text>
-          </View>
-
-          <View
-            style={styles.infoContent}
-          >
-            <Text
-              style={styles.infoTitle}
-            >
-              TempStaff handles worker
-              assignment
-            </Text>
-
-            <Text
-              style={styles.infoText}
-            >
-              Your selected schedule is
-              checked against eligible
-              worker schedules before
-              booking.
-            </Text>
-          </View>
-        </View>
-
-        <View
-          style={styles.recurringCard}
-        >
-          <View
-            style={styles.recurringIcon}
-          >
-            <Text
-              style={
-                styles.recurringEmoji
-              }
-            >
-              🔁
-            </Text>
-          </View>
-
-          <View
-            style={styles.recurringContent}
-          >
-            <View
-              style={
-                styles.recurringTitleRow
-              }
-            >
-              <Text
-                style={
-                  styles.recurringTitle
-                }
-              >
-                Need staff regularly?
-              </Text>
-
-              <View
-                style={
-                  styles.comingBadge
-                }
-              >
-                <Text
-                  style={
-                    styles.comingText
-                  }
-                >
-                  COMING SOON
-                </Text>
-              </View>
-            </View>
-
-            <Text
-              style={
-                styles.recurringText
-              }
-            >
-              Recurring bookings will let
-              you arrange regular staffing
-              without creating each booking
-              separately.
-            </Text>
-          </View>
-        </View>
-
-        <View
-          style={styles.bottom}
-        >
-          <PrimaryButton
-            title="Continue to Payment"
-            onPress={
-              continueToCheckout
-            }
-            disabled={!canContinue}
-          />
+            SCHEDULE PREVIEW
+          </Text>
 
           <Text
-            style={styles.bottomNote}
+            style={styles.previewTitle}
           >
-            Payment integration will be
-            connected separately.
+            {formatDate(startDate)}
+            {multiDay
+              ? ` → ${formatDate(
+                  endDate
+                )}`
+              : ''}
           </Text>
+
+          {startTime &&
+          endTime ? (
+            <Text
+              style={styles.previewTime}
+            >
+              {startTime} → {endTime}
+            </Text>
+          ) : (
+            <Text
+              style={styles.previewEmpty}
+            >
+              Working hours not selected
+            </Text>
+          )}
+
+          {multiDay ? (
+            <Text
+              style={styles.previewMeta}
+            >
+              {selectedWeekdays.length}{' '}
+              weekday
+              {selectedWeekdays.length ===
+              1
+                ? ''
+                : 's'}{' '}
+              selected
+              {offDates.length > 0
+                ? ` · ${offDates.length} off date${
+                    offDates.length ===
+                    1
+                      ? ''
+                      : 's'
+                  }`
+                : ''}
+            </Text>
+          ) : (
+            <Text
+              style={styles.previewMeta}
+            >
+              Single-day booking
+            </Text>
+          )}
+        </View>
+
+        {schedule ? (
+          <View
+            style={styles.resultCard}
+          >
+            <Text
+              style={styles.resultLabel}
+            >
+              CALCULATED SCHEDULE
+            </Text>
+
+            <Text
+              style={styles.resultHours}
+            >
+              {schedule.totalWorkingHours}{' '}
+              hours
+            </Text>
+
+            <Text
+              style={styles.resultText}
+            >
+              {schedule.occurrences.length}{' '}
+              working date
+              {schedule.occurrences.length ===
+              1
+                ? ''
+                : 's'}{' '}
+              will be created.
+            </Text>
+          </View>
+        ) : null}
+
+        <View
+          style={styles.actions}
+        >
+          <PrimaryButton
+            title={
+              loading
+                ? 'Calculating...'
+                : schedule
+                  ? 'Continue'
+                  : 'Review Schedule'
+            }
+            onPress={
+              schedule
+                ? continueToCheckout
+                : calculateSchedule
+            }
+            disabled={loading}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.light,
-  },
-
-  page: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 45,
-  },
-
-  progressContainer: {
-    marginTop: 5,
-    marginBottom: 20,
-  },
-
-  progressTrack: {
-    height: 4,
-    width: '100%',
-    backgroundColor: '#DDE3E9',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-
-  progressFill: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: COLORS.teal,
-    borderRadius: 3,
-  },
-
-  progressText: {
-    color: COLORS.gray,
-    fontSize: 9,
-    lineHeight: 14,
-    fontWeight: '800',
-    letterSpacing: 0.7,
-    marginTop: 7,
-  },
-
-  heading: {
-    marginBottom: 19,
-  },
-
-  title: {
-    color: COLORS.navy,
-    fontSize: 28,
-    lineHeight: 35,
-    fontWeight: '900',
-  },
-
-  subtitle: {
-    color: COLORS.gray,
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 7,
-  },
-
-  summaryCard: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 19,
-    padding: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 23,
-  },
-
-  summaryIcon: {
-    width: 51,
-    height: 51,
-    borderRadius: 15,
-    backgroundColor: '#E8F6F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-
-  summaryEmoji: {
-    fontSize: 25,
-  },
-
-  summaryContent: {
-    flex: 1,
-  },
-
-  summaryLabel: {
-    color: COLORS.gray,
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-
-  serviceName: {
-    color: COLORS.navy,
-    fontSize: 16,
-    lineHeight: 21,
-    fontWeight: '900',
-    marginTop: 3,
-  },
-
-  packageName: {
-    color: COLORS.teal,
-    fontSize: 11.5,
-    lineHeight: 16,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 11,
-  },
-
-  sectionTitle: {
-    color: COLORS.navy,
-    fontSize: 19,
-    lineHeight: 25,
-    fontWeight: '900',
-  },
-
-  sectionSubtitle: {
-    color: COLORS.gray,
-    fontSize: 10.5,
-    lineHeight: 16,
-    marginTop: 2,
-  },
-
-  selectedBadge: {
-    backgroundColor: '#E8F6F6',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-
-  selectedBadgeText: {
-    color: COLORS.teal,
-    fontSize: 7,
-    fontWeight: '900',
-  },
-
-  loadingCard: {
-    minHeight: 100,
-    borderRadius: 17,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 22,
-  },
-
-  loadingText: {
-    color: COLORS.gray,
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 9,
-  },
-
-  errorCard: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 17,
-    padding: 16,
-    marginBottom: 22,
-  },
-
-  errorTitle: {
-    color: COLORS.navy,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-
-  errorText: {
-    color: COLORS.gray,
-    fontSize: 11,
-    lineHeight: 17,
-    marginTop: 5,
-  },
-
-  retryButton: {
-    alignSelf: 'flex-start',
-    marginTop: 12,
-    backgroundColor: COLORS.teal,
-    borderRadius: 11,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-  },
-
-  retryText: {
-    color: COLORS.white,
-    fontSize: 10,
-    fontWeight: '900',
-  },
-
-  emptyCard: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 17,
-    padding: 17,
-    marginBottom: 22,
-  },
-
-  emptyTitle: {
-    color: COLORS.navy,
-    fontSize: 13,
-    fontWeight: '900',
-  },
-
-  emptyText: {
-    color: COLORS.gray,
-    fontSize: 11,
-    lineHeight: 17,
-    marginTop: 5,
-  },
-
-  dateList: {
-    paddingBottom: 24,
-    gap: 9,
-  },
-
-  dateCard: {
-    width: 78,
-    height: 91,
-    borderRadius: 17,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  dateCardActive: {
-    backgroundColor: COLORS.teal,
-    borderColor: COLORS.teal,
-  },
-
-  dateWeekday: {
-    color: COLORS.gray,
-    fontSize: 11,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-
-  dateNumber: {
-    color: COLORS.navy,
-    fontSize: 22,
-    lineHeight: 26,
-    fontWeight: '900',
-  },
-
-  dateMonth: {
-    color: COLORS.gray,
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: 1,
-  },
-
-  activeText: {
-    color: COLORS.white,
-  },
-
-  timeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 18,
-  },
-
-  timeCard: {
-    width: '31.5%',
-    height: 50,
-    borderRadius: 13,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 9,
-    marginBottom: 9,
-  },
-
-  timeCardActive: {
-    backgroundColor: COLORS.teal,
-    borderColor: COLORS.teal,
-  },
-
-  timeRadio: {
-    width: 15,
-    height: 15,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: '#C7D0D7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 6,
-  },
-
-  timeRadioActive: {
-    borderColor: COLORS.white,
-  },
-
-  timeRadioDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: COLORS.white,
-  },
-
-  timeText: {
-    color: COLORS.navy,
-    fontSize: 10.5,
-    fontWeight: '800',
-  },
-
-  activeTimeText: {
-    color: COLORS.white,
-  },
-
-  previewCard: {
-    backgroundColor: COLORS.navy,
-    borderRadius: 19,
-    padding: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-
-  previewIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 14,
-    backgroundColor:
-      'rgba(255,255,255,0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 11,
-  },
-
-  previewEmoji: {
-    fontSize: 22,
-  },
-
-  previewContent: {
-    flex: 1,
-  },
-
-  previewLabel: {
-    color: '#B8C8D7',
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-
-  previewValue: {
-    color: COLORS.white,
-    fontSize: 14,
-    lineHeight: 19,
-    fontWeight: '900',
-    marginTop: 3,
-  },
-
-  previewTime: {
-    color: '#9FE0DE',
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '800',
-    marginTop: 1,
-  },
-
-  previewEmpty: {
-    color: '#B8C8D7',
-    fontSize: 12,
-    marginTop: 4,
-  },
-
-  infoCard: {
-    backgroundColor: '#E8F6F6',
-    borderRadius: 17,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-
-  infoIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: COLORS.teal,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-
-  infoIconText: {
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-
-  infoContent: {
-    flex: 1,
-  },
-
-  infoTitle: {
-    color: COLORS.navy,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '900',
-  },
-
-  infoText: {
-    color: COLORS.gray,
-    fontSize: 10.5,
-    lineHeight: 16,
-    marginTop: 3,
-  },
-
-  recurringCard: {
-    backgroundColor: '#F5F7F9',
-    borderWidth: 1,
-    borderColor: '#E2E7EC',
-    borderRadius: 17,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 20,
-  },
-
-  recurringIcon: {
-    width: 43,
-    height: 43,
-    borderRadius: 13,
-    backgroundColor: '#E6EBEF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-
-  recurringEmoji: {
-    fontSize: 20,
-  },
-
-  recurringContent: {
-    flex: 1,
-  },
-
-  recurringTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-
-  recurringTitle: {
-    color: COLORS.navy,
-    fontSize: 12.5,
-    lineHeight: 18,
-    fontWeight: '900',
-  },
-
-  comingBadge: {
-    backgroundColor: '#E1E6EA',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    marginLeft: 6,
-  },
-
-  comingText: {
-    color: COLORS.gray,
-    fontSize: 6,
-    fontWeight: '900',
-  },
-
-  recurringText: {
-    color: COLORS.gray,
-    fontSize: 10,
-    lineHeight: 15,
-    marginTop: 3,
-  },
-
-  bottom: {
-    marginTop: 1,
-  },
-
-  bottomNote: {
-    color: COLORS.gray,
-    fontSize: 10,
-    lineHeight: 15,
-    textAlign: 'center',
-    marginTop: 9,
-  },
-})
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor:
+        COLORS.light,
+    },
+
+    content: {
+      padding: 22,
+      paddingBottom: 48,
+    },
+
+    eyebrow: {
+      color: COLORS.teal,
+      fontSize: 11,
+      fontWeight: '900',
+      letterSpacing: 1.2,
+      marginTop: 18,
+      marginBottom: 8,
+    },
+
+    title: {
+      color: COLORS.navy,
+      fontSize: 31,
+      fontWeight: '900',
+      marginBottom: 8,
+    },
+
+    subtitle: {
+      color: COLORS.gray,
+      fontSize: 15,
+      lineHeight: 22,
+      marginBottom: 22,
+    },
+
+    serviceCard: {
+      backgroundColor: 'white',
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      borderRadius: 20,
+      padding: 18,
+      marginBottom: 26,
+    },
+
+    cardLabel: {
+      color: COLORS.gray,
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 1,
+      marginBottom: 7,
+    },
+
+    serviceName: {
+      color: COLORS.navy,
+      fontSize: 21,
+      fontWeight: '900',
+    },
+
+    packageName: {
+      color: COLORS.teal,
+      fontSize: 14,
+      fontWeight: '800',
+      marginTop: 4,
+    },
+
+    sectionTitle: {
+      color: COLORS.navy,
+      fontSize: 19,
+      fontWeight: '900',
+      marginBottom: 5,
+    },
+
+    sectionSpacing: {
+      marginTop: 25,
+    },
+
+    helper: {
+      color: COLORS.gray,
+      fontSize: 12,
+      lineHeight: 18,
+      marginBottom: 13,
+    },
+
+    dateRow: {
+      paddingVertical: 4,
+      paddingRight: 8,
+    },
+
+    dateCard: {
+      width: 68,
+      minHeight: 91,
+      backgroundColor:
+        'white',
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      borderRadius: 17,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 9,
+    },
+
+    dateCardActive: {
+      backgroundColor:
+        COLORS.navy,
+      borderColor:
+        COLORS.navy,
+    },
+
+    dateCardFirst: {
+      borderWidth: 2,
+    },
+
+    dateCardLast: {
+      borderWidth: 2,
+    },
+
+    dateWeekday: {
+      color: COLORS.gray,
+      fontSize: 11,
+      fontWeight: '800',
+    },
+
+    dateNumber: {
+      color: COLORS.navy,
+      fontSize: 25,
+      fontWeight: '900',
+      marginVertical: 2,
+    },
+
+    dateMonth: {
+      color: COLORS.gray,
+      fontSize: 10,
+      fontWeight: '700',
+    },
+
+    activeText: {
+      color: 'white',
+    },
+
+    weekdayRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+
+    weekday: {
+      width: 45,
+      height: 45,
+      borderRadius: 14,
+      backgroundColor:
+        'white',
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    weekdayActive: {
+      backgroundColor:
+        COLORS.navy,
+      borderColor:
+        COLORS.navy,
+    },
+
+    weekdayText: {
+      color: COLORS.navy,
+      fontSize: 12,
+      fontWeight: '900',
+    },
+
+    timeRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 10,
+    },
+
+    timeField: {
+      flex: 1,
+    },
+
+    fieldLabel: {
+      color: COLORS.gray,
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 1,
+      marginBottom: 6,
+    },
+
+    input: {
+      height: 54,
+      backgroundColor:
+        'white',
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      borderRadius: 15,
+      paddingHorizontal: 15,
+      color: COLORS.navy,
+      fontSize: 18,
+      fontWeight: '800',
+    },
+
+    timeSeparator: {
+      color: COLORS.gray,
+      fontSize: 18,
+      paddingBottom: 16,
+    },
+
+    offDateList: {
+      gap: 8,
+    },
+
+    offDate: {
+      minHeight: 52,
+      backgroundColor:
+        'white',
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      borderRadius: 15,
+      paddingHorizontal: 13,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+
+    offDateActive: {
+      opacity: 0.72,
+    },
+
+    checkbox: {
+      width: 25,
+      height: 25,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 11,
+    },
+
+    checkboxActive: {
+      backgroundColor:
+        COLORS.teal,
+      borderColor:
+        COLORS.teal,
+    },
+
+    checkmark: {
+      color: 'white',
+      fontSize: 14,
+      fontWeight: '900',
+    },
+
+    offDateText: {
+      flex: 1,
+      color: COLORS.navy,
+      fontSize: 13,
+      fontWeight: '800',
+    },
+
+    offDateStatus: {
+      color: COLORS.teal,
+      fontSize: 10,
+      fontWeight: '900',
+    },
+
+    offStatus: {
+      color: COLORS.gray,
+    },
+
+    previewCard: {
+      backgroundColor:
+        '#EAF7F6',
+      borderRadius: 19,
+      padding: 18,
+      marginTop: 25,
+    },
+
+    previewLabel: {
+      color: COLORS.teal,
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 1,
+    },
+
+    previewTitle: {
+      color: COLORS.navy,
+      fontSize: 18,
+      fontWeight: '900',
+      marginTop: 7,
+    },
+
+    previewTime: {
+      color: COLORS.navy,
+      fontSize: 15,
+      fontWeight: '800',
+      marginTop: 5,
+    },
+
+    previewEmpty: {
+      color: COLORS.gray,
+      fontSize: 13,
+      marginTop: 5,
+    },
+
+    previewMeta: {
+      color: COLORS.gray,
+      fontSize: 12,
+      marginTop: 8,
+    },
+
+    resultCard: {
+      backgroundColor:
+        COLORS.navy,
+      borderRadius: 19,
+      padding: 19,
+      marginTop: 13,
+    },
+
+    resultLabel: {
+      color: '#D9E7F5',
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 1,
+    },
+
+    resultHours: {
+      color: 'white',
+      fontSize: 29,
+      fontWeight: '900',
+      marginTop: 5,
+    },
+
+    resultText: {
+      color: '#D9E7F5',
+      fontSize: 12,
+      marginTop: 4,
+    },
+
+    actions: {
+      marginTop: 24,
+    },
+  })

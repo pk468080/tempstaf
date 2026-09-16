@@ -51,7 +51,20 @@ type BookingState = {
   catalogueError: string
 
   bookingMode: BookingMode
-  scheduledDate: string
+scheduledDate: string
+
+scheduleStartDate: string
+scheduleEndDate: string
+scheduleDailyStartTime: string
+scheduleDailyEndTime: string
+scheduleSelectedWeekdays: number[]
+scheduleOffDates: string[]
+scheduleTotalWorkingHours: number
+scheduleOccurrences: Array<{
+  occurrence_date: string
+  scheduled_start: string
+  scheduled_end: string
+}>
 
   address: string
   addressId: string
@@ -83,6 +96,41 @@ type BookingState = {
   setScheduledDate: (
     value: string
   ) => void
+  setScheduleStartDate: (
+  value: string
+) => void
+
+setScheduleEndDate: (
+  value: string
+) => void
+
+setScheduleDailyStartTime: (
+  value: string
+) => void
+
+setScheduleDailyEndTime: (
+  value: string
+) => void
+
+setScheduleSelectedWeekdays: (
+  value: number[]
+) => void
+
+setScheduleOffDates: (
+  value: string[]
+) => void
+
+setScheduleTotalWorkingHours: (
+  value: number
+) => void
+
+setScheduleOccurrences: (
+  value: Array<{
+    occurrence_date: string
+    scheduled_start: string
+    scheduled_end: string
+  }>
+) => void
 
   setAddress: (
     value: string
@@ -186,6 +234,55 @@ export function BookingProvider({
     scheduledDate,
     setScheduledDate,
   ] = useState('')
+
+  const [
+  scheduleStartDate,
+  setScheduleStartDate,
+] = useState('')
+
+const [
+  scheduleEndDate,
+  setScheduleEndDate,
+] = useState('')
+
+const [
+  scheduleDailyStartTime,
+  setScheduleDailyStartTime,
+] = useState('')
+
+const [
+  scheduleDailyEndTime,
+  setScheduleDailyEndTime,
+] = useState('')
+
+const [
+  scheduleSelectedWeekdays,
+  setScheduleSelectedWeekdays,
+] =
+  useState<number[]>([])
+
+const [
+  scheduleOffDates,
+  setScheduleOffDates,
+] = useState<string[]>([])
+
+const [
+  scheduleTotalWorkingHours,
+  setScheduleTotalWorkingHours,
+] =
+  useState(0)
+
+const [
+  scheduleOccurrences,
+  setScheduleOccurrences,
+] =
+  useState<
+    Array<{
+      occurrence_date: string
+      scheduled_start: string
+      scheduled_end: string
+    }>
+  >([])
 
   const [
     address,
@@ -484,6 +581,14 @@ export function BookingProvider({
 
     setBookingMode('Scheduled')
     setScheduledDate('')
+    setScheduleStartDate('')
+setScheduleEndDate('')
+setScheduleDailyStartTime('')
+setScheduleDailyEndTime('')
+setScheduleSelectedWeekdays([])
+setScheduleOffDates([])
+setScheduleTotalWorkingHours(0)
+setScheduleOccurrences([])
 
     setAddress('')
     setAddressId('')
@@ -518,9 +623,20 @@ export function BookingProvider({
         catalogueError,
 
         bookingMode,
-        scheduledDate,
+scheduledDate,
 
-        address,
+scheduleStartDate,
+scheduleEndDate,
+scheduleDailyStartTime,
+scheduleDailyEndTime,
+scheduleSelectedWeekdays,
+scheduleOffDates,
+scheduleTotalWorkingHours,
+scheduleOccurrences,
+
+address,
+
+        
         addressId,
         coordinates,
 
@@ -538,8 +654,17 @@ export function BookingProvider({
         setSelectedService,
         setSelectedDuration,
 
-        setBookingMode,
-        setScheduledDate,
+       setBookingMode,
+setScheduledDate,
+
+setScheduleStartDate,
+setScheduleEndDate,
+setScheduleDailyStartTime,
+setScheduleDailyEndTime,
+setScheduleSelectedWeekdays,
+setScheduleOffDates,
+setScheduleTotalWorkingHours,
+setScheduleOccurrences,
 
         setAddress,
         setAddressId,
