@@ -460,7 +460,7 @@ begin
   -- ==========================================================
   -- Close every other pending offer.
   -- ==========================================================
-
+    
   update public.booking_worker_offers
   set
     status = 'cancelled',
