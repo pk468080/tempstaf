@@ -58,7 +58,8 @@ type LocationState = {
 
 type AvailabilityState = {
   loading: boolean
-  available: boolean
+  serviceAreaCovered: boolean
+  instantAvailable: boolean
   availableWorkers: number
   error: string | null
 }
@@ -295,120 +296,95 @@ export default function HomeScreen({
    */
 
   const loadServiceAvailability =
-    useCallback(
-      async (
-        latitude: number,
-        longitude: number
-      ) => {
-        if (
-          services.length === 0
-        ) {
-          return
+  useCallback(
+    async (
+      latitude: number,
+      longitude: number
+    ) => {
+      if (services.length === 0) {
+        return
+      }
+
+      setCheckingAvailability(true)
+
+      const initialState:
+        Record<string, AvailabilityState> = {}
+
+      services.forEach(service => {
+        initialState[service.id] = {
+          loading: true,
+          serviceAreaCovered: false,
+          instantAvailable: false,
+          availableWorkers: 0,
+          error: null,
         }
+      })
 
-        setCheckingAvailability(
-          true
-        )
+      setAvailability(initialState)
 
-        const initialState:
-          Record<
-            string,
-            AvailabilityState
-          > = {}
+      try {
+        const results = await Promise.all(
+          services.map(
+            async service => {
+              try {
+                const result =
+                  await checkServiceAvailability(
+                    service.id,
+                    latitude,
+                    longitude
+                  )
 
-        services.forEach(
-          service => {
-            initialState[
-              service.id
-            ] = {
-              loading: true,
-              available: false,
-              availableWorkers: 0,
-              error: null,
-            }
-          }
-        )
-
-        setAvailability(
-          initialState
-        )
-
-        try {
-          const results =
-            await Promise.all(
-              services.map(
-                async service => {
-                  try {
-                    const result =
-                      await checkServiceAvailability(
-                        service.id,
-                        latitude,
-                        longitude
-                      )
-
-                    return {
-                      serviceId:
-                        service.id,
-                      state: {
-                        loading: false,
-                        available:
-                          result.available &&
-                          result.available_workers >
-                            0,
-                        availableWorkers:
-                          result.available_workers,
-                        error: null,
-                      },
-                    }
-                  } catch (
-                    error
-                  ) {
-                    console.error(
-                      `[TempStaff] Availability failed for ${service.name}:`,
-                      error
-                    )
-
-                    return {
-                      serviceId:
-                        service.id,
-                      state: {
-                        loading: false,
-                        available: false,
-                        availableWorkers: 0,
-                        error:
-                          'Availability could not be checked.',
-                      },
-                    }
-                  }
+                return {
+                  serviceId: service.id,
+                  state: {
+                    loading: false,
+                    serviceAreaCovered:
+                      result.service_area_covered,
+                    instantAvailable:
+                      result.service_area_covered &&
+                      result.available_workers > 0,
+                    availableWorkers:
+                      result.available_workers,
+                    error: null,
+                  },
                 }
-              )
-            )
+              } catch (error) {
+                console.error(
+                  `[TempStaff] Availability failed for ${service.name}:`,
+                  error
+                )
 
-          const nextState:
-            Record<
-              string,
-              AvailabilityState
-            > = {}
-
-          results.forEach(
-            item => {
-              nextState[
-                item.serviceId
-              ] = item.state
+                return {
+                  serviceId: service.id,
+                  state: {
+                    loading: false,
+                    serviceAreaCovered: false,
+                    instantAvailable: false,
+                    availableWorkers: 0,
+                    error:
+                      'Availability could not be checked.',
+                  },
+                }
+              }
             }
           )
+        )
 
-          setAvailability(
-            nextState
-          )
-        } finally {
-          setCheckingAvailability(
-            false
-          )
-        }
-      },
-      [services]
-    )
+        const nextState:
+          Record<string, AvailabilityState> = {}
+
+        results.forEach(item => {
+          nextState[item.serviceId] =
+            item.state
+        })
+
+        setAvailability(nextState)
+      } finally {
+        setCheckingAvailability(false)
+      }
+    },
+    [services]
+  )
 
   useEffect(() => {
     if (
@@ -436,49 +412,37 @@ export default function HomeScreen({
    * --------------------------------------------------
    */
 
-  const handleServicePress =
-    (
-      serviceId: string,
-      serviceName: string
-    ) => {
-      const state =
-        availability[
-          serviceId
-        ]
+  const handleServicePress = (
+  serviceId: string,
+  serviceName: string
+) => {
+  const state =
+    availability[serviceId]
 
-      if (
-        !state ||
-        state.loading
-      ) {
-        return
-      }
+  if (!state || state.loading) {
+    return
+  }
 
-      if (
-        !state.available
-      ) {
-        Alert.alert(
-          'Service unavailable',
-          `${serviceName} is not currently available at your selected location.`,
-          [
-            {
-              text: 'OK',
-            },
-          ]
-        )
+  if (!state.serviceAreaCovered) {
+    Alert.alert(
+      'Service unavailable',
+      `${serviceName} is not available at your selected location.`,
+      [
+        {
+          text: 'OK',
+        },
+      ]
+    )
 
-        return
-      }
+    return
+  }
 
-      resetBooking()
+  resetBooking()
 
-      setSelectedService(
-        serviceName
-      )
+  setSelectedService(serviceName)
 
-      navigation.navigate(
-        'Services'
-      )
-    }
+  navigation.navigate('Services')
+}
 
   /*
    * --------------------------------------------------
