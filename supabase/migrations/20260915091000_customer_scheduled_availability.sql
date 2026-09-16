@@ -8,6 +8,7 @@ begin;
 -- Customers never read worker schedules directly.
 --
 -- Source of truth:
+--   service_variant_scheduling_rules
 --   worker_schedule_settings
 --   worker_weekly_schedules
 --   worker_schedule_exceptions
@@ -16,25 +17,19 @@ begin;
 --   bookings
 --
 -- worker_presence is NOT required for future scheduling.
--- worker_availability is NOT used by this function.
+-- worker_availability is NOT used.
 -- ============================================================
 
 
 -- ============================================================
--- 1. Database-configured slot interval
---
--- No production default is supplied.
--- Each worker's scheduling settings must explicitly define
--- how customer-facing start times are generated.
+-- 1. Worker-facing slot interval
 -- ============================================================
 
 alter table public.worker_schedule_settings
   add column if not exists slot_interval_minutes integer;
 
-
-alter table public.worker_schedule_settings
-  drop constraint if exists worker_schedule_settings_slot_interval_check;
-
+drop constraint if exists worker_schedule_settings_slot_interval_check
+on public.worker_schedule_settings;
 
 alter table public.worker_schedule_settings
   add constraint worker_schedule_settings_slot_interval_check
@@ -45,7 +40,7 @@ alter table public.worker_schedule_settings
 
 
 -- ============================================================
--- 2. Worker scheduled availability RPC
+-- 2. Customer scheduled availability RPC
 -- ============================================================
 
 create or replace function public.get_customer_scheduled_slots(
@@ -70,10 +65,11 @@ declare
   v_duration_value integer;
   v_duration_unit public.booking_duration_unit;
 
-  v_customer_location public.geography;
+  v_scheduling_mode text;
+  v_working_days integer;
+  v_daily_duration_minutes integer;
 
-  v_date date;
-  v_candidate_date date;
+  v_customer_location public.geography;
 
   v_worker record;
   v_window record;
@@ -81,23 +77,25 @@ declare
   v_timezone text;
   v_interval_minutes integer;
 
-  v_window_start_local timestamp;
-  v_window_end_local timestamp;
+  v_date date;
+  v_candidate_date date;
 
   v_candidate_start_local timestamp;
   v_candidate_end_local timestamp;
 
+  v_window_start_local timestamp;
+  v_window_end_local timestamp;
+
   v_candidate_start timestamptz;
   v_candidate_end timestamptz;
 
-  v_date_start_local timestamp;
-  v_date_end_local timestamp;
+  v_last_working_date date;
+  v_working_day_count integer;
 
-  v_worker_available boolean;
+  v_daily_start_local timestamp;
+  v_daily_end_local timestamp;
 
   v_day_of_week smallint;
-
-  v_day_limit integer;
 
 begin
 
@@ -111,7 +109,7 @@ begin
 
 
   -- ==========================================================
-  -- Validate inputs
+  -- Input validation
   -- ==========================================================
 
   if p_service_variant_id is null then
@@ -131,10 +129,7 @@ begin
     raise exception 'Invalid date range';
   end if;
 
-  v_day_limit :=
-    p_end_date - p_start_date + 1;
-
-  if v_day_limit > 31 then
+  if p_end_date - p_start_date + 1 > 31 then
     raise exception 'Availability range cannot exceed 31 days';
   end if;
 
@@ -166,7 +161,8 @@ begin
 
 
   -- ==========================================================
-  -- Existing catalogue is the source of truth for duration.
+  -- Existing catalogue remains the source of truth for
+  -- service, duration and duration unit.
   -- ==========================================================
 
   select
@@ -197,10 +193,54 @@ begin
 
 
   -- ==========================================================
-  -- Validate that the customer address is inside an active
-  -- service area for this service.
+  -- Scheduling semantics come ONLY from the database.
   --
-  -- This mirrors the server-side booking requirement.
+  -- Missing rule means the variant is not schedulable yet.
+  -- No production scheduling behavior is hardcoded.
+  -- ==========================================================
+
+  select
+    r.scheduling_mode,
+    r.working_days,
+    r.daily_duration_minutes
+  into
+    v_scheduling_mode,
+    v_working_days,
+    v_daily_duration_minutes
+  from public.service_variant_scheduling_rules r
+  where r.service_variant_id = p_service_variant_id
+    and r.is_active = true;
+
+  if v_scheduling_mode is null then
+    raise exception
+      'Scheduling rules are not configured for this service package';
+  end if;
+
+
+  if v_scheduling_mode = 'working_days'
+     and (
+       v_working_days is null
+       or v_working_days <= 0
+     )
+  then
+    raise exception
+      'Invalid working-days scheduling configuration';
+  end if;
+
+
+  if v_scheduling_mode = 'continuous'
+     and (
+       v_working_days is not null
+       or v_daily_duration_minutes is not null
+     )
+  then
+    raise exception
+      'Invalid continuous scheduling configuration';
+  end if;
+
+
+  -- ==========================================================
+  -- Validate service area.
   -- ==========================================================
 
   if not exists (
@@ -249,10 +289,9 @@ begin
 
 
   -- ==========================================================
-  -- Iterate workers.
+  -- Find workers capable of performing this service.
   --
-  -- Every returned slot must be backed by the SAME worker whose
-  -- schedule generated the candidate.
+  -- Future scheduling does NOT depend on worker online presence.
   -- ==========================================================
 
   for v_worker in
@@ -262,150 +301,141 @@ begin
       wss.timezone,
       wss.slot_interval_minutes
     from public.worker_profiles wp
+
     join public.worker_schedule_settings wss
       on wss.worker_id = wp.id
+
     join public.worker_services ws
       on ws.worker_id = wp.id
+
     where ws.service_id = v_service_id
+
       and wp.is_verified = true
+
       and wp.current_location is not null
+
       and wp.service_radius_km is not null
+
       and wp.service_radius_km > 0
+
       and wss.slot_interval_minutes is not null
+
       and wss.slot_interval_minutes > 0
 
   loop
 
-    v_timezone :=
-      v_worker.timezone;
-
-    v_interval_minutes :=
-      v_worker.slot_interval_minutes;
+    v_timezone := v_worker.timezone;
+    v_interval_minutes := v_worker.slot_interval_minutes;
 
 
     -- ========================================================
-    -- Iterate requested dates.
+    -- CONTINUOUS SCHEDULING
+    --
+    -- The complete booking must fit inside one worker
+    -- schedule window.
     -- ========================================================
 
-    v_date := p_start_date;
+    if v_scheduling_mode = 'continuous' then
 
-    while v_date <= p_end_date loop
+      v_date := p_start_date;
 
-      v_day_of_week :=
-        extract(
-          dow from v_date
-        )::smallint;
+      while v_date <= p_end_date loop
+
+        v_day_of_week :=
+          extract(
+            dow from v_date
+          )::smallint;
 
 
-      -- ======================================================
-      -- Build candidate windows from:
-      --
-      --   1. recurring weekly schedules
-      --   2. additive "available" exceptions
-      --
-      -- "unavailable" exceptions are checked separately and
-      -- always override both.
-      -- ======================================================
+        for v_window in
 
-      for v_window in
+          with windows as (
 
-        with windows as (
+            select
+              w.start_time,
+              w.end_time
+
+            from public.worker_weekly_schedules w
+
+            where w.worker_id = v_worker.worker_id
+              and w.day_of_week = v_day_of_week
+              and w.is_active = true
+
+            union
+
+            select
+              e.start_time,
+              e.end_time
+
+            from public.worker_schedule_exceptions e
+
+            where e.worker_id = v_worker.worker_id
+              and e.exception_date = v_date
+              and e.exception_type = 'available'
+              and e.is_active = true
+              and e.start_time is not null
+              and e.end_time is not null
+          )
 
           select
-            wws.start_time,
-            wws.end_time
-          from public.worker_weekly_schedules wws
-          where wws.worker_id = v_worker.worker_id
-            and wws.day_of_week = v_day_of_week
-            and wws.is_active = true
+            start_time,
+            end_time
 
-          union
+          from windows
 
-          select
-            e.start_time,
-            e.end_time
-          from public.worker_schedule_exceptions e
-          where e.worker_id = v_worker.worker_id
-            and e.exception_date = v_date
-            and e.exception_type = 'available'
-            and e.is_active = true
-            and e.start_time is not null
-            and e.end_time is not null
+          where start_time < end_time
 
-        )
+        loop
 
-        select
-          w.start_time,
-          w.end_time
-        from windows w
-        where w.start_time < w.end_time
+          v_window_start_local :=
+            v_date::timestamp
+            + v_window.start_time;
 
-      loop
-
-        v_window_start_local :=
-          v_date::timestamp
-          + v_window.start_time;
-
-        v_window_end_local :=
-          v_date::timestamp
-          + v_window.end_time;
+          v_window_end_local :=
+            v_date::timestamp
+            + v_window.end_time;
 
 
-        -- ====================================================
-        -- Generate candidates according to the database-defined
-        -- worker slot interval.
-        -- ====================================================
-
-        v_candidate_start_local :=
-          v_window_start_local;
+          v_candidate_start_local :=
+            v_window_start_local;
 
 
-        while v_candidate_start_local < v_window_end_local loop
+          while v_candidate_start_local < v_window_end_local loop
 
-          -- ================================================
-          -- Existing booking duration semantics.
-          -- ================================================
+            v_candidate_end_local :=
+              case v_duration_unit
 
-          v_candidate_end_local :=
-            case v_duration_unit
+                when 'hour' then
+                  v_candidate_start_local
+                  + make_interval(
+                      hours => v_duration_value
+                    )
 
-              when 'hour' then
-                v_candidate_start_local
-                + make_interval(
-                    hours => v_duration_value
-                  )
+                when 'day' then
+                  v_candidate_start_local
+                  + make_interval(
+                      days => v_duration_value
+                    )
 
-              when 'day' then
-                v_candidate_start_local
-                + make_interval(
-                    days => v_duration_value
-                  )
+                when 'week' then
+                  v_candidate_start_local
+                  + make_interval(
+                      days => v_duration_value * 7
+                    )
 
-              when 'week' then
-                v_candidate_start_local
-                + make_interval(
-                    days => v_duration_value * 7
-                  )
+                when 'month' then
+                  v_candidate_start_local
+                  + make_interval(
+                      months => v_duration_value
+                    )
 
-              when 'month' then
-                v_candidate_start_local
-                + make_interval(
-                    months => v_duration_value
-                  )
-
-            end;
+              end;
 
 
-          -- ==================================================
-          -- Candidate must fit the originating working window
-          -- for a normal same-day service.
-          --
-          -- Multi-day services are checked separately below.
-          -- ==================================================
-
-          if v_duration_unit = 'hour' then
-
-            if v_candidate_end_local <= v_window_end_local then
+            -- Same-window continuous services.
+            if v_duration_unit = 'hour'
+               and v_candidate_end_local <= v_window_end_local
+            then
 
               v_candidate_start :=
                 v_candidate_start_local
@@ -416,304 +446,348 @@ begin
                 at time zone v_timezone;
 
 
-              if v_candidate_start > now() then
+              if v_candidate_start > now()
 
-                -- ============================================
-                -- Worker-specific unavailable exception.
-                -- ============================================
+                 and not exists (
+                   select 1
+                   from public.worker_schedule_exceptions e
+                   where e.worker_id = v_worker.worker_id
+                     and e.exception_date = v_date
+                     and e.exception_type = 'unavailable'
+                     and e.is_active = true
+                     and (
+                       (
+                         e.start_time is null
+                         and e.end_time is null
+                       )
+                       or (
+                         e.start_time is not null
+                         and e.end_time is not null
+                         and v_candidate_start_local::time
+                             < e.end_time
+                         and v_candidate_end_local::time
+                             > e.start_time
+                       )
+                     )
+                 )
 
-                if not exists (
-                  select 1
-                  from public.worker_schedule_exceptions e
-                  where e.worker_id = v_worker.worker_id
-                    and e.exception_date = v_date
-                    and e.exception_type = 'unavailable'
-                    and e.is_active = true
-                    and (
-                      (
-                        e.start_time is null
-                        and e.end_time is null
-                      )
-                      or (
-                        e.start_time is not null
-                        and e.end_time is not null
-                        and v_candidate_start_local::time < e.end_time
-                        and v_candidate_end_local::time > e.start_time
-                      )
-                    )
-                )
+                 and exists (
+                   select 1
+                   from public.worker_profiles wp2
+                   where wp2.id = v_worker.worker_id
+                     and wp2.current_location is not null
+                     and st_dwithin(
+                       wp2.current_location,
+                       v_customer_location,
+                       wp2.service_radius_km * 1000
+                     )
+                 )
 
-                -- ==========================================
-                -- Worker must currently be within the service
-                -- radius. Presence/online status is NOT
-                -- required.
-                -- ==========================================
+                 and not exists (
+                   select 1
+                   from public.bookings b
+                   where b.worker_id = v_worker.worker_id
+                     and b.status in (
+                       'assigned'::public.booking_status,
+                       'on_the_way'::public.booking_status,
+                       'arrived'::public.booking_status,
+                       'in_progress'::public.booking_status
+                     )
+                     and b.scheduled_start < v_candidate_end
+                     and b.scheduled_end > v_candidate_start
+                 )
+              then
 
-                and exists (
-                  select 1
-                  from public.worker_profiles wp2
-                  where wp2.id = v_worker.worker_id
-                    and wp2.current_location is not null
-                    and st_dwithin(
-                      wp2.current_location,
-                      v_customer_location,
-                      wp2.service_radius_km * 1000
-                    )
-                )
+                slot_start := v_candidate_start;
+                slot_end := v_candidate_end;
 
-                -- ==========================================
-                -- No conflicting booking for this worker.
-                -- ==========================================
-
-                and not exists (
-                  select 1
-                  from public.bookings b
-                  where b.worker_id = v_worker.worker_id
-                    and b.status in (
-                      'assigned'::public.booking_status,
-                      'on_the_way'::public.booking_status,
-                      'arrived'::public.booking_status,
-                      'in_progress'::public.booking_status
-                    )
-                    and b.scheduled_start < v_candidate_end
-                    and b.scheduled_end > v_candidate_start
-                )
-                then
-
-                  slot_start := v_candidate_start;
-                  slot_end := v_candidate_end;
-
-                  return next;
-
-                end if;
+                return next;
 
               end if;
 
             end if;
 
 
-          else
-
-            -- =================================================
-            -- DAY / WEEK / MONTH
-            --
-            -- These durations may cross local calendar dates.
-            -- Verify the entire interval against this SAME
-            -- worker's schedule.
-            -- =================================================
-
-            v_worker_available := true;
-
-            v_candidate_start :=
+            v_candidate_start_local :=
               v_candidate_start_local
-              at time zone v_timezone;
+              + make_interval(
+                  mins => v_interval_minutes
+                );
 
-            v_candidate_end :=
-              v_candidate_end_local
-              at time zone v_timezone;
+          end loop;
 
-
-            if v_candidate_start <= now() then
-              v_worker_available := false;
-            end if;
+        end loop;
 
 
-            -- =================================================
-            -- Check every local calendar date touched by the
-            -- booking.
-            -- =================================================
+        v_date := v_date + 1;
 
-            if v_worker_available then
-
-              v_candidate_date :=
-                v_candidate_start_local::date;
+      end loop;
 
 
-              while v_candidate_date <=
-                    v_candidate_end_local::date
-              loop
+    -- ========================================================
+    -- WORKING-DAYS SCHEDULING
+    --
+    -- A booking requires N worker working days.
+    --
+    -- daily_duration_minutes:
+    --   configured value = required daily staffing duration
+    --
+    -- NULL:
+    --   the worker's schedule window determines the daily
+    --   staffing duration.
+    --
+    -- The returned interval spans from the first working-day
+    -- start to the final working-day end. This matches the
+    -- existing bookings schema, which currently stores one
+    -- scheduled_start/scheduled_end interval.
+    -- ========================================================
 
-                v_date_start_local :=
-                  case
-                    when v_candidate_date =
-                         v_candidate_start_local::date
-                    then
-                      v_candidate_start_local
-                    else
-                      v_candidate_date::timestamp
-                  end;
+    elsif v_scheduling_mode = 'working_days' then
 
-                v_date_end_local :=
-                  case
-                    when v_candidate_date =
-                         v_candidate_end_local::date
-                    then
-                      v_candidate_end_local
-                    else
-                      (v_candidate_date + 1)::timestamp
-                  end;
+      v_date := p_start_date;
+
+      while v_date <= p_end_date loop
+
+        v_day_of_week :=
+          extract(
+            dow from v_date
+          )::smallint;
 
 
-                -- =============================================
-                -- Every touched portion must be covered by at
-                -- least one weekly/available schedule window.
-                -- =============================================
+        for v_window in
 
-                if not exists (
+          with windows as (
 
-                  select 1
+            select
+              w.start_time,
+              w.end_time
 
-                  from (
+            from public.worker_weekly_schedules w
 
-                    select
-                      wws.start_time,
-                      wws.end_time
-                    from public.worker_weekly_schedules wws
-                    where wws.worker_id = v_worker.worker_id
-                      and wws.day_of_week =
-                          extract(
-                            dow from v_candidate_date
-                          )::smallint
-                      and wws.is_active = true
+            where w.worker_id = v_worker.worker_id
+              and w.day_of_week = v_day_of_week
+              and w.is_active = true
 
-                    union
+            union
 
-                    select
-                      e.start_time,
-                      e.end_time
-                    from public.worker_schedule_exceptions e
-                    where e.worker_id = v_worker.worker_id
-                      and e.exception_date = v_candidate_date
-                      and e.exception_type = 'available'
-                      and e.is_active = true
-                      and e.start_time is not null
-                      and e.end_time is not null
+            select
+              e.start_time,
+              e.end_time
 
-                  ) windows
+            from public.worker_schedule_exceptions e
 
-                  where
-                    (
-                      v_date_start_local::time >= windows.start_time
-                      and v_date_end_local::time <= windows.end_time
+            where e.worker_id = v_worker.worker_id
+              and e.exception_date = v_date
+              and e.exception_type = 'available'
+              and e.is_active = true
+              and e.start_time is not null
+              and e.end_time is not null
+          )
+
+          select
+            start_time,
+            end_time
+
+          from windows
+
+          where start_time < end_time
+
+        loop
+
+          v_candidate_start_local :=
+            v_date::timestamp
+            + v_window.start_time;
+
+
+          -- ==================================================
+          -- Find the Nth working day for this worker.
+          -- ==================================================
+
+          v_candidate_date := v_date;
+          v_working_day_count := 0;
+          v_last_working_date := null;
+
+          while v_candidate_date <= p_end_date loop
+
+            v_day_of_week :=
+              extract(
+                dow from v_candidate_date
+              )::smallint;
+
+
+            if exists (
+
+              select 1
+
+              from (
+                select
+                  w.start_time,
+                  w.end_time
+                from public.worker_weekly_schedules w
+                where w.worker_id = v_worker.worker_id
+                  and w.day_of_week = v_day_of_week
+                  and w.is_active = true
+
+                union
+
+                select
+                  e.start_time,
+                  e.end_time
+                from public.worker_schedule_exceptions e
+                where e.worker_id = v_worker.worker_id
+                  and e.exception_date = v_candidate_date
+                  and e.exception_type = 'available'
+                  and e.is_active = true
+                  and e.start_time is not null
+                  and e.end_time is not null
+              ) available_windows
+
+              where not exists (
+                select 1
+                from public.worker_schedule_exceptions ue
+                where ue.worker_id = v_worker.worker_id
+                  and ue.exception_date = v_candidate_date
+                  and ue.exception_type = 'unavailable'
+                  and ue.is_active = true
+                  and (
+                    ue.start_time is null
+                    or ue.end_time is null
+                    or (
+                      available_windows.start_time < ue.end_time
+                      and available_windows.end_time > ue.start_time
                     )
-
-                )
-                then
-                  v_worker_available := false;
-                end if;
-
-
-                -- =============================================
-                -- Unavailable exception overrides availability.
-                -- =============================================
-
-                if exists (
-                  select 1
-                  from public.worker_schedule_exceptions e
-                  where e.worker_id = v_worker.worker_id
-                    and e.exception_date = v_candidate_date
-                    and e.exception_type = 'unavailable'
-                    and e.is_active = true
-                    and (
-                      (
-                        e.start_time is null
-                        and e.end_time is null
-                      )
-                      or (
-                        e.start_time is not null
-                        and e.end_time is not null
-                        and v_date_start_local::time < e.end_time
-                        and v_date_end_local::time > e.start_time
-                      )
-                    )
-                )
-                then
-                  v_worker_available := false;
-                end if;
-
-
-                v_candidate_date :=
-                  v_candidate_date + 1;
-
-              end loop;
-
-            end if;
-
-
-            -- =================================================
-            -- Location and booking conflict.
-            -- =================================================
-
-            if v_worker_available
-               and exists (
-                 select 1
-                 from public.worker_profiles wp3
-                 where wp3.id = v_worker.worker_id
-                   and wp3.current_location is not null
-                   and st_dwithin(
-                     wp3.current_location,
-                     v_customer_location,
-                     wp3.service_radius_km * 1000
-                   )
-               )
-               and not exists (
-                 select 1
-                 from public.bookings b
-                 where b.worker_id = v_worker.worker_id
-                   and b.status in (
-                     'assigned'::public.booking_status,
-                     'on_the_way'::public.booking_status,
-                     'arrived'::public.booking_status,
-                     'in_progress'::public.booking_status
-                   )
-                   and b.scheduled_start < v_candidate_end
-                   and b.scheduled_end > v_candidate_start
-               )
+                  )
+              )
+            )
             then
 
-              slot_start := v_candidate_start;
-              slot_end := v_candidate_end;
+              v_working_day_count :=
+                v_working_day_count + 1;
 
-              return next;
+              v_last_working_date :=
+                v_candidate_date;
+
+            end if;
+
+
+            exit when
+              v_working_day_count >= v_working_days;
+
+            v_candidate_date :=
+              v_candidate_date + 1;
+
+          end loop;
+
+
+          if v_working_day_count >= v_working_days
+             and v_last_working_date is not null
+          then
+
+            if v_daily_duration_minutes is null then
+
+              v_daily_end_local :=
+                v_date::timestamp
+                + v_window.end_time;
+
+            else
+
+              v_daily_end_local :=
+                v_candidate_start_local
+                + make_interval(
+                    mins => v_daily_duration_minutes
+                  );
+
+              if v_daily_end_local >
+                 v_date::timestamp + v_window.end_time
+              then
+
+                v_daily_end_local := null;
+
+              end if;
+
+            end if;
+
+
+            if v_daily_end_local is not null then
+
+              v_candidate_end_local :=
+                v_last_working_date::timestamp
+                + v_window.end_time;
+
+
+              v_candidate_start :=
+                v_candidate_start_local
+                at time zone v_timezone;
+
+              v_candidate_end :=
+                v_candidate_end_local
+                at time zone v_timezone;
+
+
+              if v_candidate_start > now()
+
+                 and exists (
+                   select 1
+                   from public.worker_profiles wp2
+                   where wp2.id = v_worker.worker_id
+                     and wp2.current_location is not null
+                     and st_dwithin(
+                       wp2.current_location,
+                       v_customer_location,
+                       wp2.service_radius_km * 1000
+                     )
+                 )
+
+                 and not exists (
+                   select 1
+                   from public.bookings b
+                   where b.worker_id = v_worker.worker_id
+                     and b.status in (
+                       'assigned'::public.booking_status,
+                       'on_the_way'::public.booking_status,
+                       'arrived'::public.booking_status,
+                       'in_progress'::public.booking_status
+                     )
+                     and b.scheduled_start < v_candidate_end
+                     and b.scheduled_end > v_candidate_start
+                 )
+              then
+
+                slot_start := v_candidate_start;
+                slot_end := v_candidate_end;
+
+                return next;
+
+              end if;
 
             end if;
 
           end if;
 
-
-          -- ==================================================
-          -- Next customer-facing candidate.
-          --
-          -- Interval comes entirely from worker_schedule_settings.
-          -- ==================================================
-
-          v_candidate_start_local :=
-            v_candidate_start_local
-            + make_interval(
-                mins => v_interval_minutes
-              );
-
         end loop;
+
+
+        v_date := v_date + 1;
 
       end loop;
 
-
-      v_date :=
-        v_date + 1;
-
-    end loop;
+    end if;
 
   end loop;
-
 
   return;
 
 end;
+
 $function$;
 
 
 -- ============================================================
--- Security
+-- 3. Security
+--
+-- Customers call the RPC.
+-- Anonymous users cannot.
+-- The underlying scheduling tables remain protected by RLS.
 -- ============================================================
 
 revoke all
@@ -725,6 +799,14 @@ on function public.get_customer_scheduled_slots(
 )
 from public;
 
+revoke all
+on function public.get_customer_scheduled_slots(
+  uuid,
+  uuid,
+  date,
+  date
+)
+from anon;
 
 grant execute
 on function public.get_customer_scheduled_slots(
