@@ -106,6 +106,7 @@ declare
   v_window_start_local timestamp;
 v_window_end_local timestamp;
 
+
 begin
 
   -- ==========================================================

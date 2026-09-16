@@ -403,10 +403,9 @@ export default function CustomerLocationScreen({
                 when your device asks.
               </Text>
             </View>
-          ) : error &&
-            location.latitude === null ? (
+                    ) : manualMode ? (
             <View
-              style={styles.errorCard}
+              style={styles.manualCard}
             >
               <Text
                 style={styles.errorTitle}
@@ -456,7 +455,8 @@ export default function CustomerLocationScreen({
                 </Text>
               </TouchableOpacity>
             </View>
-          ) : manualMode ? (
+                   ) : error &&
+            location.latitude === null ? (
             <View
               style={styles.manualCard}
             >
