@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase'
 
 export type ServiceAvailability = {
   available: boolean
+  service_area_covered: boolean
   available_workers: number
 }
 
@@ -34,7 +35,11 @@ export async function checkServiceAvailability(
 
   return {
     available: Boolean(result?.available),
-    available_workers:
-      Number(result?.available_workers ?? 0),
+    service_area_covered: Boolean(
+      result?.service_area_covered
+    ),
+    available_workers: Number(
+      result?.available_workers ?? 0
+    ),
   }
 }

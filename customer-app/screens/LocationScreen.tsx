@@ -364,53 +364,52 @@ export default function LocationScreen({
           longitude
         )
 
-      if (!availability.available) {
-        setSaving(false)
+      if (!availability.service_area_covered) {
+  setSaving(false)
 
-        Alert.alert(
-          'Not Available Yet',
-          selectedService
-            ? `${selectedService} is not currently available at this service location.`
-            : 'This service is not currently available at this service location.',
-          [
-            {
-              text: 'Not Now',
-              style: 'cancel',
-            },
-            {
-              text: 'Notify Me',
-              onPress: async () => {
-                try {
-                  await requestServiceAvailability({
-                    serviceId:
-                      selectedServiceId,
-                    latitude,
-                    longitude,
-                  })
+  Alert.alert(
+    'Service unavailable',
+    selectedService
+      ? `${selectedService} is not available at this service location.`
+      : 'This service is not available at this service location.',
+    [
+      {
+        text: 'Not Now',
+        style: 'cancel',
+      },
+      {
+        text: 'Notify Me',
+        onPress: async () => {
+          try {
+            await requestServiceAvailability({
+              serviceId: selectedServiceId,
+              latitude,
+              longitude,
+            })
 
-                  Alert.alert(
-                    'Notification Set',
-                    'We will notify you when this service becomes available at this location.'
-                  )
-                } catch (error: any) {
-                  console.error(
-                    '[TempStaff] Service availability request failed:',
-                    error
-                  )
+            Alert.alert(
+              'Notification Set',
+              'We will notify you when this service becomes available at this location.'
+            )
+          } catch (error: any) {
+            console.error(
+              '[TempStaff] Service availability request failed:',
+              error
+            )
 
-                  Alert.alert(
-                    'Unable to Set Notification',
-                    error?.message ||
-                      'We could not save your notification request. Please try again.'
-                  )
-                }
-              },
-            },
-          ]
-        )
+            Alert.alert(
+              'Unable to Set Notification',
+              error?.message ||
+                'We could not save your notification request. Please try again.'
+            )
+          }
+        },
+      },
+    ]
+  )
 
-        return
-      }
+  return
+}
 
       const fullAddress = buildAddress()
 
