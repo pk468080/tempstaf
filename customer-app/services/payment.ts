@@ -6,20 +6,32 @@ type RazorpayOrder = {
   orderId: string
   amount: number
   currency: string
-  receipt: string
+  receipt?: string
   error?: string
 }
 
 export async function createRazorpayOrder(
-  packageId: string,
-  bookingId: string,
+  bookingId: string
 ) {
-  if (!packageId) {
-    throw new Error('Package ID is required.')
+  if (!bookingId) {
+    throw new Error(
+      'Booking ID is required.'
+    )
   }
 
-  if (!bookingId) {
-    throw new Error('Booking ID is required.')
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession()
+
+  if (sessionError) {
+    throw sessionError
+  }
+
+  if (!session?.access_token) {
+    throw new Error(
+      'Your session has expired. Please log in again.'
+    )
   }
 
   const {
@@ -29,40 +41,82 @@ export async function createRazorpayOrder(
     'create-razorpay-order',
     {
       body: {
-        packageId,
         bookingId,
       },
-    },
+      headers: {
+        Authorization:
+          `Bearer ${session.access_token}`,
+      },
+    }
   )
 
   if (error) {
     console.error(
       '[TempStaff] Failed to create Razorpay order:',
-      error,
+      error
     )
 
     throw new Error(
       error.message ||
-        'Unable to create Razorpay order.',
+        'Unable to create Razorpay order.'
     )
   }
 
-  if (!data?.success) {
+  const result =
+    data as RazorpayOrder | null
+
+  if (!result?.success) {
     throw new Error(
-      data?.error ||
-        'Unable to create Razorpay order.',
+      result?.error ||
+        'Unable to create Razorpay order.'
+    )
+  }
+
+  if (!result.orderId) {
+    throw new Error(
+      'Razorpay order ID was not returned.'
+    )
+  }
+
+  if (!result.keyId) {
+    throw new Error(
+      'Razorpay key was not returned.'
+    )
+  }
+
+  const amount =
+    Number(result.amount)
+
+  if (
+    !Number.isFinite(amount) ||
+    amount <= 0
+  ) {
+    throw new Error(
+      'Invalid payment amount received from the server.'
     )
   }
 
   return {
-    keyId: String(data.keyId),
-    orderId: String(data.orderId),
-    amount: Number(data.amount),
-    currency: String(
-      data.currency || 'INR',
-    ),
+    keyId:
+      String(result.keyId),
+
+    orderId:
+      String(result.orderId),
+
+    amount,
+
+    currency:
+      String(
+        result.currency || 'INR'
+      ),
+
+    receipt:
+      result.receipt
+        ? String(result.receipt)
+        : undefined,
   }
 }
+
 export async function verifyRazorpayPayment(
   bookingId: string,
   razorpayOrderId: string,
@@ -108,7 +162,10 @@ export async function verifyRazorpayPayment(
     )
   }
 
-  const { data, error } =
+  const {
+    data,
+    error,
+  } =
     await supabase.functions.invoke(
       'verify-razorpay-payment',
       {

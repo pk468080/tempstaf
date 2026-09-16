@@ -25,9 +25,8 @@ import {
 import Header from '../components/Header'
 import PrimaryButton from '../components/PrimaryButton'
 
-
 import {
-  createBooking,
+  createScheduledBooking,
 } from '../services/booking'
 
 import {
@@ -41,93 +40,86 @@ type Props =
     'Checkout'
   >
 
-function parseScheduledDate(
+function formatDate(
   value: string
 ) {
   if (!value) {
-    return new Date()
+    return ''
   }
 
-  const match =
-    value.match(
-      /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})\s+(AM|PM)$/i
-    )
+  const date =
+    new Date(`${value}T00:00:00`)
 
-  if (!match) {
-    return new Date()
+  if (Number.isNaN(date.getTime())) {
+    return value
   }
 
-  const [
-    ,
-    year,
-    month,
-    day,
-    hourText,
-    minuteText,
-    period,
-  ] = match
+  return date.toLocaleDateString(
+    'en-IN',
+    {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }
+  )
+}
 
-  let hour =
+function formatTime(
+  value: string
+) {
+  if (!value) {
+    return ''
+  }
+
+  const [hourText, minuteText] =
+    value.split(':')
+
+  const hour =
     Number(hourText)
 
   const minute =
     Number(minuteText)
 
   if (
-    period.toUpperCase() ===
-      'PM' &&
-    hour !== 12
+    Number.isNaN(hour) ||
+    Number.isNaN(minute)
   ) {
-    hour += 12
+    return value
   }
 
-  if (
-    period.toUpperCase() ===
-      'AM' &&
-    hour === 12
-  ) {
-    hour = 0
-  }
+  const date =
+    new Date()
 
-  return new Date(
-    Number(year),
-    Number(month) - 1,
-    Number(day),
+  date.setHours(
     hour,
     minute,
     0,
     0
   )
+
+  return date.toLocaleTimeString(
+    'en-IN',
+    {
+      hour: 'numeric',
+      minute: '2-digit',
+    }
+  )
 }
 
-function calculateEndDate(
-  start: Date,
-  value: number,
-  unit: string
+function getWeekdayName(
+  day: number
 ) {
-  const end =
-    new Date(start)
+  const names = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ]
 
-  if (unit === 'hour') {
-    end.setHours(
-      end.getHours() + value
-    )
-  } else if (unit === 'day') {
-    end.setDate(
-      end.getDate() + value
-    )
-  } else if (unit === 'week') {
-    end.setDate(
-      end.getDate() +
-        value * 7
-    )
-  } else if (unit === 'month') {
-    end.setMonth(
-      end.getMonth() + value
-    )
-  }
-
-  return end
+  return names[day] ?? ''
 }
 
 export default function CheckoutScreen({
@@ -135,16 +127,21 @@ export default function CheckoutScreen({
 }: Props) {
   const {
     selectedService,
-    selectedServiceId,
     selectedPackage,
     selectedPackageId,
 
     address,
     addressId,
 
-    total,
     bookingMode,
-    scheduledDate,
+
+    scheduleStartDate,
+    scheduleEndDate,
+    scheduleDailyStartTime,
+    scheduleDailyEndTime,
+    scheduleSelectedWeekdays,
+    scheduleOffDates,
+    scheduleTotalWorkingHours,
 
     bookingId,
     setBookingId,
@@ -159,11 +156,12 @@ export default function CheckoutScreen({
       return
     }
 
-    if (!selectedServiceId) {
+    if (bookingMode !== 'Scheduled') {
       Alert.alert(
-        'Booking error',
-        'Service information is missing.'
+        'Booking unavailable',
+        'Only Scheduled Booking is currently available through this checkout flow.'
       )
+
       return
     }
 
@@ -172,22 +170,73 @@ export default function CheckoutScreen({
         'Booking error',
         'No service package has been selected.'
       )
+
       return
     }
 
     if (!selectedPackage) {
       Alert.alert(
         'Booking error',
-        'Selected package could not be loaded.'
+        'Selected service package could not be loaded.'
       )
+
       return
     }
 
     if (!addressId) {
       Alert.alert(
         'Booking error',
-        'Service address is missing. Please go back and save your address again.'
+        'Service address is missing. Please go back and select your service location.'
       )
+
+      return
+    }
+
+    if (!scheduleStartDate) {
+      Alert.alert(
+        'Booking error',
+        'Schedule start date is missing.'
+      )
+
+      return
+    }
+
+    if (!scheduleEndDate) {
+      Alert.alert(
+        'Booking error',
+        'Schedule end date is missing.'
+      )
+
+      return
+    }
+
+    if (!scheduleDailyStartTime) {
+      Alert.alert(
+        'Booking error',
+        'Daily start time is missing.'
+      )
+
+      return
+    }
+
+    if (!scheduleDailyEndTime) {
+      Alert.alert(
+        'Booking error',
+        'Daily end time is missing.'
+      )
+
+      return
+    }
+
+    if (
+      !scheduleSelectedWeekdays ||
+      scheduleSelectedWeekdays.length === 0
+    ) {
+      Alert.alert(
+        'Booking error',
+        'Please select at least one working day.'
+      )
+
       return
     }
 
@@ -196,53 +245,55 @@ export default function CheckoutScreen({
 
       /*
        * STEP 1
-       * Create the real booking first.
        *
-       * Worker assignment happens later.
-       * Customers do not select workers.
+       * Create the scheduled booking on the server.
+       *
+       * The server calculates:
+       * - working occurrences
+       * - total working hours
+       * - price
+       * - discount
+       * - final payable amount
+       *
+       * The customer app does NOT calculate the price.
        */
 
       let currentBookingId =
         bookingId
 
+      let bookingAmount = 0
+
+      let bookingCurrency = 'INR'
+
       if (!currentBookingId) {
-        const scheduledStart =
-          parseScheduledDate(
-            scheduledDate
-          )
+        const booking =
+          await createScheduledBooking({
+            serviceVariantId:
+              selectedPackageId,
 
-        const durationValue =
-          selectedPackage.duration_value ??
-          1
+            addressId,
 
-        const durationUnit =
-          selectedPackage.duration_unit ??
-          'hour'
+            scheduleStartDate:
+              scheduleStartDate,
 
-        const scheduledEnd =
-          calculateEndDate(
-            scheduledStart,
-            durationValue,
-            durationUnit
-          )
+            scheduleEndDate:
+              scheduleEndDate,
 
-       const booking = await createBooking({
-  fulfillmentType:
-    bookingMode === 'Instant'
-      ? 'instant'
-      : 'scheduled',
+            dailyStartTime:
+              scheduleDailyStartTime,
 
-  serviceVariantId:
-    selectedPackageId,
+            dailyEndTime:
+              scheduleDailyEndTime,
 
-  addressId,
+            selectedWeekdays:
+              scheduleSelectedWeekdays,
 
-  scheduledStart:
-    scheduledStart.toISOString(),
+            offDates:
+              scheduleOffDates ?? [],
 
-  notes:
-    `Booking created from customer app. Mode: ${bookingMode}`,
-})
+            notes:
+              'Scheduled booking created from customer app.',
+          })
 
         currentBookingId =
           booking.id
@@ -251,41 +302,87 @@ export default function CheckoutScreen({
           currentBookingId
         )
 
+        bookingAmount =
+          Number(
+            booking.finalAmount ?? 0
+          )
+
+        bookingCurrency =
+          String(
+            booking.currency ?? 'INR'
+          )
+
         console.log(
-          '[TempStaff] Booking created:',
+          '[TempStaff] Scheduled booking created:',
           booking
+        )
+      }
+
+      if (!currentBookingId) {
+        throw new Error(
+          'Booking ID was not created.'
         )
       }
 
       /*
        * STEP 2
-       * Create Razorpay order.
+       *
+       * Create Razorpay order from the
+       * server-calculated booking amount.
        */
 
       const order =
   await createRazorpayOrder(
-    selectedPackage.id,
-    currentBookingId,
+    currentBookingId
   )
 
-      if (
-        !order.orderId ||
-        !order.keyId
-      ) {
+      if (!order.orderId) {
         throw new Error(
           'Invalid Razorpay order received.'
         )
       }
 
+      if (!order.keyId) {
+        throw new Error(
+          'Razorpay key was not received.'
+        )
+      }
+
+      if (
+        !Number.isFinite(order.amount) ||
+        order.amount <= 0
+      ) {
+        throw new Error(
+          'Invalid payment amount received from the server.'
+        )
+      }
+
+      /*
+       * If this checkout already had a booking,
+       * the amount comes from Razorpay/server.
+       *
+       * bookingAmount is only used for logging.
+       */
+
+      console.log(
+        '[TempStaff] Booking amount:',
+        bookingAmount
+      )
+
+      /*
+       * STEP 3
+       *
+       * Open Razorpay.
+       */
+
       const options = {
         description:
           `TempStaff - ${selectedPackage.name}`,
 
-        image:
-          'https://your-tempstaff-logo-url.com/logo.png',
-
         currency:
-          order.currency || 'INR',
+          order.currency ||
+          bookingCurrency ||
+          'INR',
 
         key:
           order.keyId,
@@ -311,80 +408,76 @@ export default function CheckoutScreen({
         },
       }
 
-      /*
-       * STEP 3
-       * Open Razorpay.
-       */
-
       const payment =
         await RazorpayCheckout.open(
           options
         )
 
       console.log(
-        '[TempStaff] Razorpay payment success:',
+        '[TempStaff] Razorpay payment response:',
         payment
       )
 
       /*
- * STEP 4
- * Verify the Razorpay payment on the server.
- *
- * NEVER trust the mobile success callback by itself.
- */
+       * STEP 4
+       *
+       * Verify payment on the server.
+       *
+       * Never trust the mobile payment-success
+       * callback by itself.
+       */
 
-if (!currentBookingId) {
-  throw new Error(
-    'Booking ID was not created.'
-  )
-}
+      if (
+        !payment?.razorpay_order_id
+      ) {
+        throw new Error(
+          'Razorpay order ID was not returned.'
+        )
+      }
 
-if (!payment?.razorpay_order_id) {
-  throw new Error(
-    'Razorpay order ID was not returned.'
-  )
-}
+      if (
+        !payment?.razorpay_payment_id
+      ) {
+        throw new Error(
+          'Razorpay payment ID was not returned.'
+        )
+      }
 
-if (!payment?.razorpay_payment_id) {
-  throw new Error(
-    'Razorpay payment ID was not returned.'
-  )
-}
+      if (
+        !payment?.razorpay_signature
+      ) {
+        throw new Error(
+          'Razorpay payment signature was not returned.'
+        )
+      }
 
-if (!payment?.razorpay_signature) {
-  throw new Error(
-    'Razorpay payment signature was not returned.'
-  )
-}
+      const verification =
+        await verifyRazorpayPayment(
+          currentBookingId,
+          payment.razorpay_order_id,
+          payment.razorpay_payment_id,
+          payment.razorpay_signature
+        )
 
-const verification =
-  await verifyRazorpayPayment(
-    currentBookingId,
-    payment.razorpay_order_id,
-    payment.razorpay_payment_id,
-    payment.razorpay_signature
-  )
+      console.log(
+        '[TempStaff] Razorpay payment verified:',
+        verification
+      )
 
-console.log(
-  '[TempStaff] Razorpay payment verified:',
-  verification
-)
-
-setPaymentDone(true)
-
-console.log(
-  '[TempStaff] Booking payment verified:',
-  currentBookingId
-)
+      setPaymentDone(true)
 
       /*
        * STEP 5
-       * Go to confirmation.
+       *
+       * Booking is now paid.
+       *
+       * Worker assignment happens separately.
+       * Customer does not select a worker.
        */
 
       Alert.alert(
         'Payment received',
-        'Your payment was successful and your booking has been confirmed.',
+        'Your payment was successful. We will assign an eligible worker to your booking.',
         [
           {
             text: 'Continue',
@@ -397,7 +490,7 @@ console.log(
       )
     } catch (error: any) {
       console.error(
-        '[TempStaff] Booking/payment failed:',
+        '[TempStaff] Scheduled booking/payment failed:',
         error
       )
 
@@ -421,6 +514,25 @@ console.log(
     }
   }
 
+  const selectedDays =
+    (
+      scheduleSelectedWeekdays ?? []
+    )
+      .slice()
+      .sort(
+        (a, b) => a - b
+      )
+      .map(
+        getWeekdayName
+      )
+      .join(', ')
+
+  const hasDateRange =
+    scheduleStartDate &&
+    scheduleEndDate &&
+    scheduleStartDate !==
+      scheduleEndDate
+
   return (
     <SafeAreaView
       style={styles.container}
@@ -440,11 +552,11 @@ console.log(
         />
 
         <Text style={styles.title}>
-          Payment
+          Review & Pay
         </Text>
 
         <Text style={styles.subtitle}>
-          Review your booking before payment.
+          Review your scheduled booking before payment.
         </Text>
 
         <View style={styles.card}>
@@ -460,25 +572,8 @@ console.log(
             {selectedPackage?.name}
           </Text>
 
-          {selectedPackage?.duration_value ? (
-            <Text
-              style={
-                styles.duration
-              }
-            >
-              {
-                selectedPackage.duration_value
-              }{' '}
-              {
-                selectedPackage.duration_unit
-              }
-            </Text>
-          ) : null}
-
           <View
-            style={
-              styles.divider
-            }
+            style={styles.divider}
           />
 
           <Text style={styles.label}>
@@ -486,34 +581,89 @@ console.log(
           </Text>
 
           <Text style={styles.value}>
-            {bookingMode}
+            Scheduled
           </Text>
 
-          {scheduledDate ? (
-            <>
-              <Text
-                style={[
-                  styles.label,
-                  {
-                    marginTop: 18,
-                  },
-                ]}
-              >
-                SCHEDULE
-              </Text>
+          <View
+            style={styles.divider}
+          />
 
-              <Text
-                style={styles.value}
-              >
-                {scheduledDate}
-              </Text>
-            </>
+          <Text style={styles.label}>
+            SCHEDULE
+          </Text>
+
+          {hasDateRange ? (
+            <Text style={styles.value}>
+              {formatDate(
+                scheduleStartDate
+              )}{' '}
+              —{' '}
+              {formatDate(
+                scheduleEndDate
+              )}
+            </Text>
+          ) : (
+            <Text style={styles.value}>
+              {formatDate(
+                scheduleStartDate
+              )}
+            </Text>
+          )}
+
+          <Text
+            style={
+              styles.scheduleDetail
+            }
+          >
+            {formatTime(
+              scheduleDailyStartTime
+            )}{' '}
+            —{' '}
+            {formatTime(
+              scheduleDailyEndTime
+            )}
+          </Text>
+
+          {selectedDays ? (
+            <Text
+              style={
+                styles.scheduleDetail
+              }
+            >
+              {selectedDays}
+            </Text>
+          ) : null}
+
+          {scheduleOffDates?.length ? (
+            <Text
+              style={
+                styles.scheduleDetail
+              }
+            >
+              {scheduleOffDates.length}{' '}
+              off date
+              {scheduleOffDates.length ===
+              1
+                ? ''
+                : 's'}{' '}
+              selected
+            </Text>
+          ) : null}
+
+          {scheduleTotalWorkingHours >
+          0 ? (
+            <Text
+              style={
+                styles.scheduleHours
+              }
+            >
+              {scheduleTotalWorkingHours}{' '}
+              working hours
+            </Text>
           ) : null}
 
           <View
-            style={
-              styles.divider
-            }
+            style={styles.divider}
           />
 
           <Text style={styles.label}>
@@ -528,14 +678,10 @@ console.log(
         </View>
 
         <View
-          style={
-            styles.totalCard
-          }
+          style={styles.totalCard}
         >
           <Text
-            style={
-              styles.totalLabel
-            }
+            style={styles.totalLabel}
           >
             TOTAL PAYABLE
           </Text>
@@ -543,45 +689,29 @@ console.log(
           <Text
             style={styles.total}
           >
-            ₹
-            {total.toLocaleString(
-              'en-IN'
-            )}
+            Calculated at checkout
           </Text>
 
           <Text
-            style={
-              styles.totalNote
-            }
+            style={styles.totalNote}
           >
-            Final amount is verified
-            from the TempStaff
-            database before the
-            Razorpay order is created.
+            The final amount is calculated and verified by TempStaff from the database before the Razorpay order is created.
           </Text>
         </View>
 
         <View
-          style={
-            styles.secureCard
-          }
+          style={styles.secureCard}
         >
           <Text
-            style={
-              styles.secureTitle
-            }
+            style={styles.secureTitle}
           >
-            🔒 Secure Test Payment
+            Secure Payment
           </Text>
 
           <Text
-            style={
-              styles.secureText
-            }
+            style={styles.secureText}
           >
-            You are currently using
-            Razorpay Test Mode. No
-            real money will be charged.
+            Your payment amount is created from the server-side booking total. The mobile app cannot set the payable amount.
           </Text>
         </View>
 
@@ -589,9 +719,7 @@ console.log(
           title={
             paying
               ? 'Processing...'
-              : `Pay ₹${total.toLocaleString(
-                  'en-IN'
-                )}`
+              : 'Continue to Payment'
           }
           onPress={payNow}
           disabled={paying}
@@ -600,9 +728,7 @@ console.log(
         <Text
           style={styles.note}
         >
-          TempStaff assigns the worker.
-          Customers cannot select
-          individual workers.
+          TempStaff assigns the worker. Customers cannot select individual workers.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -667,16 +793,23 @@ const styles =
       marginTop: 4,
     },
 
-    duration: {
-      color: COLORS.gray,
-      fontSize: 13,
-      marginTop: 4,
-    },
-
     value: {
       color: COLORS.navy,
       fontSize: 16,
       fontWeight: '800',
+    },
+
+    scheduleDetail: {
+      color: COLORS.gray,
+      fontSize: 14,
+      marginTop: 6,
+    },
+
+    scheduleHours: {
+      color: COLORS.teal,
+      fontSize: 14,
+      fontWeight: '800',
+      marginTop: 8,
     },
 
     address: {
@@ -709,9 +842,9 @@ const styles =
 
     total: {
       color: 'white',
-      fontSize: 38,
+      fontSize: 24,
       fontWeight: '900',
-      marginTop: 5,
+      marginTop: 8,
     },
 
     totalNote: {
