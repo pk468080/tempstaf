@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,6 +7,19 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+function jsonResponse(
+  body: Record<string, unknown>,
+  status = 200
+) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+    },
+  });
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -16,82 +30,36 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (req.method !== "POST") {
-      return new Response(
-        JSON.stringify({
-          error: "Method not allowed",
-        }),
-        {
-          status: 405,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
+      return jsonResponse(
+        { success: false, error: "Method not allowed" },
+        405
       );
     }
 
-    const authHeader =
+    const authorization =
       req.headers.get("Authorization");
 
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({
+    if (!authorization) {
+      return jsonResponse(
+        {
+          success: false,
           error: "Authentication required",
-        }),
-        {
-          status: 401,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
+        },
+        401
       );
     }
 
-    const body = await req.json();
+    const supabaseUrl =
+      Deno.env.get("SUPABASE_URL");
 
-    const packageId = body?.packageId;
-
-    if (
-      !packageId ||
-      typeof packageId !== "string"
-    ) {
-      return new Response(
-        JSON.stringify({
-          error: "packageId is required",
-        }),
-        {
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
+    const serviceRoleKey =
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     const razorpayKeyId =
       Deno.env.get("RAZORPAY_KEY_ID");
 
     const razorpayKeySecret =
       Deno.env.get("RAZORPAY_KEY_SECRET");
-
-    const supabaseUrl =
-      Deno.env.get("SUPABASE_URL");
-
-    const serviceRoleKey =
-      Deno.env.get(
-        "SUPABASE_SERVICE_ROLE_KEY"
-      );
-
-    if (
-      !razorpayKeyId ||
-      !razorpayKeySecret
-    ) {
-      throw new Error(
-        "Razorpay secrets are not configured."
-      );
-    }
 
     if (
       !supabaseUrl ||
@@ -102,97 +70,240 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    /*
-     * Get the current active price directly
-     * from Supabase.
-     *
-     * IMPORTANT:
-     * The mobile app does NOT tell Razorpay
-     * how much to charge.
-     */
-    const priceResponse = await fetch(
-      `${supabaseUrl}/rest/v1/service_variant_prices` +
-        `?service_variant_id=eq.${encodeURIComponent(
-          packageId
-        )}` +
-        `&is_active=eq.true` +
-        `&effective_from=lte.${encodeURIComponent(
-          new Date().toISOString()
-        )}` +
-        `&select=price,currency,effective_from,effective_to` +
-        `&order=effective_from.desc` +
-        `&limit=1`,
+    if (
+      !razorpayKeyId ||
+      !razorpayKeySecret
+    ) {
+      throw new Error(
+        "Razorpay secrets are not configured."
+      );
+    }
+
+    const userClient = createClient(
+      supabaseUrl,
+      serviceRoleKey,
       {
-        headers: {
-          apikey: serviceRoleKey,
-          Authorization:
-            `Bearer ${serviceRoleKey}`,
+        global: {
+          headers: {
+            Authorization: authorization,
+          },
         },
       }
     );
 
-    if (!priceResponse.ok) {
-      const errorText =
-        await priceResponse.text();
+    const {
+      data: {
+        user,
+      },
+      error: userError,
+    } = await userClient.auth.getUser();
 
-      console.error(
-        "Supabase price lookup failed:",
-        errorText
-      );
-
-      throw new Error(
-        "Unable to verify package price."
+    if (userError || !user) {
+      return jsonResponse(
+        {
+          success: false,
+          error: "Authentication required.",
+        },
+        401
       );
     }
 
-    const prices =
-      await priceResponse.json();
+    const body = await req.json();
+
+    const bookingId =
+      body?.bookingId;
 
     if (
-      !Array.isArray(prices) ||
-      prices.length === 0
+      !bookingId ||
+      typeof bookingId !== "string"
     ) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "No active price found for this package.",
-        }),
+      return jsonResponse(
         {
-          status: 404,
-          headers: {
-            ...corsHeaders,
-            "Content-Type":
-              "application/json",
-          },
-        }
+          success: false,
+          error: "bookingId is required.",
+        },
+        400
       );
     }
 
-    const priceRow = prices[0];
-
-    const price = Number(
-      priceRow.price
+    const adminClient = createClient(
+      supabaseUrl,
+      serviceRoleKey
     );
 
+    const {
+      data: booking,
+      error: bookingError,
+    } = await adminClient
+      .from("bookings")
+      .select(
+        `
+          id,
+          customer_id,
+          status,
+          fulfillment_type,
+          total_amount,
+          pricing_snapshot
+        `
+      )
+      .eq("id", bookingId)
+      .eq("customer_id", user.id)
+      .maybeSingle();
+
+    if (bookingError) {
+      console.error(
+        "Booking lookup failed:",
+        bookingError
+      );
+
+      throw new Error(
+        "Unable to load booking."
+      );
+    }
+
+    if (!booking) {
+      return jsonResponse(
+        {
+          success: false,
+          error: "Booking not found.",
+        },
+        404
+      );
+    }
+
     if (
-      !Number.isFinite(price) ||
-      price <= 0
+      booking.fulfillment_type !==
+      "scheduled"
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "This payment flow is only for scheduled bookings.",
+        },
+        400
+      );
+    }
+
+    if (
+      booking.status !==
+      "pending_payment"
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "This booking is not awaiting payment.",
+        },
+        409
+      );
+    }
+
+    const amount =
+      Number(booking.total_amount);
+
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0
     ) {
       throw new Error(
-        "Invalid package price."
+        "Booking has an invalid payment amount."
+      );
+    }
+
+    const pricingSnapshot =
+      booking.pricing_snapshot;
+
+    const currency =
+      pricingSnapshot &&
+      typeof pricingSnapshot === "object" &&
+      "currency" in pricingSnapshot &&
+      typeof pricingSnapshot.currency === "string"
+        ? pricingSnapshot.currency
+        : null;
+
+    if (!currency) {
+      throw new Error(
+        "Booking payment currency is missing."
       );
     }
 
     /*
-     * Razorpay expects amount in paise.
-     * Example:
-     * ₹400 = 40000 paise
+     * Reuse an existing pending Razorpay order
+     * for this booking when possible.
      */
+    const {
+      data: existingPayment,
+      error: existingPaymentError,
+    } = await adminClient
+      .from("payments")
+      .select(
+        `
+          id,
+          provider_order_id,
+          amount,
+          currency,
+          status
+        `
+      )
+      .eq("booking_id", bookingId)
+      .eq("provider", "razorpay")
+      .eq("status", "pending")
+      .not(
+        "provider_order_id",
+        "is",
+        null
+      )
+      .order(
+        "created_at",
+        {
+          ascending: false,
+        }
+      )
+      .limit(1)
+      .maybeSingle();
+
+    if (existingPaymentError) {
+      console.error(
+        "Existing payment lookup failed:",
+        existingPaymentError
+      );
+
+      throw new Error(
+        "Unable to load existing payment."
+      );
+    }
+
+    if (
+      existingPayment?.provider_order_id &&
+      Number(existingPayment.amount) === amount &&
+      existingPayment.currency === currency
+    ) {
+      return jsonResponse({
+        success: true,
+        keyId: razorpayKeyId,
+        orderId:
+          existingPayment.provider_order_id,
+        amount:
+          Math.round(amount * 100),
+        currency,
+      });
+    }
+
     const amountInPaise =
-      Math.round(price * 100);
+      Math.round(amount * 100);
+
+    if (
+      !Number.isInteger(amountInPaise) ||
+      amountInPaise <= 0
+    ) {
+      throw new Error(
+        "Invalid payment amount."
+      );
+    }
 
     const receipt =
-      `ts_${crypto.randomUUID()}`;
+      `ts_${bookingId}`;
 
     const razorpayAuth =
       btoa(
@@ -211,12 +322,13 @@ Deno.serve(async (req: Request) => {
               "application/json",
           },
           body: JSON.stringify({
-            amount: amountInPaise,
-            currency: "INR",
+            amount:
+              amountInPaise,
+            currency,
             receipt,
             notes: {
-              tempstaff_package_id:
-                packageId,
+              tempstaff_booking_id:
+                bookingId,
             },
           }),
         }
@@ -237,55 +349,66 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-
-        keyId: razorpayKeyId,
-
-        orderId:
+    const {
+      error: paymentInsertError,
+    } = await adminClient
+      .from("payments")
+      .insert({
+        booking_id:
+          bookingId,
+        provider:
+          "razorpay",
+        provider_order_id:
           razorpayData.id,
+        amount,
+        currency,
+        status:
+          "pending",
+      });
 
-        amount:
-          razorpayData.amount,
+    if (paymentInsertError) {
+      console.error(
+        "Payment record creation failed:",
+        paymentInsertError
+      );
 
-        currency:
-          razorpayData.currency,
+      /*
+       * The Razorpay order exists, but the local
+       * payment record does not. Do not pretend
+       * that the payment is ready.
+       */
+      throw new Error(
+        "Unable to create payment record."
+      );
+    }
 
-        receipt:
-          razorpayData.receipt,
-      }),
-      {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          "Content-Type":
-            "application/json",
-        },
-      }
-    );
+    return jsonResponse({
+      success: true,
+      keyId: razorpayKeyId,
+      orderId:
+        razorpayData.id,
+      amount:
+        razorpayData.amount,
+      currency:
+        razorpayData.currency,
+      receipt:
+        razorpayData.receipt,
+    });
   } catch (error) {
     console.error(
       "[TempStaff] create-razorpay-order error:",
       error
     );
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         success: false,
         error:
           error instanceof Error
             ? error.message
             : "Unexpected server error.",
-      }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type":
-            "application/json",
-        },
-      }
+      },
+      500
     );
   }
 });
