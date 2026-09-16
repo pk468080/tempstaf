@@ -777,12 +777,12 @@ export default function HomeScreen({
                   }
                 >
                   <Text
-                    style={
-                      styles.primaryBadgeText
-                    }
-                  >
-                    AVAILABLE NOW
-                  </Text>
+  style={
+    styles.primaryBadgeText
+  }
+>
+  PLAN AHEAD
+</Text>
                 </View>
 
                 <Text
@@ -1220,8 +1220,8 @@ export default function HomeScreen({
                       state.loading
 
                     const available =
-                      state?.available ===
-                      true
+  state?.serviceAreaCovered ===
+  true
 
                     return (
                       <TouchableOpacity
