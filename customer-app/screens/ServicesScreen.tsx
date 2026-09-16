@@ -11,11 +11,10 @@ import {
 
 import { useState } from 'react'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import * as Location from 'expo-location'
+
 import {
   requestServiceAvailability,
 } from '../services/availabilityRequests'
-import { checkServiceAvailability } from '../services/availability'
 import { COLORS } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import { useBooking } from '../context/BookingContext'
@@ -94,8 +93,8 @@ export default function ServicesScreen({
     refreshCatalogue,
   } = useBooking()
 
-  const [checkingAvailability, setCheckingAvailability] =
-  useState(false)
+  const [notifyMeLoading, setNotifyMeLoading] =
+    useState(false)
 
   const selectedServiceRecord = services.find(
     service => service.name === selectedService
@@ -107,7 +106,10 @@ export default function ServicesScreen({
         item.service_id === selectedServiceRecord?.id &&
         item.is_active
     )
-    .sort((a, b) => a.sort_order - b.sort_order)
+    .sort(
+      (a, b) =>
+        a.sort_order - b.sort_order
+    )
 
   const selectedPackage = servicePackages.find(
     item => item.name === selectedDuration
@@ -129,8 +131,6 @@ export default function ServicesScreen({
   ) => {
     setSelectedDuration(packageName)
   }
-  const [notifyMeLoading, setNotifyMeLoading] =
-    useState(false)
 
   const handleNotifyMe = async (
     serviceId: string,
@@ -170,115 +170,21 @@ export default function ServicesScreen({
     }
   }
 
- const handleContinue = async () => {
-  if (!selectedService || !selectedPackage) {
-    return
-  }
-
-  if (!selectedServiceRecord) {
-    Alert.alert(
-      'Service unavailable',
-      'This service could not be found. Please select it again.'
-    )
-    return
-  }
-
-  try {
-    setCheckingAvailability(true)
-
-    const permission =
-      await Location.requestForegroundPermissionsAsync()
-
-    if (permission.status !== 'granted') {
-      Alert.alert(
-        'Location Required',
-        'Please allow location access so we can check your current service area.',
-        [
-          {
-            text: 'Change Location',
-            onPress: () => navigation.navigate('Summary'),
-          },
-          {
-            text: 'Try Again',
-            style: 'cancel',
-          },
-        ]
-      )
-
+  const handleContinue = () => {
+    if (!selectedService || !selectedPackage) {
       return
     }
 
-    const current =
-      await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      })
-
-    const { latitude, longitude } =
-      current.coords
-
-    const availability =
-      await checkServiceAvailability(
-        selectedServiceRecord.id,
-        latitude,
-        longitude
-      )
-
-    if (!availability.available) {
+    if (!selectedServiceRecord) {
       Alert.alert(
-        'Not Available at Current Location',
-        `${selectedServiceRecord.name} is not currently available at your current location.\n\nYou can choose another service location manually. Availability will be checked again for that exact location.`,
-        [
-          {
-            text: 'Not Now',
-            style: 'cancel',
-          },
-          {
-            text: 'Notify Me',
-            onPress: () =>
-              handleNotifyMe(
-                selectedServiceRecord.id,
-                latitude,
-                longitude,
-                selectedServiceRecord.name
-              ),
-          },
-          {
-            text: 'Change Location',
-            onPress: () =>
-              navigation.navigate('Summary'),
-          },
-        ]
+        'Service unavailable',
+        'This service could not be found. Please select it again.'
       )
-
       return
     }
 
     navigation.navigate('Summary')
-  } catch (error) {
-    console.error(
-      '[TempStaff] Availability check failed:',
-      error
-    )
-
-    Alert.alert(
-      'Unable to Check Availability',
-      'We could not check your current location right now. You can still choose the service location manually.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Choose Location',
-          onPress: () =>
-            navigation.navigate('Summary'),
-        },
-      ]
-    )
-  } finally {
-    setCheckingAvailability(false)
   }
-}
 
   const selectedPackagePrice =
     selectedPackage?.price ?? 0
@@ -393,14 +299,11 @@ export default function ServicesScreen({
                     isSelected &&
                       styles.serviceCardSelected,
                   ]}
-
-
                   onPress={() =>
                     handleServiceSelect(
                       service.name
                     )
                   }
-                  disabled={checkingAvailability}
                 >
                   <View
                     style={[
@@ -514,7 +417,6 @@ export default function ServicesScreen({
                           pkg.name
                         )
                       }
-                      disabled={checkingAvailability}
                     >
                       <View
                         style={[
@@ -671,28 +573,16 @@ export default function ServicesScreen({
           </View>
         </View>
 
+        {/* Continue */}
         <View style={styles.bottom}>
-          {checkingAvailability ? (
-            <View style={styles.checkingButton}>
-              <ActivityIndicator
-                size="small"
-                color={COLORS.white}
-              />
-
-              <Text style={styles.checkingButtonText}>
-                Checking availability...
-              </Text>
-            </View>
-          ) : (
-            <PrimaryButton
-              title="Continue"
-              disabled={
-                !selectedService ||
-                !selectedPackage
-              }
-              onPress={handleContinue}
-            />
-          )}
+          <PrimaryButton
+            title="Continue"
+            disabled={
+              !selectedService ||
+              !selectedPackage
+            }
+            onPress={handleContinue}
+          />
 
           {!selectedService ||
           !selectedPackage ? (
@@ -700,15 +590,10 @@ export default function ServicesScreen({
               Select a staff type and staffing period
               to continue.
             </Text>
-          ) : checkingAvailability ? (
-            <Text style={styles.bottomHint}>
-              Checking for available staff near your
-              current location.
-            </Text>
           ) : (
             <Text style={styles.bottomHint}>
-              Next: check staff availability in your
-              area.
+              Next: choose your booking location and
+              schedule.
             </Text>
           )}
         </View>
@@ -1155,22 +1040,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
     paddingHorizontal: 12,
-  },
-
-  checkingButton: {
-    minHeight: 50,
-    borderRadius: 25,
-    backgroundColor: COLORS.orange,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-
-  checkingButtonText: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: '800',
-    marginLeft: 9,
   },
 })
