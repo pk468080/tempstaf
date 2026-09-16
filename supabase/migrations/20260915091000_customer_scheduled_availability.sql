@@ -28,8 +28,8 @@ begin;
 alter table public.worker_schedule_settings
   add column if not exists slot_interval_minutes integer;
 
-drop constraint if exists worker_schedule_settings_slot_interval_check
-on public.worker_schedule_settings;
+alter table public.worker_schedule_settings
+  drop constraint if exists worker_schedule_settings_slot_interval_check;
 
 alter table public.worker_schedule_settings
   add constraint worker_schedule_settings_slot_interval_check
