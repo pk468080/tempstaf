@@ -14,13 +14,8 @@ import {
 
 import RazorpayCheckout from 'react-native-razorpay'
 
-import { COLORS } from '../constants/colors'
-import {
-  RootStackParamList,
-} from '../navigation/types'
-import {
-  useBooking,
-} from '../context/BookingContext'
+import { COLORS } from '../constants/theme'
+import { useBooking } from '../context/BookingContext'
 
 import {
   createHourlyBooking,
@@ -58,6 +53,87 @@ function normalizeBookingMode(
   }
 
   return 'scheduled' as const
+}
+
+function getVariantId(
+  value: unknown
+): string {
+  if (
+    typeof value === 'string'
+  ) {
+    return value
+  }
+
+  if (
+    value &&
+    typeof value === 'object' &&
+    'id' in value
+  ) {
+    const id =
+      (value as {
+        id?: unknown
+      }).id
+
+    return typeof id === 'string'
+      ? id
+      : ''
+  }
+
+  return ''
+}
+
+function getVariantName(
+  value: unknown
+): string {
+  if (
+    typeof value === 'string'
+  ) {
+    return value
+  }
+
+  if (
+    value &&
+    typeof value === 'object' &&
+    'name' in value
+  ) {
+    const name =
+      (value as {
+        name?: unknown
+      }).name
+
+    return typeof name === 'string'
+      ? name
+      : 'Hourly service'
+  }
+
+  return 'Hourly service'
+}
+
+function getServiceName(
+  value: unknown
+): string {
+  if (
+    typeof value === 'string'
+  ) {
+    return value
+  }
+
+  if (
+    value &&
+    typeof value === 'object' &&
+    'name' in value
+  ) {
+    const name =
+      (value as {
+        name?: unknown
+      }).name
+
+    return typeof name === 'string'
+      ? name
+      : 'Selected service'
+  }
+
+  return 'Selected service'
 }
 
 function formatDate(
@@ -151,19 +227,6 @@ function formatCurrency(
   }
 }
 
-function toNumber(
-  value: unknown
-) {
-  const number =
-    Number(value)
-
-  return Number.isFinite(
-    number
-  )
-    ? number
-    : 0
-}
-
 function normalizeTime(
   value?: string | null
 ) {
@@ -236,6 +299,7 @@ const CheckoutScreen = ({
   const {
     selectedService,
     selectedVariant,
+
     address,
     addressId,
 
@@ -253,7 +317,6 @@ const CheckoutScreen = ({
 
     bookingPricing,
 
-    bookingId,
     setBookingId,
     setPaymentDone,
   } = useBooking()
@@ -264,37 +327,41 @@ const CheckoutScreen = ({
   ] = useState(false)
 
   const [
-    createdBookingId,
-    setCreatedBookingId,
-  ] = useState<string | null>(
-    bookingId ?? null
-  )
-
-  const [
     paymentError,
     setPaymentError,
   ] = useState<string | null>(
     null
   )
 
+  /*
+   * ---------------------------------------------------------------------------
+   * Normalize frontend state.
+   *
+   * The existing BookingContext has evolved during the migration and
+   * selectedVariant may currently be represented as either its ID or its
+   * catalogue object. Keep this screen compatible with both forms.
+   * ---------------------------------------------------------------------------
+   */
+
+  const variantId =
+    getVariantId(
+      selectedVariant
+    )
+
+  const serviceName =
+    getServiceName(
+      selectedService
+    )
+
+  const variantName =
+    getVariantName(
+      selectedVariant
+    )
+
   const method =
     normalizeBookingMode(
       bookingMode
     )
-
-  /*
-   * ---------------------------------------------------------------------------
-   * Derived booking data
-   * ---------------------------------------------------------------------------
-   */
-
-  const serviceName =
-    selectedService?.name ??
-    'Selected service'
-
-  const variantName =
-    selectedVariant?.name ??
-    'Hourly service'
 
   const currency =
     String(
@@ -305,31 +372,6 @@ const CheckoutScreen = ({
   const displayAmount =
     bookingPricing?.finalAmount ??
     null
-
-  const instantStart =
-    hourlyStartTime
-
-  const instantEnd =
-    hourlyEndTime
-
-  const scheduledStart =
-    combineDateAndTime(
-      scheduleStartDate,
-      scheduleDailyStartTime
-    )
-
-  const scheduledEnd =
-    combineDateAndTime(
-      scheduleStartDate,
-      scheduleDailyEndTime
-    )
-
-  const recurringStartDate =
-    scheduleStartDate
-
-  const recurringEndDate =
-    scheduleEndDate ||
-    scheduleStartDate
 
   const selectedWeekdays =
     Array.isArray(
@@ -345,35 +387,49 @@ const CheckoutScreen = ({
       ? scheduleOffDates
       : []
 
+  const recurringStartDate =
+    scheduleStartDate
+
+  const recurringEndDate =
+    scheduleEndDate ||
+    scheduleStartDate
+
   /*
    * ---------------------------------------------------------------------------
-   * Summary text
+   * Booking summary
    * ---------------------------------------------------------------------------
    */
 
   const bookingSummary =
     useMemo(() => {
-      if (method === 'instant') {
+      if (
+        method === 'instant'
+      ) {
         return {
-          title: 'Instant booking',
+          title:
+            'Instant booking',
+
           detail:
-            instantStart &&
-            instantEnd
+            hourlyStartTime &&
+            hourlyEndTime
               ? `${formatTime(
-                  instantStart
+                  hourlyStartTime
                 )} – ${formatTime(
-                  instantEnd
+                  hourlyEndTime
                 )}`
               : 'Requested time',
         }
       }
 
-      if (method === 'recurring') {
+      if (
+        method === 'recurring'
+      ) {
         const weekdays =
           selectedWeekdays
             .slice()
             .sort(
-              (a, b) => a - b
+              (a, b) =>
+                a - b
             )
             .map(
               getWeekdayLabel
@@ -381,7 +437,9 @@ const CheckoutScreen = ({
             .join(', ')
 
         return {
-          title: 'Recurring booking',
+          title:
+            'Recurring booking',
+
           detail:
             weekdays ||
             'Selected weekdays',
@@ -389,10 +447,13 @@ const CheckoutScreen = ({
       }
 
       return {
-        title: 'Scheduled booking',
+        title:
+          'Scheduled booking',
+
         detail:
-          scheduledStart &&
-          scheduledEnd
+          scheduleStartDate &&
+          scheduleDailyStartTime &&
+          scheduleDailyEndTime
             ? `${formatDate(
                 scheduleStartDate
               )}, ${formatTime(
@@ -404,10 +465,8 @@ const CheckoutScreen = ({
       }
     }, [
       method,
-      instantStart,
-      instantEnd,
-      scheduledStart,
-      scheduledEnd,
+      hourlyStartTime,
+      hourlyEndTime,
       scheduleStartDate,
       scheduleDailyStartTime,
       scheduleDailyEndTime,
@@ -422,11 +481,11 @@ const CheckoutScreen = ({
 
   const validateCheckout =
     () => {
-      if (!selectedService?.id) {
+      if (!selectedService) {
         return 'Please select a service.'
       }
 
-      if (!selectedVariant?.id) {
+      if (!variantId) {
         return 'Please select an hourly service.'
       }
 
@@ -438,10 +497,12 @@ const CheckoutScreen = ({
         return 'Please select a booking location.'
       }
 
-      if (method === 'instant') {
+      if (
+        method === 'instant'
+      ) {
         if (
-          !instantStart ||
-          !instantEnd
+          !hourlyStartTime ||
+          !hourlyEndTime
         ) {
           return 'Please select the instant booking start and end time.'
         }
@@ -449,7 +510,9 @@ const CheckoutScreen = ({
         return null
       }
 
-      if (method === 'scheduled') {
+      if (
+        method === 'scheduled'
+      ) {
         if (
           !scheduleStartDate ||
           !scheduleDailyStartTime ||
@@ -492,12 +555,32 @@ const CheckoutScreen = ({
 
   const createBookingForCheckout =
     async () => {
+      if (!variantId) {
+        throw new Error(
+          'Service variant is missing.'
+        )
+      }
+
+      if (!addressId) {
+        throw new Error(
+          'Booking address is missing.'
+        )
+      }
+
+      /*
+       * -------------------------------------------------------------------------
+       * INSTANT
+       * -------------------------------------------------------------------------
+       *
+       * Backend decides whether a nearby live worker is actually available.
+       */
+
       if (
         method === 'instant'
       ) {
         if (
-          !instantStart ||
-          !instantEnd
+          !hourlyStartTime ||
+          !hourlyEndTime
         ) {
           throw new Error(
             'Instant booking time is missing.'
@@ -506,7 +589,7 @@ const CheckoutScreen = ({
 
         return createHourlyBooking({
           serviceVariantId:
-            selectedVariant!.id,
+            variantId,
 
           addressId,
 
@@ -514,12 +597,22 @@ const CheckoutScreen = ({
             'instant',
 
           scheduledStart:
-            instantStart,
+            hourlyStartTime,
 
           scheduledEnd:
-            instantEnd,
+            hourlyEndTime,
         })
       }
+
+      /*
+       * -------------------------------------------------------------------------
+       * SCHEDULED
+       * -------------------------------------------------------------------------
+       *
+       * Scheduled hourly bookings use the existing backend hourly booking
+       * ingress. The backend performs the authoritative schedule/availability
+       * validation.
+       */
 
       if (
         method === 'scheduled'
@@ -534,84 +627,97 @@ const CheckoutScreen = ({
           )
         }
 
-        /*
-         * A scheduled booking for one selected date is represented
-         * through the same authoritative multi-occurrence backend.
-         *
-         * The selected date's weekday is supplied as the sole working
-         * weekday, so the backend creates exactly that occurrence.
-         */
+        const scheduledStart =
+          combineDateAndTime(
+            scheduleStartDate,
+            scheduleDailyStartTime
+          )
 
-        const date =
-          new Date(
-            `${scheduleStartDate}T00:00:00`
+        const scheduledEnd =
+          combineDateAndTime(
+            scheduleStartDate,
+            scheduleDailyEndTime
           )
 
         if (
-          Number.isNaN(
-            date.getTime()
-          )
+          !scheduledStart ||
+          !scheduledEnd
         ) {
           throw new Error(
-            'Invalid scheduled booking date.'
+            'Invalid scheduled booking date or time.'
           )
         }
 
-        const weekday =
-          date.getDay()
-
         return createHourlyBooking({
           serviceVariantId:
-            selectedVariant!.id,
+            variantId,
 
           addressId,
 
           bookingType:
             'scheduled',
 
-          scheduledStart:
-            combineDateAndTime(
-              scheduleStartDate,
-              scheduleDailyStartTime
-            )!,
+          scheduledStart,
 
-          scheduledEnd:
-            combineDateAndTime(
-              scheduleStartDate,
-              scheduleDailyEndTime
-            )!,
+          scheduledEnd,
         })
+      }
+
+      /*
+       * -------------------------------------------------------------------------
+       * RECURRING
+       * -------------------------------------------------------------------------
+       *
+       * Backend generates the individual occurrences and applies the
+       * configured recurring pricing.
+       */
+
+      if (
+        !recurringStartDate ||
+        !recurringEndDate ||
+        !scheduleDailyStartTime ||
+        !scheduleDailyEndTime
+      ) {
+        throw new Error(
+          'Recurring booking schedule is incomplete.'
+        )
+      }
+
+      if (
+        selectedWeekdays.length === 0
+      ) {
+        throw new Error(
+          'At least one recurring weekday is required.'
+        )
       }
 
       return createRecurringBooking({
         serviceVariantId:
-          selectedVariant!.id,
+          variantId,
 
         addressId,
 
         scheduleStartDate:
-          recurringStartDate!,
+          recurringStartDate,
 
         scheduleEndDate:
-          recurringEndDate!,
+          recurringEndDate,
 
         dailyStartTime:
-          scheduleDailyStartTime!,
+          scheduleDailyStartTime,
 
         dailyEndTime:
-          scheduleDailyEndTime!,
+          scheduleDailyEndTime,
 
         selectedWeekdays,
 
         offDates,
-
-        notes: undefined,
       })
     }
 
   /*
    * =============================================================================
-   * RAZORPAY PAYMENT
+   * PAYMENT
    * =============================================================================
    */
 
@@ -642,31 +748,25 @@ const CheckoutScreen = ({
       try {
         /*
          * -----------------------------------------------------------------------
-         * Step 1: Create the booking through the authoritative backend.
-         * -----------------------------------------------------------------------
+         * 1. Create the booking on the backend.
          *
-         * This is intentionally done immediately before payment.
-         *
-         * The backend performs the final:
-         * - availability check
-         * - worker matching
-         * - area validation
-         * - schedule validation
+         * The backend remains authoritative for:
+         * - area availability
+         * - worker availability
+         * - scheduling
+         * - worker conflicts
+         * - duration
+         * - operating hours
          * - pricing
-         * - booking snapshot
+         * - booking state
          */
 
         const booking =
           await createBookingForCheckout()
 
         /*
-         * Instant has a special business response:
-         *
-         * success=false,
-         * instant_available=false,
-         * fallback_to_scheduled=true
-         *
-         * That is not a technical error.
+         * Instant booking can legitimately return a fallback response when
+         * there is no currently available nearby worker.
          */
 
         if (
@@ -679,18 +779,24 @@ const CheckoutScreen = ({
           Alert.alert(
             'No worker available now',
             booking.message ||
-              'No nearby worker is currently available for your selected time. Please choose a scheduled booking.',
+              'No nearby worker is currently available for this time. Please choose a scheduled booking.',
             [
               {
-                text: 'Choose scheduled',
-                onPress: () =>
-                  navigation.navigate(
-                    'Schedule'
-                  ),
+                text:
+                  'Choose scheduled',
+
+                onPress:
+                  () =>
+                    navigation.navigate(
+                      'Schedule'
+                    ),
               },
               {
-                text: 'Cancel',
-                style: 'cancel',
+                text:
+                  'Cancel',
+
+                style:
+                  'cancel',
               },
             ]
           )
@@ -718,21 +824,16 @@ const CheckoutScreen = ({
           )
         }
 
-        setCreatedBookingId(
-          currentBookingId
-        )
-
         setBookingId(
           currentBookingId
         )
 
         /*
          * -----------------------------------------------------------------------
-         * Step 2: Ask the server to create the Razorpay order.
-         * -----------------------------------------------------------------------
+         * 2. Create Razorpay order.
          *
-         * The Razorpay order amount comes from the backend booking/payment
-         * ledger. The app does not send a customer-calculated amount.
+         * The server derives the payment amount from the booking/payment
+         * records. The customer app does not send a calculated amount.
          */
 
         const order =
@@ -742,53 +843,46 @@ const CheckoutScreen = ({
 
         /*
          * -----------------------------------------------------------------------
-         * Step 3: Open Razorpay.
+         * 3. Open Razorpay.
          * -----------------------------------------------------------------------
          */
 
-        const razorpayOptions = {
-          key:
-            order.keyId,
-
-          amount:
-            order.amount,
-
-          currency:
-            order.currency,
-
-          name:
-            'TempStaff',
-
-          description:
-            `${serviceName} · ${variantName}`,
-
-          order_id:
-            order.orderId,
-
-          prefill: {
-            name: '',
-            email: '',
-            contact: '',
-          },
-
-          theme: {
-            color:
-              COLORS.primary,
-          },
-        }
-
         const payment =
-          await RazorpayCheckout.open(
-            razorpayOptions
-          )
+          await RazorpayCheckout.open({
+            key:
+              order.keyId,
+
+            amount:
+              order.amount,
+
+            currency:
+              order.currency,
+
+            name:
+              'TempStaff',
+
+            description:
+              `${serviceName} · ${variantName}`,
+
+            order_id:
+              order.orderId,
+
+            prefill: {
+              name: '',
+              email: '',
+              contact: '',
+            },
+
+            theme: {
+              color:
+                COLORS.orange,
+            },
+          })
 
         /*
          * -----------------------------------------------------------------------
-         * Step 4: Verify the Razorpay payment server-side.
+         * 4. Server-side payment verification.
          * -----------------------------------------------------------------------
-         *
-         * Never mark the booking paid merely because Razorpay's client SDK
-         * returned success.
          */
 
         const verification =
@@ -796,17 +890,17 @@ const CheckoutScreen = ({
             currentBookingId,
 
             String(
-              payment.razorpay_order_id ??
+              payment.razorpay_order_id ||
                 order.orderId
             ),
 
             String(
-              payment.razorpay_payment_id ??
+              payment.razorpay_payment_id ||
                 ''
             ),
 
             String(
-              payment.razorpay_signature ??
+              payment.razorpay_signature ||
                 ''
             )
           )
@@ -828,11 +922,6 @@ const CheckoutScreen = ({
           'BookingConfirmed'
         )
       } catch (error: any) {
-        /*
-         * Razorpay cancellation is expected user behaviour and should not
-         * be presented as a backend crash.
-         */
-
         const message =
           String(
             error?.description ||
@@ -840,17 +929,16 @@ const CheckoutScreen = ({
               ''
           )
 
+        const lowerMessage =
+          message.toLowerCase()
+
         const isUserCancelled =
-          message
-            .toLowerCase()
-            .includes(
-              'cancel'
-            ) ||
-          message
-            .toLowerCase()
-            .includes(
-              'dismiss'
-            )
+          lowerMessage.includes(
+            'cancel'
+          ) ||
+          lowerMessage.includes(
+            'dismiss'
+          )
 
         if (
           !isUserCancelled
@@ -887,7 +975,6 @@ const CheckoutScreen = ({
       style={styles.safeArea}
     >
       <Header
-        title="Checkout"
         onBack={() =>
           navigation.goBack()
         }
@@ -901,11 +988,19 @@ const CheckoutScreen = ({
           false
         }
       >
+        <Text
+          style={styles.pageTitle}
+        >
+          Checkout
+        </Text>
+
         <View
           style={styles.section}
         >
           <Text
-            style={styles.sectionTitle}
+            style={
+              styles.sectionTitle
+            }
           >
             Booking summary
           </Text>
@@ -914,13 +1009,17 @@ const CheckoutScreen = ({
             style={styles.card}
           >
             <Text
-              style={styles.serviceName}
+              style={
+                styles.serviceName
+              }
             >
               {serviceName}
             </Text>
 
             <Text
-              style={styles.variantName}
+              style={
+                styles.variantName
+              }
             >
               {variantName}
             </Text>
@@ -994,7 +1093,9 @@ const CheckoutScreen = ({
           style={styles.section}
         >
           <Text
-            style={styles.sectionTitle}
+            style={
+              styles.sectionTitle
+            }
           >
             Service location
           </Text>
@@ -1003,10 +1104,11 @@ const CheckoutScreen = ({
             style={styles.card}
           >
             <Text
-              style={styles.addressLabel}
+              style={
+                styles.addressLabel
+              }
             >
-              {address?.label ||
-                'Booking location'}
+              Booking location
             </Text>
 
             <Text
@@ -1014,7 +1116,7 @@ const CheckoutScreen = ({
                 styles.addressText
               }
             >
-              {address?.address_line ||
+              {address ||
                 'Selected address'}
             </Text>
           </View>
@@ -1024,13 +1126,17 @@ const CheckoutScreen = ({
           style={styles.section}
         >
           <Text
-            style={styles.sectionTitle}
+            style={
+              styles.sectionTitle
+            }
           >
             Payment
           </Text>
 
           <View
-            style={styles.paymentCard}
+            style={
+              styles.paymentCard
+            }
           >
             <View
               style={
@@ -1062,9 +1168,10 @@ const CheckoutScreen = ({
                 styles.amountNote
               }
             >
-              Final pricing is calculated by TempStaff's
-              server using the current admin-configured
-              hourly and recurring pricing rules.
+              Final pricing is determined by
+              the TempStaff backend using the
+              current admin-configured pricing
+              rules.
             </Text>
           </View>
         </View>
@@ -1111,9 +1218,9 @@ const CheckoutScreen = ({
               styles.securityText
             }
           >
-            Your payment is processed through Razorpay.
-            TempStaff verifies the payment on the server
-            before treating the booking as paid.
+            Payment is processed through Razorpay.
+            TempStaff verifies the payment on the
+            server before treating the booking as paid.
           </Text>
         </View>
 
@@ -1194,13 +1301,20 @@ const styles =
     safeArea: {
       flex: 1,
       backgroundColor:
-        COLORS.background,
+        COLORS.light,
     },
 
     content: {
       paddingHorizontal: 20,
       paddingTop: 8,
       paddingBottom: 40,
+    },
+
+    pageTitle: {
+      fontSize: 24,
+      fontWeight: '800',
+      color: COLORS.navy,
+      marginBottom: 18,
     },
 
     section: {
@@ -1210,7 +1324,7 @@ const styles =
     sectionTitle: {
       fontSize: 18,
       fontWeight: '700',
-      color: COLORS.text,
+      color: COLORS.navy,
       marginBottom: 10,
     },
 
@@ -1227,14 +1341,13 @@ const styles =
     serviceName: {
       fontSize: 19,
       fontWeight: '700',
-      color: COLORS.text,
+      color: COLORS.navy,
       marginBottom: 5,
     },
 
     variantName: {
       fontSize: 14,
-      color:
-        COLORS.textSecondary,
+      color: COLORS.gray,
     },
 
     divider: {
@@ -1256,30 +1369,28 @@ const styles =
     rowLabel: {
       flex: 1,
       fontSize: 14,
-      color:
-        COLORS.textSecondary,
+      color: COLORS.gray,
     },
 
     rowValue: {
       flex: 1.5,
       fontSize: 14,
       fontWeight: '600',
-      color: COLORS.text,
+      color: COLORS.navy,
       textAlign: 'right',
     },
 
     addressLabel: {
       fontSize: 15,
       fontWeight: '700',
-      color: COLORS.text,
+      color: COLORS.navy,
       marginBottom: 7,
     },
 
     addressText: {
       fontSize: 14,
       lineHeight: 21,
-      color:
-        COLORS.textSecondary,
+      color: COLORS.gray,
     },
 
     paymentCard: {
@@ -1304,21 +1415,20 @@ const styles =
       flex: 1,
       fontSize: 15,
       fontWeight: '600',
-      color: COLORS.text,
+      color: COLORS.navy,
     },
 
     amountValue: {
       fontSize: 20,
       fontWeight: '800',
-      color: COLORS.primary,
+      color: COLORS.orange,
     },
 
     amountNote: {
       marginTop: 12,
       fontSize: 12,
       lineHeight: 18,
-      color:
-        COLORS.textSecondary,
+      color: COLORS.gray,
     },
 
     securityCard: {
@@ -1335,15 +1445,14 @@ const styles =
     securityTitle: {
       fontSize: 14,
       fontWeight: '700',
-      color: COLORS.text,
+      color: COLORS.navy,
       marginBottom: 6,
     },
 
     securityText: {
       fontSize: 12,
       lineHeight: 18,
-      color:
-        COLORS.textSecondary,
+      color: COLORS.gray,
     },
 
     errorCard: {
@@ -1353,22 +1462,21 @@ const styles =
       padding: 16,
       borderWidth: 1,
       borderColor:
-        COLORS.error,
+        COLORS.orange,
       marginBottom: 20,
     },
 
     errorTitle: {
       fontSize: 14,
       fontWeight: '700',
-      color: COLORS.error,
+      color: COLORS.orange,
       marginBottom: 5,
     },
 
     errorText: {
       fontSize: 13,
       lineHeight: 19,
-      color:
-        COLORS.textSecondary,
+      color: COLORS.gray,
     },
 
     buttonContainer: {
@@ -1379,8 +1487,7 @@ const styles =
       textAlign: 'center',
       fontSize: 11,
       lineHeight: 17,
-      color:
-        COLORS.textSecondary,
+      color: COLORS.gray,
       marginTop: 14,
       paddingHorizontal: 15,
     },
