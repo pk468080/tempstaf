@@ -1,6 +1,6 @@
+```tsx
 import {
   ActivityIndicator,
-  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -9,12 +9,8 @@ import {
   View,
 } from 'react-native'
 
-import { useState } from 'react'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 
-import {
-  requestServiceAvailability,
-} from '../services/availabilityRequests'
 import { COLORS } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import { useBooking } from '../context/BookingContext'
@@ -26,8 +22,11 @@ type Props = NativeStackScreenProps<
   'Services'
 >
 
-const iconForService = (service: string): string => {
-  const normalized = service.trim().toLowerCase()
+const iconForService = (
+  service: string
+): string => {
+  const normalized =
+    service.trim().toLowerCase()
 
   if (
     normalized.includes('housekeeping') ||
@@ -74,221 +73,294 @@ const iconForService = (service: string): string => {
   return '👤'
 }
 
-const formatPrice = (price: number) => {
-  return `₹${price.toLocaleString('en-IN')}`
-}
-
 export default function ServicesScreen({
   navigation,
 }: Props) {
   const {
     selectedService,
-    selectedDuration,
+    selectedServiceId,
+    selectedVariantId,
+    selectedVariant,
     services,
-    packages,
+    hourlyVariants,
     catalogueLoading,
     catalogueError,
     setSelectedService,
-    setSelectedDuration,
+    setSelectedVariantId,
     refreshCatalogue,
   } = useBooking()
 
-  const [notifyMeLoading, setNotifyMeLoading] =
-    useState(false)
-
-  const selectedServiceRecord = services.find(
-    service => service.name === selectedService
-  )
-
-  const servicePackages = packages
-    .filter(
-      item =>
-        item.service_id === selectedServiceRecord?.id &&
-        item.is_active
-    )
-    .sort(
-      (a, b) =>
-        a.sort_order - b.sort_order
+  const selectedServiceRecord =
+    services.find(
+      service =>
+        service.id === selectedServiceId ||
+        service.name === selectedService
     )
 
-  const selectedPackage = servicePackages.find(
-    item => item.name === selectedDuration
-  )
+  const serviceHourlyVariants =
+    hourlyVariants
+      .filter(
+        variant =>
+          variant.service_id ===
+            selectedServiceRecord?.id &&
+          variant.is_active
+      )
+      .sort(
+        (a, b) =>
+          a.sort_order -
+          b.sort_order
+      )
 
+  /*
+   * The current backend catalogue is designed around
+   * one active customer-facing Hourly variant per service.
+   *
+   * If there is exactly one, select it automatically.
+   *
+   * We still render the variant as a selectable item so
+   * the screen remains compatible if admin later creates
+   * more than one active Hourly variant.
+   */
   const handleServiceSelect = (
     serviceName: string
   ) => {
-    if (selectedService === serviceName) {
+    if (
+      selectedService === serviceName
+    ) {
       return
     }
 
     setSelectedService(serviceName)
-    setSelectedDuration('')
-  }
 
-  const handlePackageSelect = (
-    packageName: string
-  ) => {
-    setSelectedDuration(packageName)
-  }
+    const service =
+      services.find(
+        item =>
+          item.name === serviceName
+      )
 
-  const handleNotifyMe = async (
-    serviceId: string,
-    latitude: number,
-    longitude: number,
-    serviceName: string
-  ) => {
-    if (notifyMeLoading) {
+    if (!service) {
       return
     }
 
-    try {
-      setNotifyMeLoading(true)
+    const variants =
+      hourlyVariants
+        .filter(
+          variant =>
+            variant.service_id ===
+              service.id &&
+            variant.is_active
+        )
+        .sort(
+          (a, b) =>
+            a.sort_order -
+            b.sort_order
+        )
 
-      await requestServiceAvailability({
-        serviceId,
-        latitude,
-        longitude,
-      })
-
-      Alert.alert(
-        'Notification Requested',
-        `We will notify you when ${serviceName} becomes available in your area.`
+    /*
+     * Automatically select the only active Hourly
+     * customer-facing variant.
+     */
+    if (variants.length === 1) {
+      setSelectedVariantId(
+        variants[0].id
       )
-    } catch (error) {
-      console.error(
-        '[TempStaff] Failed to request availability:',
-        error
-      )
-
-      Alert.alert(
-        'Unable to Request Notification',
-        'We could not save your notification request right now. Please try again.'
-      )
-    } finally {
-      setNotifyMeLoading(false)
     }
+  }
+
+  const handleVariantSelect = (
+    variantId: string
+  ) => {
+    setSelectedVariantId(
+      variantId
+    )
   }
 
   const handleContinue = () => {
-    if (!selectedService || !selectedPackage) {
-      return
-    }
-
-    if (!selectedServiceRecord) {
-      Alert.alert(
-        'Service unavailable',
-        'This service could not be found. Please select it again.'
-      )
+    if (
+      !selectedServiceRecord ||
+      !selectedVariantId ||
+      !selectedVariant
+    ) {
       return
     }
 
     navigation.navigate('Summary')
   }
 
-  const selectedPackagePrice =
-    selectedPackage?.price ?? 0
+  const hasVariant =
+    Boolean(
+      selectedVariantId &&
+        selectedVariant
+    )
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={styles.container}
+    >
       <ScrollView
-        contentContainerStyle={styles.page}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          styles.page
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
       >
         <Header
-          onBack={() => navigation.goBack()}
+          onBack={() =>
+            navigation.goBack()
+          }
         />
 
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.stepBadge}>
-            <Text style={styles.stepBadgeText}>
+          <View
+            style={styles.stepBadge}
+          >
+            <Text
+              style={
+                styles.stepBadgeText
+              }
+            >
               STEP 1
             </Text>
           </View>
 
-          <Text style={styles.title}>
+          <Text
+            style={styles.title}
+          >
             What do you need?
           </Text>
 
-          <Text style={styles.subtitle}>
-            Choose the type of staff and how long
-            you need them.
+          <Text
+            style={styles.subtitle}
+          >
+            Choose the type of staff you
+            need. You will choose the
+            booking time and duration next.
           </Text>
         </View>
 
         {/* Staff type */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
+        <View
+          style={styles.sectionHeader}
+        >
+          <Text
+            style={styles.sectionTitle}
+          >
             Staff type
           </Text>
 
           {selectedService ? (
-            <Text style={styles.selectedHint}>
+            <Text
+              style={
+                styles.selectedHint
+              }
+            >
               Selected
             </Text>
           ) : null}
         </View>
 
         {catalogueLoading ? (
-          <View style={styles.stateCard}>
+          <View
+            style={styles.stateCard}
+          >
             <ActivityIndicator
               size="small"
               color={COLORS.orange}
             />
 
-            <Text style={styles.stateText}>
-              Loading available services...
+            <Text
+              style={styles.stateText}
+            >
+              Loading available
+              services...
             </Text>
           </View>
         ) : catalogueError ? (
-          <View style={styles.stateCard}>
-            <View style={styles.stateIcon}>
-              <Text style={styles.stateIconText}>
+          <View
+            style={styles.stateCard}
+          >
+            <View
+              style={styles.stateIcon}
+            >
+              <Text
+                style={
+                  styles.stateIconText
+                }
+              >
                 !
               </Text>
             </View>
 
-            <Text style={styles.stateTitle}>
+            <Text
+              style={styles.stateTitle}
+            >
               Unable to load services
             </Text>
 
-            <Text style={styles.stateText}>
+            <Text
+              style={styles.stateText}
+            >
               {catalogueError}
             </Text>
 
             <TouchableOpacity
-              style={styles.retryButton}
-              onPress={refreshCatalogue}
+              style={
+                styles.retryButton
+              }
+              onPress={
+                refreshCatalogue
+              }
               activeOpacity={0.85}
             >
-              <Text style={styles.retryText}>
+              <Text
+                style={styles.retryText}
+              >
                 Try Again
               </Text>
             </TouchableOpacity>
           </View>
         ) : services.length === 0 ? (
-          <View style={styles.stateCard}>
-            <View style={styles.stateIcon}>
-              <Text style={styles.stateIconText}>
+          <View
+            style={styles.stateCard}
+          >
+            <View
+              style={styles.stateIcon}
+            >
+              <Text
+                style={
+                  styles.stateIconText
+                }
+              >
                 i
               </Text>
             </View>
 
-            <Text style={styles.stateTitle}>
+            <Text
+              style={styles.stateTitle}
+            >
               No services available
             </Text>
 
-            <Text style={styles.stateText}>
-              There are currently no active staffing
-              services available.
+            <Text
+              style={styles.stateText}
+            >
+              There are currently no
+              active staffing services
+              available.
             </Text>
           </View>
         ) : (
-          <View style={styles.serviceList}>
+          <View
+            style={styles.serviceList}
+          >
             {services.map(service => {
               const isSelected =
-                selectedService === service.name
+                selectedService ===
+                  service.name ||
+                selectedServiceId ===
+                  service.id
 
               return (
                 <TouchableOpacity
@@ -313,7 +385,9 @@ export default function ServicesScreen({
                     ]}
                   >
                     <Text
-                      style={styles.serviceEmoji}
+                      style={
+                        styles.serviceEmoji
+                      }
                     >
                       {iconForService(
                         service.name
@@ -322,7 +396,9 @@ export default function ServicesScreen({
                   </View>
 
                   <View
-                    style={styles.serviceContent}
+                    style={
+                      styles.serviceContent
+                    }
                   >
                     <Text
                       style={[
@@ -357,7 +433,9 @@ export default function ServicesScreen({
                   >
                     {isSelected ? (
                       <View
-                        style={styles.radioInner}
+                        style={
+                          styles.radioInner
+                        }
                       />
                     ) : null}
                   </View>
@@ -367,233 +445,380 @@ export default function ServicesScreen({
           </View>
         )}
 
-        {/* Duration */}
-        {selectedService && !catalogueLoading ? (
+        {/* Hourly service variant */}
+        {selectedServiceRecord &&
+        !catalogueLoading ? (
           <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                Staffing period
+            <View
+              style={styles.sectionHeader}
+            >
+              <Text
+                style={
+                  styles.sectionTitle
+                }
+              >
+                Booking type
               </Text>
 
-              <Text style={styles.selectedHint}>
-                {selectedPackage
-                  ? 'Selected'
-                  : 'Required'}
-              </Text>
+              {hasVariant ? (
+                <Text
+                  style={
+                    styles.selectedHint
+                  }
+                >
+                  Hourly
+                </Text>
+              ) : (
+                <Text
+                  style={
+                    styles.requiredHint
+                  }
+                >
+                  Required
+                </Text>
+              )}
             </View>
 
-            <Text style={styles.helper}>
-              Select how long you need the staff.
+            <Text
+              style={styles.helper}
+            >
+              TempStaff bookings are charged
+              by the number of working hours.
+              Select your service below, then
+              choose the required time range.
             </Text>
 
-            {servicePackages.length === 0 ? (
-              <View style={styles.stateCard}>
-                <Text style={styles.stateTitle}>
-                  No packages available
+            {serviceHourlyVariants.length ===
+            0 ? (
+              <View
+                style={styles.stateCard}
+              >
+                <Text
+                  style={
+                    styles.stateTitle
+                  }
+                >
+                  Hourly booking unavailable
                 </Text>
 
-                <Text style={styles.stateText}>
-                  No staffing periods are currently
-                  available for {selectedService}.
+                <Text
+                  style={styles.stateText}
+                >
+                  This service does not
+                  currently have an active
+                  customer-facing Hourly
+                  variant.
                 </Text>
               </View>
             ) : (
-              <View style={styles.packageList}>
-                {servicePackages.map(pkg => {
-                  const isSelected =
-                    selectedDuration === pkg.name
+              <View
+                style={
+                  styles.variantList
+                }
+              >
+                {serviceHourlyVariants.map(
+                  variant => {
+                    const isSelected =
+                      selectedVariantId ===
+                      variant.id
 
-                  return (
-                    <TouchableOpacity
-                      key={pkg.id}
-                      activeOpacity={0.88}
-                      style={[
-                        styles.packageCard,
-                        isSelected &&
-                          styles.packageCardSelected,
-                      ]}
-                      onPress={() =>
-                        handlePackageSelect(
-                          pkg.name
-                        )
-                      }
-                    >
-                      <View
+                    return (
+                      <TouchableOpacity
+                        key={variant.id}
+                        activeOpacity={
+                          0.88
+                        }
                         style={[
-                          styles.packageRadio,
+                          styles.variantCard,
                           isSelected &&
-                            styles.packageRadioSelected,
+                            styles.variantCardSelected,
                         ]}
-                      >
-                        {isSelected ? (
-                          <View
-                            style={
-                              styles.packageRadioInner
-                            }
-                          />
-                        ) : null}
-                      </View>
-
-                      <View
-                        style={styles.packageContent}
-                      >
-                        <Text
-                          style={[
-                            styles.packageName,
-                            isSelected &&
-                              styles.selectedText,
-                          ]}
-                        >
-                          {pkg.name}
-                        </Text>
-
-                        <Text
-                          style={[
-                            styles.packageDescription,
-                            isSelected &&
-                              styles.selectedDescription,
-                          ]}
-                          numberOfLines={2}
-                        >
-                          {pkg.description ||
-                            'Temporary staffing package'}
-                        </Text>
-                      </View>
-
-                      <View
-                        style={
-                          styles.packagePriceContainer
+                        onPress={() =>
+                          handleVariantSelect(
+                            variant.id
+                          )
                         }
                       >
-                        <Text
+                        <View
                           style={[
-                            styles.packagePrice,
+                            styles.variantRadio,
                             isSelected &&
-                              styles.selectedText,
+                              styles.variantRadioSelected,
                           ]}
                         >
-                          {formatPrice(pkg.price)}
-                        </Text>
+                          {isSelected ? (
+                            <View
+                              style={
+                                styles.variantRadioInner
+                              }
+                            />
+                          ) : null}
+                        </View>
 
-                        <Text
-                          style={[
-                            styles.packagePriceLabel,
-                            isSelected &&
-                              styles.selectedDescription,
-                          ]}
+                        <View
+                          style={
+                            styles.variantContent
+                          }
                         >
-                          total
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  )
-                })}
+                          <Text
+                            style={[
+                              styles.variantName,
+                              isSelected &&
+                                styles.selectedText,
+                            ]}
+                          >
+                            {variant.name ||
+                              'Hourly'}
+                          </Text>
+
+                          <Text
+                            style={[
+                              styles.variantDescription,
+                              isSelected &&
+                                styles.selectedDescription,
+                            ]}
+                            numberOfLines={2}
+                          >
+                            {variant.description ||
+                              'Flexible hourly staffing'}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={
+                            styles.hourlyBadge
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.hourlyBadgeText
+                            }
+                          >
+                            HOURLY
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    )
+                  }
+                )}
               </View>
             )}
           </>
         ) : null}
 
         {/* Selection summary */}
-        {selectedService && selectedPackage ? (
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryHeader}>
-              <Text style={styles.summaryTitle}>
+        {selectedServiceRecord &&
+        selectedVariant ? (
+          <View
+            style={styles.summaryCard}
+          >
+            <View
+              style={
+                styles.summaryHeader
+              }
+            >
+              <Text
+                style={
+                  styles.summaryTitle
+                }
+              >
                 Your selection
               </Text>
 
-              <View style={styles.summaryCheck}>
-                <Text style={styles.summaryCheckText}>
+              <View
+                style={
+                  styles.summaryCheck
+                }
+              >
+                <Text
+                  style={
+                    styles.summaryCheckText
+                  }
+                >
                   ✓
                 </Text>
               </View>
             </View>
 
-            <View style={styles.summaryDivider} />
+            <View
+              style={
+                styles.summaryDivider
+              }
+            />
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>
+            <View
+              style={styles.summaryRow}
+            >
+              <Text
+                style={
+                  styles.summaryLabel
+                }
+              >
                 Staff
               </Text>
 
               <Text
-                style={styles.summaryValue}
+                style={
+                  styles.summaryValue
+                }
                 numberOfLines={1}
               >
-                {selectedService}
+                {selectedServiceRecord.name}
               </Text>
             </View>
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>
-                Period
+            <View
+              style={styles.summaryRow}
+            >
+              <Text
+                style={
+                  styles.summaryLabel
+                }
+              >
+                Billing
               </Text>
 
               <Text
-                style={styles.summaryValue}
-                numberOfLines={1}
+                style={
+                  styles.summaryValue
+                }
               >
-                {selectedPackage.name}
+                Hourly
               </Text>
             </View>
 
-            <View style={styles.summaryDivider} />
+            <View
+              style={styles.summaryDivider}
+            />
 
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>
-                Estimated total
+            <View
+              style={styles.summaryRow}
+            >
+              <Text
+                style={
+                  styles.summaryLabel
+                }
+              >
+                Price
               </Text>
 
-              <Text style={styles.totalValue}>
-                {formatPrice(
-                  selectedPackagePrice
-                )}
+              <Text
+                style={
+                  styles.summaryValueMuted
+                }
+              >
+                Calculated at checkout
               </Text>
             </View>
           </View>
         ) : null}
 
+        {/* Pricing information */}
+        <View
+          style={styles.infoCard}
+        >
+          <View
+            style={styles.infoIcon}
+          >
+            <Text
+              style={
+                styles.infoIconText
+              }
+            >
+              ₹
+            </Text>
+          </View>
+
+          <View
+            style={styles.infoContent}
+          >
+            <Text
+              style={styles.infoTitle}
+            >
+              Pricing is calculated by TempStaff
+            </Text>
+
+            <Text
+              style={styles.infoText}
+            >
+              Your final amount is calculated
+              using the current admin-configured
+              hourly price and applicable
+              discounts. The app does not
+              hardcode pricing.
+            </Text>
+          </View>
+        </View>
+
         {/* Assignment information */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoIcon}>
-            <Text style={styles.infoIconText}>
+        <View
+          style={styles.infoCard}
+        >
+          <View
+            style={styles.infoIcon}
+          >
+            <Text
+              style={
+                styles.infoIconText
+              }
+            >
               ✓
             </Text>
           </View>
 
-          <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>
-              We handle worker assignment
+          <View
+            style={styles.infoContent}
+          >
+            <Text
+              style={styles.infoTitle}
+            >
+              Worker assignment is handled securely
             </Text>
 
-            <Text style={styles.infoText}>
-              You choose the service and staffing
-              period. TempStaff will find and assign
-              a suitable worker.
+            <Text
+              style={styles.infoText}
+            >
+              Worker availability, location,
+              service-area coverage, scheduling,
+              distance and assignment are
+              validated by the backend.
             </Text>
           </View>
         </View>
 
         {/* Continue */}
-        <View style={styles.bottom}>
+        <View
+          style={styles.bottom}
+        >
           <PrimaryButton
             title="Continue"
             disabled={
-              !selectedService ||
-              !selectedPackage
+              !selectedServiceRecord ||
+              !selectedVariant
             }
-            onPress={handleContinue}
+            onPress={
+              handleContinue
+            }
           />
 
-          {!selectedService ||
-          !selectedPackage ? (
-            <Text style={styles.bottomHint}>
-              Select a staff type and staffing period
-              to continue.
+          {!selectedServiceRecord ||
+          !selectedVariant ? (
+            <Text
+              style={
+                styles.bottomHint
+              }
+            >
+              Select a staff type to
+              continue.
             </Text>
           ) : (
-            <Text style={styles.bottomHint}>
-              Next: choose your booking location and
-              schedule.
+            <Text
+              style={
+                styles.bottomHint
+              }
+            >
+              Next: choose your booking
+              method, location and time.
             </Text>
           )}
         </View>
@@ -671,6 +896,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
+  requiredHint: {
+    color: COLORS.orange,
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '800',
+  },
+
   helper: {
     color: COLORS.gray,
     fontSize: 12,
@@ -712,7 +944,8 @@ const styles = StyleSheet.create({
   },
 
   serviceIconSelected: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor:
+      'rgba(255,255,255,0.18)',
   },
 
   serviceEmoji: {
@@ -767,13 +1000,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
 
-  packageList: {
+  variantList: {
     gap: 10,
   },
 
-  packageCard: {
+  variantCard: {
     width: '100%',
-    minHeight: 82,
+    minHeight: 78,
     backgroundColor: COLORS.white,
     borderRadius: 17,
     borderWidth: 1,
@@ -784,12 +1017,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  packageCardSelected: {
+  variantCardSelected: {
     backgroundColor: COLORS.orange,
     borderColor: COLORS.orange,
   },
 
-  packageRadio: {
+  variantRadio: {
     width: 21,
     height: 21,
     borderRadius: 11,
@@ -800,53 +1033,48 @@ const styles = StyleSheet.create({
     marginRight: 11,
   },
 
-  packageRadioSelected: {
+  variantRadioSelected: {
     borderColor: COLORS.white,
   },
 
-  packageRadioInner: {
+  variantRadioInner: {
     width: 9,
     height: 9,
     borderRadius: 5,
     backgroundColor: COLORS.white,
   },
 
-  packageContent: {
+  variantContent: {
     flex: 1,
     paddingRight: 8,
   },
 
-  packageName: {
+  variantName: {
     color: COLORS.navy,
     fontSize: 15,
     lineHeight: 20,
     fontWeight: '800',
   },
 
-  packageDescription: {
+  variantDescription: {
     color: COLORS.gray,
     fontSize: 11,
     lineHeight: 16,
     marginTop: 3,
   },
 
-  packagePriceContainer: {
-    minWidth: 65,
-    alignItems: 'flex-end',
+  hourlyBadge: {
+    borderRadius: 10,
+    backgroundColor: '#E8F6F6',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
   },
 
-  packagePrice: {
-    color: COLORS.navy,
-    fontSize: 16,
-    lineHeight: 21,
+  hourlyBadgeText: {
+    color: COLORS.teal,
+    fontSize: 8,
     fontWeight: '900',
-  },
-
-  packagePriceLabel: {
-    color: COLORS.gray,
-    fontSize: 9,
-    lineHeight: 13,
-    marginTop: 1,
+    letterSpacing: 0.5,
   },
 
   summaryCard: {
@@ -885,7 +1113,8 @@ const styles = StyleSheet.create({
 
   summaryDivider: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.13)',
+    backgroundColor:
+      'rgba(255,255,255,0.13)',
     marginVertical: 12,
   },
 
@@ -909,22 +1138,12 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 
-  totalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
-  totalLabel: {
-    color: COLORS.white,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-
-  totalValue: {
-    color: COLORS.orange,
-    fontSize: 19,
-    fontWeight: '900',
+  summaryValueMuted: {
+    color: '#C8D5E1',
+    fontSize: 12,
+    fontWeight: '600',
+    maxWidth: '68%',
+    textAlign: 'right',
   },
 
   infoCard: {
@@ -1042,3 +1261,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
 })
+```
