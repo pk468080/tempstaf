@@ -5,6 +5,7 @@ import {
   Text,
   View,
 } from 'react-native'
+
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 
 import { COLORS } from '../constants/theme'
@@ -18,6 +19,54 @@ type Props = NativeStackScreenProps<
   'BookingConfirmed'
 >
 
+function normalizeBookingMode(
+  value: unknown
+) {
+  const mode =
+    String(value ?? '')
+      .trim()
+      .toLowerCase()
+
+  if (mode === 'instant') {
+    return 'Instant'
+  }
+
+  if (mode === 'recurring') {
+    return 'Recurring'
+  }
+
+  return 'Scheduled'
+}
+
+function getVariantName(
+  value: unknown
+) {
+  if (
+    typeof value === 'string'
+  ) {
+    return value
+  }
+
+  if (
+    value &&
+    typeof value === 'object' &&
+    'name' in value
+  ) {
+    const name =
+      (value as {
+        name?: unknown
+      }).name
+
+    if (
+      typeof name === 'string'
+    ) {
+      return name
+    }
+  }
+
+  return 'Hourly service'
+}
+
 export default function BookingConfirmedScreen({
   navigation,
 }: Props) {
@@ -25,78 +74,178 @@ export default function BookingConfirmedScreen({
     bookingId,
     selectedWorker,
     selectedService,
-    selectedPackage,
+    selectedVariant,
     address,
     bookingMode,
-    scheduledDate,
+
+    hourlyStartTime,
+    hourlyEndTime,
+
+    scheduleStartDate,
+    scheduleEndDate,
+    scheduleDailyStartTime,
+    scheduleDailyEndTime,
+    scheduleSelectedWeekdays,
+    scheduleOffDates,
+
     shiftStarted,
     shiftEnded,
+
     resetBooking,
   } = useBooking()
 
-  const isCompleted = shiftEnded
+  const mode =
+    normalizeBookingMode(
+      bookingMode
+    )
+
+  const variantName =
+    getVariantName(
+      selectedVariant
+    )
+
+  const isCompleted =
+    Boolean(shiftEnded)
+
   const isInProgress =
-    shiftStarted && !shiftEnded
+    Boolean(
+      shiftStarted &&
+      !shiftEnded
+    )
 
-  const statusTitle = isCompleted
-    ? 'Shift completed'
-    : isInProgress
-      ? 'Shift in progress'
-      : selectedWorker
-        ? 'Worker assigned'
-        : 'Booking confirmed'
+  const selectedWeekdays =
+    Array.isArray(
+      scheduleSelectedWeekdays
+    )
+      ? scheduleSelectedWeekdays
+      : []
 
-  const statusDescription = isCompleted
-    ? 'Your TempStaff shift has been completed successfully.'
-    : isInProgress
-      ? 'Your worker is currently working on the booking.'
-      : selectedWorker
-        ? 'Your booking is confirmed. Your assigned worker will be notified with the booking details.'
-        : 'Your booking is confirmed. TempStaff will assign an appropriate worker for the service.'
+  const excludedDates =
+    Array.isArray(
+      scheduleOffDates
+    )
+      ? scheduleOffDates
+      : []
+
+  const statusTitle =
+    isCompleted
+      ? 'Shift completed'
+      : isInProgress
+        ? 'Shift in progress'
+        : selectedWorker
+          ? 'Worker assigned'
+          : 'Booking confirmed'
+
+  const statusDescription =
+    isCompleted
+      ? 'Your TempStaff shift has been completed successfully.'
+      : isInProgress
+        ? 'Your worker is currently working on the booking.'
+        : selectedWorker
+          ? 'Your booking is confirmed and the assigned worker has been notified.'
+          : 'Your booking is confirmed. TempStaff will handle worker assignment according to availability.'
 
   const goHome = () => {
     resetBooking()
 
     navigation.reset({
       index: 0,
-      routes: [{ name: 'Home' }],
+      routes: [
+        {
+          name: 'Home',
+        },
+      ],
     })
   }
 
   const viewBooking = () => {
-    navigation.navigate('MyBookings')
+    navigation.navigate(
+      'MyBookings'
+    )
+  }
+
+  const trackWorker = () => {
+    if (!bookingId) {
+      return
+    }
+
+    navigation.navigate(
+      'Tracking',
+      {
+        bookingId,
+      }
+    )
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={styles.container}
+    >
       <ScrollView
-        contentContainerStyle={styles.page}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          styles.page
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
       >
         <Header />
 
         {/* Success */}
-        <View style={styles.successCard}>
-          <View style={styles.checkCircle}>
-            <Text style={styles.check}>✓</Text>
+
+        <View
+          style={
+            styles.successCard
+          }
+        >
+          <View
+            style={
+              styles.checkCircle
+            }
+          >
+            <Text
+              style={styles.check}
+            >
+              ✓
+            </Text>
           </View>
 
-          <Text style={styles.successTitle}>
+          <Text
+            style={
+              styles.successTitle
+            }
+          >
             Booking confirmed
           </Text>
 
-          <Text style={styles.successText}>
+          <Text
+            style={
+              styles.successText
+            }
+          >
             Your TempStaff booking has been successfully
-            created.
+            created and your payment has been verified.
           </Text>
 
           {bookingId ? (
-            <View style={styles.bookingIdBox}>
-              <Text style={styles.bookingIdLabel}>
+            <View
+              style={
+                styles.bookingIdBox
+              }
+            >
+              <Text
+                style={
+                  styles.bookingIdLabel
+                }
+              >
                 BOOKING ID
               </Text>
 
-              <Text style={styles.bookingId}>
+              <Text
+                style={
+                  styles.bookingId
+                }
+              >
                 {bookingId}
               </Text>
             </View>
@@ -104,120 +253,215 @@ export default function BookingConfirmedScreen({
         </View>
 
         {/* Booking details */}
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>
+
+        <View
+          style={styles.card}
+        >
+          <Text
+            style={
+              styles.cardLabel
+            }
+          >
             BOOKING DETAILS
           </Text>
 
-          <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <Text>🧑‍💼</Text>
-            </View>
+          <DetailRow
+            icon="🧑‍💼"
+            label="SERVICE"
+            value={
+              selectedService ||
+              'TempStaff service'
+            }
+          />
 
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>
-                SERVICE
-              </Text>
+          <View
+            style={styles.divider}
+          />
 
-              <Text style={styles.detailValue}>
-                {selectedService ||
-                  'TempStaff service'}
-              </Text>
-            </View>
-          </View>
+          <DetailRow
+            icon="⏱️"
+            label="SERVICE TYPE"
+            value={variantName}
+          />
 
-          <View style={styles.divider} />
+          <View
+            style={styles.divider}
+          />
 
-          <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <Text>📦</Text>
-            </View>
+          <DetailRow
+            icon="📅"
+            label="BOOKING METHOD"
+            value={mode}
+          />
 
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>
-                PACKAGE
-              </Text>
+          <View
+            style={styles.divider}
+          />
 
-              <Text style={styles.detailValue}>
-                {selectedPackage?.name ||
-                  'Selected package'}
-              </Text>
-            </View>
-          </View>
+          <DetailRow
+            icon="🕐"
+            label="BOOKING TIME"
+            value={
+              mode === 'Recurring'
+                ? `${scheduleDailyStartTime || '—'} – ${
+                    scheduleDailyEndTime ||
+                    '—'
+                  }`
+                : mode === 'Scheduled'
+                  ? `${scheduleStartDate || '—'} · ${
+                      scheduleDailyStartTime ||
+                      '—'
+                    } – ${
+                      scheduleDailyEndTime ||
+                      '—'
+                    }`
+                  : `${hourlyStartTime || '—'} – ${
+                      hourlyEndTime ||
+                      '—'
+                    }`
+            }
+          />
 
-          <View style={styles.divider} />
+          {mode ===
+            'Recurring' && (
+            <>
+              <View
+                style={styles.divider}
+              />
 
-          <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <Text>🕐</Text>
-            </View>
+              <DetailRow
+                icon="🗓️"
+                label="DATE RANGE"
+                value={`${scheduleStartDate || '—'} – ${
+                  scheduleEndDate ||
+                  scheduleStartDate ||
+                  '—'
+                }`}
+              />
 
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>
-                BOOKING TIME
-              </Text>
+              <View
+                style={styles.divider}
+              />
 
-              <Text style={styles.detailValue}>
-                {bookingMode === 'Scheduled'
-                  ? scheduledDate ||
-                    'Scheduled'
-                  : 'Instant booking'}
-              </Text>
-            </View>
-          </View>
+              <DetailRow
+                icon="🔁"
+                label="RECURRING DAYS"
+                value={
+                  selectedWeekdays
+                    .slice()
+                    .sort(
+                      (a, b) =>
+                        a - b
+                    )
+                    .map(
+                      getWeekdayLabel
+                    )
+                    .join(', ') ||
+                  'Selected days'
+                }
+              />
 
-          <View style={styles.divider} />
+              {excludedDates.length >
+                0 && (
+                <>
+                  <View
+                    style={
+                      styles.divider
+                    }
+                  />
 
-          <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <Text>📍</Text>
-            </View>
+                  <DetailRow
+                    icon="🚫"
+                    label="EXCLUDED DATES"
+                    value={`${excludedDates.length} date${
+                      excludedDates.length ===
+                      1
+                        ? ''
+                        : 's'
+                    }`}
+                  />
+                </>
+              )}
+            </>
+          )}
 
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>
-                SERVICE LOCATION
-              </Text>
+          <View
+            style={styles.divider}
+          />
 
-              <Text
-                style={styles.detailValue}
-                numberOfLines={4}
-              >
-                {address ||
-                  'Service address'}
-              </Text>
-            </View>
-          </View>
+          <DetailRow
+            icon="📍"
+            label="SERVICE LOCATION"
+            value={
+              address ||
+              'Service address'
+            }
+          />
         </View>
 
         {/* Worker */}
+
         {selectedWorker ? (
-          <View style={styles.card}>
-            <Text style={styles.cardLabel}>
+          <View
+            style={styles.card}
+          >
+            <Text
+              style={
+                styles.cardLabel
+              }
+            >
               ASSIGNED WORKER
             </Text>
 
-            <View style={styles.worker}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
+            <View
+              style={styles.worker}
+            >
+              <View
+                style={styles.avatar}
+              >
+                <Text
+                  style={
+                    styles.avatarText
+                  }
+                >
                   {selectedWorker.name
                     ?.charAt(0)
-                    ?.toUpperCase() || 'T'}
+                    ?.toUpperCase() ||
+                    'T'}
                 </Text>
               </View>
 
-              <View style={styles.workerInfo}>
-                <Text style={styles.workerName}>
+              <View
+                style={
+                  styles.workerInfo
+                }
+              >
+                <Text
+                  style={
+                    styles.workerName
+                  }
+                >
                   {selectedWorker.name}
                 </Text>
 
-                <Text style={styles.workerService}>
+                <Text
+                  style={
+                    styles.workerService
+                  }
+                >
                   {selectedWorker.service ||
                     selectedService ||
                     'TempStaff Worker'}
                 </Text>
 
-                <Text style={styles.workerMeta}>
-                  ★ {selectedWorker.rating || 0}
+                <Text
+                  style={
+                    styles.workerMeta
+                  }
+                >
+                  ★{' '}
+                  {selectedWorker.rating ||
+                    0}
                   {'  ·  '}
                   {selectedWorker.distance ||
                     'Nearby'}
@@ -226,32 +470,74 @@ export default function BookingConfirmedScreen({
             </View>
           </View>
         ) : (
-          <View style={styles.assignmentCard}>
-            <View style={styles.assignmentIcon}>
-              <Text style={styles.assignmentEmoji}>
+          <View
+            style={
+              styles.assignmentCard
+            }
+          >
+            <View
+              style={
+                styles.assignmentIcon
+              }
+            >
+              <Text
+                style={
+                  styles.assignmentEmoji
+                }
+              >
                 👷
               </Text>
             </View>
 
-            <View style={styles.assignmentContent}>
-              <Text style={styles.assignmentTitle}>
+            <View
+              style={
+                styles.assignmentContent
+              }
+            >
+              <Text
+                style={
+                  styles.assignmentTitle
+                }
+              >
                 Worker assignment
               </Text>
 
-              <Text style={styles.assignmentText}>
-                No worker has been assigned yet. TempStaff
-                will handle worker assignment based on
-                availability and your booking details.
+              <Text
+                style={
+                  styles.assignmentText
+                }
+              >
+                No worker is shown as assigned yet.
+                TempStaff will handle assignment according
+                to the booking method, availability,
+                schedule, and service area.
               </Text>
             </View>
           </View>
         )}
 
         {/* Status */}
-        <View style={styles.statusCard}>
-          <View style={styles.statusTop}>
-            <View style={styles.statusIcon}>
-              <Text style={styles.statusIconText}>
+
+        <View
+          style={
+            styles.statusCard
+          }
+        >
+          <View
+            style={
+              styles.statusTop
+            }
+          >
+            <View
+              style={
+                styles.statusIcon
+              }
+            >
+              <Text
+                style={
+                  styles.statusIconText
+                }
+              >
                 {isCompleted
                   ? '✓'
                   : isInProgress
@@ -260,78 +546,134 @@ export default function BookingConfirmedScreen({
               </Text>
             </View>
 
-            <View style={styles.statusHeading}>
-              <Text style={styles.statusLabel}>
+            <View
+              style={
+                styles.statusHeading
+              }
+            >
+              <Text
+                style={
+                  styles.statusLabel
+                }
+              >
                 CURRENT STATUS
               </Text>
 
-              <Text style={styles.statusTitle}>
+              <Text
+                style={
+                  styles.statusTitle
+                }
+              >
                 {statusTitle}
               </Text>
             </View>
           </View>
 
-          <Text style={styles.statusDescription}>
+          <Text
+            style={
+              styles.statusDescription
+            }
+          >
             {statusDescription}
           </Text>
         </View>
 
-        {/* Payment note */}
-        <View style={styles.paymentNotice}>
-          <View style={styles.paymentNoticeIcon}>
-            <Text>₹</Text>
+        {/* Payment verified */}
+
+        <View
+          style={
+            styles.paymentNotice
+          }
+        >
+          <View
+            style={
+              styles.paymentNoticeIcon
+            }
+          >
+            <Text
+              style={
+                styles.paymentCheck
+              }
+            >
+              ✓
+            </Text>
           </View>
 
-          <View style={styles.paymentNoticeContent}>
-            <Text style={styles.paymentNoticeTitle}>
-              Payment
+          <View
+            style={
+              styles.paymentNoticeContent
+            }
+          >
+            <Text
+              style={
+                styles.paymentNoticeTitle
+              }
+            >
+              Payment verified
             </Text>
 
-            <Text style={styles.paymentNoticeText}>
-              Online payment integration is currently
-              being finalized. This booking confirmation
-              does not represent a successful real-money
-              payment.
+            <Text
+              style={
+                styles.paymentNoticeText
+              }
+            >
+              Your Razorpay payment was successfully
+              verified by TempStaff before this confirmation
+              was shown.
             </Text>
           </View>
         </View>
 
         {/* Tracking */}
-        {selectedWorker && !isCompleted ? (
+
+        {selectedWorker &&
+        !isCompleted &&
+        bookingId ? (
           <PrimaryButton
             title={
               isInProgress
                 ? 'Manage Shift'
                 : 'Track Worker'
             }
-            onPress={() =>
-              navigation.navigate(
-                'Tracking',
-                { bookingId }
-              )
+            onPress={
+              trackWorker
             }
           />
         ) : null}
 
         {/* My bookings */}
+
         <PrimaryButton
           title="View My Bookings"
-          onPress={viewBooking}
+          onPress={
+            viewBooking
+          }
           style={
-            selectedWorker && !isCompleted
+            selectedWorker &&
+            !isCompleted &&
+            bookingId
               ? styles.secondaryButton
               : undefined
           }
         />
 
         {/* Home */}
+
         <PrimaryButton
           title="Back to Home"
-          onPress={goHome}
-          style={styles.homeButton}
+          onPress={
+            goHome
+          }
+          style={
+            styles.homeButton
+          }
         />
 
-        <Text style={styles.footerText}>
+        <Text
+          style={
+            styles.footerText
+          }
+        >
           You can view your booking status anytime
           from My Bookings.
         </Text>
@@ -340,334 +682,434 @@ export default function BookingConfirmedScreen({
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.light,
-  },
+/*
+ * =============================================================================
+ * DETAIL ROW
+ * =============================================================================
+ */
 
-  page: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 45,
-  },
+function DetailRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: string
+  label: string
+  value: string
+}) {
+  return (
+    <View
+      style={styles.detailRow}
+    >
+      <View
+        style={styles.detailIcon}
+      >
+        <Text>{icon}</Text>
+      </View>
 
-  successCard: {
-    backgroundColor: '#ECFDF3',
-    borderRadius: 22,
-    padding: 22,
-    alignItems: 'center',
-    marginBottom: 14,
-  },
+      <View
+        style={styles.detailContent}
+      >
+        <Text
+          style={
+            styles.detailLabel
+          }
+        >
+          {label}
+        </Text>
 
-  checkCircle: {
-    width: 65,
-    height: 65,
-    borderRadius: 33,
-    backgroundColor: COLORS.green,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
+        <Text
+          style={
+            styles.detailValue
+          }
+        >
+          {value}
+        </Text>
+      </View>
+    </View>
+  )
+}
 
-  check: {
-    color: COLORS.white,
-    fontSize: 38,
-    lineHeight: 43,
-    fontWeight: '900',
-  },
+/*
+ * =============================================================================
+ * HELPERS
+ * =============================================================================
+ */
 
-  successTitle: {
-    color: COLORS.navy,
-    fontSize: 23,
-    lineHeight: 29,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
+function getWeekdayLabel(
+  weekday: number
+) {
+  const labels = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ]
 
-  successText: {
-    color: COLORS.gray,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-    marginTop: 5,
-  },
+  return (
+    labels[weekday] ??
+    `Day ${weekday}`
+  )
+}
 
-  bookingIdBox: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginTop: 13,
-    alignItems: 'center',
-  },
+/*
+ * =============================================================================
+ * STYLES
+ * =============================================================================
+ */
 
-  bookingIdLabel: {
-    color: COLORS.gray,
-    fontSize: 7,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor:
+        COLORS.light,
+    },
 
-  bookingId: {
-    color: COLORS.teal,
-    fontSize: 13,
-    fontWeight: '900',
-    marginTop: 2,
-  },
+    page: {
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 45,
+    },
 
-  card: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 19,
-    padding: 16,
-    marginBottom: 13,
-  },
+    successCard: {
+      backgroundColor:
+        '#ECFDF3',
+      borderRadius: 22,
+      padding: 22,
+      alignItems: 'center',
+      marginBottom: 14,
+    },
 
-  cardLabel: {
-    color: COLORS.gray,
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 0.9,
-    marginBottom: 12,
-  },
+    checkCircle: {
+      width: 65,
+      height: 65,
+      borderRadius: 33,
+      backgroundColor:
+        COLORS.teal,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 10,
+    },
 
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+    check: {
+      color: COLORS.white,
+      fontSize: 38,
+      lineHeight: 43,
+      fontWeight: '900',
+    },
 
-  detailIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
+    successTitle: {
+      color: COLORS.navy,
+      fontSize: 23,
+      lineHeight: 29,
+      fontWeight: '900',
+      textAlign: 'center',
+    },
 
-  detailContent: {
-    flex: 1,
-  },
+    successText: {
+      color: COLORS.gray,
+      fontSize: 12,
+      lineHeight: 18,
+      textAlign: 'center',
+      marginTop: 6,
+    },
 
-  detailLabel: {
-    color: COLORS.gray,
-    fontSize: 7.5,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-  },
+    bookingIdBox: {
+      backgroundColor:
+        COLORS.white,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      marginTop: 13,
+      alignItems: 'center',
+    },
 
-  detailValue: {
-    color: COLORS.navy,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '800',
-    marginTop: 2,
-  },
+    bookingIdLabel: {
+      color: COLORS.gray,
+      fontSize: 7,
+      fontWeight: '900',
+      letterSpacing: 0.8,
+    },
 
-  divider: {
-    height: 1,
-    backgroundColor: '#EEF1F3',
-    marginVertical: 11,
-  },
+    bookingId: {
+      color: COLORS.teal,
+      fontSize: 13,
+      fontWeight: '900',
+      marginTop: 2,
+    },
 
-  worker: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+    card: {
+      backgroundColor:
+        COLORS.white,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      borderRadius: 19,
+      padding: 16,
+      marginBottom: 13,
+    },
 
-  avatar: {
-    width: 55,
-    height: 55,
-    borderRadius: 28,
-    backgroundColor: COLORS.navy,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
+    cardLabel: {
+      color: COLORS.gray,
+      fontSize: 8,
+      fontWeight: '900',
+      letterSpacing: 0.9,
+      marginBottom: 12,
+    },
 
-  avatarText: {
-    color: COLORS.white,
-    fontSize: 21,
-    fontWeight: '900',
-  },
+    detailRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
 
-  workerInfo: {
-    flex: 1,
-  },
+    detailIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor:
+        '#F1F5F7',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 10,
+    },
 
-  workerName: {
-    color: COLORS.navy,
-    fontSize: 16,
-    lineHeight: 21,
-    fontWeight: '900',
-  },
+    detailContent: {
+      flex: 1,
+    },
 
-  workerService: {
-    color: COLORS.teal,
-    fontSize: 11,
-    lineHeight: 16,
-    fontWeight: '800',
-    marginTop: 2,
-  },
+    detailLabel: {
+      color: COLORS.gray,
+      fontSize: 7.5,
+      fontWeight: '900',
+      letterSpacing: 0.6,
+    },
 
-  workerMeta: {
-    color: COLORS.gray,
-    fontSize: 10.5,
-    marginTop: 3,
-  },
+    detailValue: {
+      color: COLORS.navy,
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: '800',
+      marginTop: 2,
+    },
 
-  assignmentCard: {
-    backgroundColor: '#E8F6F6',
-    borderRadius: 18,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 13,
-  },
+    divider: {
+      height: 1,
+      backgroundColor:
+        '#EEF1F3',
+      marginVertical: 11,
+    },
 
-  assignmentIcon: {
-    width: 43,
-    height: 43,
-    borderRadius: 13,
-    backgroundColor: COLORS.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
+    worker: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
 
-  assignmentEmoji: {
-    fontSize: 21,
-  },
+    avatar: {
+      width: 55,
+      height: 55,
+      borderRadius: 28,
+      backgroundColor:
+        COLORS.navy,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
 
-  assignmentContent: {
-    flex: 1,
-  },
+    avatarText: {
+      color: COLORS.white,
+      fontSize: 21,
+      fontWeight: '900',
+    },
 
-  assignmentTitle: {
-    color: COLORS.navy,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '900',
-  },
+    workerInfo: {
+      flex: 1,
+    },
 
-  assignmentText: {
-    color: COLORS.gray,
-    fontSize: 10.5,
-    lineHeight: 16,
-    marginTop: 3,
-  },
+    workerName: {
+      color: COLORS.navy,
+      fontSize: 16,
+      lineHeight: 21,
+      fontWeight: '900',
+    },
 
-  statusCard: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 19,
-    padding: 16,
-    marginBottom: 13,
-  },
+    workerService: {
+      color: COLORS.teal,
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: '800',
+      marginTop: 2,
+    },
 
-  statusTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+    workerMeta: {
+      color: COLORS.gray,
+      fontSize: 10.5,
+      marginTop: 3,
+    },
 
-  statusIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: '#E8F6F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
+    assignmentCard: {
+      backgroundColor:
+        '#E8F6F6',
+      borderRadius: 18,
+      padding: 14,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: 13,
+    },
 
-  statusIconText: {
-    color: COLORS.teal,
-    fontSize: 17,
-    fontWeight: '900',
-  },
+    assignmentIcon: {
+      width: 43,
+      height: 43,
+      borderRadius: 13,
+      backgroundColor:
+        COLORS.white,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 10,
+    },
 
-  statusHeading: {
-    flex: 1,
-  },
+    assignmentEmoji: {
+      fontSize: 21,
+    },
 
-  statusLabel: {
-    color: COLORS.gray,
-    fontSize: 7.5,
-    fontWeight: '900',
-    letterSpacing: 0.7,
-  },
+    assignmentContent: {
+      flex: 1,
+    },
 
-  statusTitle: {
-    color: COLORS.navy,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '900',
-    marginTop: 2,
-  },
+    assignmentTitle: {
+      color: COLORS.navy,
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: '900',
+    },
 
-  statusDescription: {
-    color: COLORS.gray,
-    fontSize: 11,
-    lineHeight: 17,
-    marginTop: 11,
-  },
+    assignmentText: {
+      color: COLORS.gray,
+      fontSize: 10.5,
+      lineHeight: 16,
+      marginTop: 3,
+    },
 
-  paymentNotice: {
-    backgroundColor: '#FFF7EA',
-    borderRadius: 17,
-    padding: 13,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 15,
-  },
+    statusCard: {
+      backgroundColor:
+        COLORS.white,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      borderRadius: 19,
+      padding: 16,
+      marginBottom: 13,
+    },
 
-  paymentNoticeIcon: {
-    width: 35,
-    height: 35,
-    borderRadius: 11,
-    backgroundColor: COLORS.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 9,
-  },
+    statusTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
 
-  paymentNoticeContent: {
-    flex: 1,
-  },
+    statusIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 13,
+      backgroundColor:
+        '#E8F6F6',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 10,
+    },
 
-  paymentNoticeTitle: {
-    color: COLORS.orange,
-    fontSize: 12,
-    fontWeight: '900',
-  },
+    statusIconText: {
+      color: COLORS.teal,
+      fontSize: 17,
+      fontWeight: '900',
+    },
 
-  paymentNoticeText: {
-    color: COLORS.gray,
-    fontSize: 9.5,
-    lineHeight: 15,
-    marginTop: 2,
-  },
+    statusHeading: {
+      flex: 1,
+    },
 
-  secondaryButton: {
-    marginTop: 10,
-    backgroundColor: COLORS.navy,
-  },
+    statusLabel: {
+      color: COLORS.gray,
+      fontSize: 7.5,
+      fontWeight: '900',
+      letterSpacing: 0.7,
+    },
 
-  homeButton: {
-    marginTop: 10,
-    backgroundColor: '#64717D',
-  },
+    statusTitle: {
+      color: COLORS.navy,
+      fontSize: 15,
+      lineHeight: 20,
+      fontWeight: '900',
+      marginTop: 2,
+    },
 
-  footerText: {
-    color: COLORS.gray,
-    fontSize: 9.5,
-    lineHeight: 15,
-    textAlign: 'center',
-    marginTop: 10,
-    paddingHorizontal: 20,
-  },
-})
+    statusDescription: {
+      color: COLORS.gray,
+      fontSize: 11,
+      lineHeight: 17,
+      marginTop: 11,
+    },
+
+    paymentNotice: {
+      backgroundColor:
+        '#EAF6F5',
+      borderRadius: 17,
+      padding: 13,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: 15,
+    },
+
+    paymentNoticeIcon: {
+      width: 35,
+      height: 35,
+      borderRadius: 11,
+      backgroundColor:
+        COLORS.teal,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 9,
+    },
+
+    paymentCheck: {
+      color: COLORS.white,
+      fontSize: 17,
+      fontWeight: '900',
+    },
+
+    paymentNoticeContent: {
+      flex: 1,
+    },
+
+    paymentNoticeTitle: {
+      color: COLORS.navy,
+      fontSize: 12,
+      fontWeight: '900',
+    },
+
+    paymentNoticeText: {
+      color: COLORS.gray,
+      fontSize: 11,
+      lineHeight: 17,
+      marginTop: 3,
+    },
+
+    secondaryButton: {
+      opacity: 0.9,
+    },
+
+    homeButton: {
+      opacity: 0.9,
+    },
+
+    footerText: {
+      textAlign: 'center',
+      fontSize: 11,
+      lineHeight: 17,
+      color: COLORS.gray,
+      marginTop: 14,
+      paddingHorizontal: 15,
+    },
+  })
