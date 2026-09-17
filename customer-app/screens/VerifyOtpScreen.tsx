@@ -150,7 +150,25 @@ export default function VerifyOtpScreen({
         )
 
        let developmentUser = null
+const { data: accountCheck, error: accountCheckError } =
+  await supabase.rpc('check_account_phone', {
+    p_phone: phone,
+  })
 
+if (accountCheckError) {
+  throw accountCheckError
+}
+
+if (
+  accountCheck?.exists &&
+  accountCheck?.account_type === 'worker'
+) {
+  Alert.alert(
+    'Worker account already exists',
+    'This phone number is already registered as a worker account. Close your worker account or use a different number.'
+  )
+  return
+}
 /*
  * First check whether the existing development session
  * belongs to this phone number.
@@ -267,33 +285,27 @@ if (!developmentUser) {
     developmentUser.id
   )
 }
+console.log(
+  '[TempStaff] New customer profile requires details'
+)
+
+navigation.reset({
+  index: 0,
+  routes: [
+    {
+      name: 'CustomerDetails',
+    },
+  ],
+})
+
+return
 
 /*
  * New customer / incomplete profile.
  * Create the profile record but leave name/company empty.
  * CustomerDetailsScreen will complete it.
  */
-const {
-  error: profileError,
-} =
-  await supabase
-    .from('profiles')
-    .upsert(
-      {
-        id: developmentUser.id,
-        phone,
-        role: 'customer',
-        is_active: true,
-      },
-      {
-        onConflict: 'id',
-      }
-    )
 
-if (profileError) {
-  await supabase.auth.signOut()
-  throw profileError
-}
 
         console.log(
           '[TempStaff] New customer profile requires details'
