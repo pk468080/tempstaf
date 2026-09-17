@@ -34,6 +34,7 @@ import {
 import PrimaryButton from '../components/PrimaryButton'
 import Header from '../components/Header'
 
+
 type Props = NativeStackScreenProps<
   RootStackParamList,
   'Location'
