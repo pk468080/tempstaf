@@ -32,6 +32,46 @@ function statusLabel(status: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
+function statusDescription(status: string) {
+  switch (status) {
+    case 'pending_payment':
+      return 'Payment is still pending for this booking.'
+
+    case 'paid':
+      return 'Your payment is complete. Worker assignment is in progress.'
+
+    case 'searching_worker':
+      return 'We are finding an available worker for your booking.'
+
+    case 'assigned':
+      return 'A worker has been assigned to your booking.'
+
+    case 'on_the_way':
+      return 'Your worker is on the way.'
+
+    case 'arrived':
+      return 'Your worker has arrived at the booking location.'
+
+    case 'in_progress':
+      return 'Your work session is currently active.'
+
+    case 'completed':
+      return 'This booking has been completed.'
+
+    case 'cancelled':
+      return 'This booking has been cancelled.'
+
+    case 'payment_failed':
+      return 'Payment for this booking was not completed.'
+
+    case 'expired':
+      return 'This booking has expired.'
+
+    default:
+      return null
+  }
+}
+
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-IN', {
     weekday: 'short',
@@ -63,6 +103,16 @@ function Row({
   )
 }
 
+function formatAmount(value: number | string | null | undefined) {
+  const amount = Number(value ?? 0)
+
+  if (!Number.isFinite(amount)) {
+    return '₹0.00'
+  }
+
+  return `₹${amount.toFixed(2)}`
+}
+
 export default function BookingDetailsScreen({
   navigation,
   route,
@@ -83,8 +133,7 @@ export default function BookingDetailsScreen({
       setLoading(true)
       setError('')
 
-      const data =
-        await getCustomerBooking(bookingId)
+      const data = await getCustomerBooking(bookingId)
 
       setBooking(data)
     } catch (err) {
@@ -104,7 +153,7 @@ export default function BookingDetailsScreen({
   }, [bookingId])
 
   const handleCancelBooking = async () => {
-    if (!booking) {
+    if (!booking || canceling) {
       return
     }
 
@@ -112,18 +161,29 @@ export default function BookingDetailsScreen({
       'Cancel booking',
       'Are you sure you want to cancel this booking?',
       [
-        { text: 'Keep booking', style: 'cancel' },
+        {
+          text: 'Keep booking',
+          style: 'cancel',
+        },
         {
           text: 'Cancel booking',
           style: 'destructive',
           onPress: async () => {
             try {
               setCanceling(true)
+
+              /*
+               * Cancellation authority remains in Supabase.
+               * The UI does not calculate eligibility, fees,
+               * refunds, or cancellation timing locally.
+               */
               await customerBookingAction(
                 booking.id,
                 'cancel'
               )
+
               await loadBooking()
+
               Alert.alert(
                 'Booking cancelled',
                 'Your booking has been cancelled successfully.'
@@ -133,6 +193,7 @@ export default function BookingDetailsScreen({
                 '[TempStaff] Booking cancellation error:',
                 err
               )
+
               Alert.alert(
                 'Unable to cancel booking',
                 err instanceof Error
@@ -149,8 +210,12 @@ export default function BookingDetailsScreen({
   }
 
   useEffect(() => {
-    loadBooking()
+    void loadBooking()
 
+    /*
+     * The booking query itself remains customer-scoped in the
+     * service/backend. Realtime is only used as a refresh trigger.
+     */
     const detailChannel = supabase
       .channel(`booking-details-${bookingId}`)
       .on(
@@ -168,7 +233,7 @@ export default function BookingDetailsScreen({
       .subscribe()
 
     return () => {
-      supabase.removeChannel(detailChannel)
+      void supabase.removeChannel(detailChannel)
     }
   }, [bookingId, loadBooking])
 
@@ -205,7 +270,9 @@ export default function BookingDetailsScreen({
 
           <TouchableOpacity
             style={styles.retryButton}
-            onPress={loadBooking}
+            onPress={() => {
+              void loadBooking()
+            }}
           >
             <Text style={styles.retryText}>
               Try Again
@@ -225,15 +292,27 @@ export default function BookingDetailsScreen({
     'in_progress',
   ].includes(booking.status)
 
+  const canCancel = ![
+    'cancelled',
+    'completed',
+    'expired',
+    'payment_failed',
+  ].includes(booking.status)
+
+  const description = statusDescription(booking.status)
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <Text style={styles.backText}>‹</Text>
           </TouchableOpacity>
@@ -258,41 +337,9 @@ export default function BookingDetailsScreen({
             {statusLabel(booking.status)}
           </Text>
 
-          {booking.status === 'paid' && (
+          {description && (
             <Text style={styles.statusDescription}>
-              Your payment is complete. Worker
-              assignment is in progress.
-            </Text>
-          )}
-
-          {booking.status === 'assigned' && (
-            <Text style={styles.statusDescription}>
-              A worker has been assigned to your
-              booking.
-            </Text>
-          )}
-
-          {booking.status === 'on_the_way' && (
-            <Text style={styles.statusDescription}>
-              Your worker is on the way.
-            </Text>
-          )}
-
-          {booking.status === 'arrived' && (
-            <Text style={styles.statusDescription}>
-              Your worker has arrived.
-            </Text>
-          )}
-
-          {booking.status === 'in_progress' && (
-            <Text style={styles.statusDescription}>
-              Your work session is currently active.
-            </Text>
-          )}
-
-          {booking.status === 'completed' && (
-            <Text style={styles.statusDescription}>
-              This booking has been completed.
+              {description}
             </Text>
           )}
         </View>
@@ -304,8 +351,7 @@ export default function BookingDetailsScreen({
 
           <View style={styles.card}>
             <Text style={styles.serviceName}>
-              {booking.service?.name ??
-                'Temporary Staff'}
+              {booking.service?.name ?? 'Temporary Staff'}
             </Text>
 
             {booking.service?.description && (
@@ -324,28 +370,26 @@ export default function BookingDetailsScreen({
           <View style={styles.card}>
             <Row
               label="Date"
-              value={formatDate(
-                booking.scheduled_start
-              )}
+              value={formatDate(booking.scheduled_start)}
             />
 
             <Row
               label="Start"
-              value={formatTime(
-                booking.scheduled_start
-              )}
+              value={formatTime(booking.scheduled_start)}
             />
 
             <Row
               label="End"
-              value={formatTime(
-                booking.scheduled_end
-              )}
+              value={formatTime(booking.scheduled_end)}
             />
 
             <Row
               label="Duration"
-              value={`${booking.duration_value} ${booking.duration_unit}${booking.duration_value !== 1 ? 's' : ''}`}
+              value={`${booking.duration_value} ${
+                booking.duration_unit
+              }${
+                booking.duration_value !== 1 ? 's' : ''
+              }`}
             />
           </View>
         </View>
@@ -357,8 +401,7 @@ export default function BookingDetailsScreen({
 
           <View style={styles.card}>
             <Text style={styles.addressLabel}>
-              {booking.address?.label ??
-                'Booking location'}
+              {booking.address?.label ?? 'Booking location'}
             </Text>
 
             <Text style={styles.address}>
@@ -377,8 +420,7 @@ export default function BookingDetailsScreen({
             <View style={styles.workerCard}>
               <View style={styles.workerAvatar}>
                 <Text style={styles.workerAvatarText}>
-                  {(booking.worker.full_name ??
-                    'W')
+                  {(booking.worker.full_name ?? 'W')
                     .charAt(0)
                     .toUpperCase()}
                 </Text>
@@ -386,8 +428,7 @@ export default function BookingDetailsScreen({
 
               <View style={styles.workerInfo}>
                 <Text style={styles.workerName}>
-                  {booking.worker.full_name ??
-                    'Worker'}
+                  {booking.worker.full_name ?? 'Worker'}
                 </Text>
 
                 {booking.worker.phone && (
@@ -408,23 +449,17 @@ export default function BookingDetailsScreen({
           <View style={styles.card}>
             <Row
               label="Staff charges"
-              value={`₹${Number(
-                booking.base_amount
-              ).toFixed(2)}`}
+              value={formatAmount(booking.base_amount)}
             />
 
             <Row
               label="Platform fee"
-              value={`₹${Number(
-                booking.platform_fee
-              ).toFixed(2)}`}
+              value={formatAmount(booking.platform_fee)}
             />
 
             <Row
               label="Tax"
-              value={`₹${Number(
-                booking.tax_amount
-              ).toFixed(2)}`}
+              value={formatAmount(booking.tax_amount)}
             />
 
             <View style={styles.totalRow}>
@@ -433,10 +468,7 @@ export default function BookingDetailsScreen({
               </Text>
 
               <Text style={styles.total}>
-                ₹
-                {Number(
-                  booking.total_amount
-                ).toFixed(2)}
+                {formatAmount(booking.total_amount)}
               </Text>
             </View>
           </View>
@@ -456,9 +488,7 @@ export default function BookingDetailsScreen({
           </View>
         )}
 
-        {!['cancelled', 'completed', 'expired', 'payment_failed'].includes(
-          booking.status
-        ) && (
+        {canCancel && (
           <TouchableOpacity
             style={[
               styles.cancelButton,
@@ -466,9 +496,13 @@ export default function BookingDetailsScreen({
             ]}
             onPress={handleCancelBooking}
             disabled={canceling}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel booking"
           >
             <Text style={styles.cancelButtonText}>
-              {canceling ? 'Cancelling...' : 'Cancel Booking'}
+              {canceling
+                ? 'Cancelling...'
+                : 'Cancel Booking'}
             </Text>
           </TouchableOpacity>
         )}
@@ -478,10 +512,13 @@ export default function BookingDetailsScreen({
             style={styles.trackButton}
             onPress={() => {
               setBookingId(booking.id)
+
               navigation.push('Tracking', {
                 bookingId: booking.id,
               })
             }}
+            accessibilityRole="button"
+            accessibilityLabel="Track worker"
           >
             <Text style={styles.trackButtonText}>
               Track Worker
@@ -491,7 +528,11 @@ export default function BookingDetailsScreen({
 
         <TouchableOpacity
           style={styles.refreshButton}
-          onPress={loadBooking}
+          onPress={() => {
+            void loadBooking()
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Refresh booking status"
         >
           <Text style={styles.refreshText}>
             Refresh Booking Status
