@@ -19,9 +19,6 @@ type Props = NativeStackScreenProps<
   'Summary'
 >
 
-const formatPrice = (price: number) =>
-  `₹${price.toLocaleString('en-IN')}`
-
 const iconForService = (service: string) => {
   const name = service.toLowerCase()
 
@@ -63,18 +60,42 @@ const iconForService = (service: string) => {
   return '👷'
 }
 
+const formatHours = (hours: number) => {
+  if (!Number.isFinite(hours) || hours <= 0) {
+    return 'Not selected'
+  }
+
+  if (Number.isInteger(hours)) {
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'}`
+  }
+
+  return `${hours.toFixed(2)} hours`
+}
+
 export default function SummaryScreen({
   navigation,
 }: Props) {
   const {
     selectedService,
-    selectedDuration,
-    selectedPackage,
-    total,
+    selectedVariant,
+    hourlyStartTime,
+    hourlyEndTime,
+    hourlyTotalHours,
   } = useBooking()
 
+  const serviceName =
+    selectedService || 'Staff service'
+
+  const variantName =
+    selectedVariant?.name || 'Hourly staffing'
+
+  const hasHourlySchedule =
+    Boolean(hourlyStartTime && hourlyEndTime) &&
+    Number.isFinite(hourlyTotalHours) &&
+    hourlyTotalHours > 0
+
   const continueToAddress = () => {
-    if (!selectedPackage) {
+    if (!selectedVariant) {
       return
     }
 
@@ -84,18 +105,6 @@ export default function SummaryScreen({
   const editSelection = () => {
     navigation.goBack()
   }
-
-  const serviceName =
-    selectedService || 'Staff service'
-
-  const packageName =
-    selectedPackage?.name ||
-    selectedDuration ||
-    'Staffing package'
-
-  const durationText = selectedPackage
-    ? `${selectedPackage.duration_value} ${selectedPackage.duration_unit}`
-    : 'Not selected'
 
   return (
     <SafeAreaView style={styles.container}>
@@ -121,16 +130,16 @@ export default function SummaryScreen({
         {/* Heading */}
         <View style={styles.heading}>
           <Text style={styles.title}>
-            Review your booking
+            Review your service
           </Text>
 
           <Text style={styles.subtitle}>
-            Check the details below before choosing
-            your service location.
+            Confirm the service you want before adding
+            the location where staff will be required.
           </Text>
         </View>
 
-        {/* Main booking card */}
+        {/* Main service card */}
         <View style={styles.bookingCard}>
           <View style={styles.bookingHeader}>
             <View style={styles.serviceIcon}>
@@ -152,10 +161,10 @@ export default function SummaryScreen({
               </Text>
 
               <Text
-                style={styles.packageName}
+                style={styles.variantName}
                 numberOfLines={2}
               >
-                {packageName}
+                {variantName}
               </Text>
             </View>
 
@@ -175,14 +184,14 @@ export default function SummaryScreen({
           <View style={styles.detailGrid}>
             <View style={styles.detailItem}>
               <Text style={styles.detailLabel}>
-                Staffing period
+                Service type
               </Text>
 
               <Text
                 style={styles.detailValue}
                 numberOfLines={2}
               >
-                {packageName}
+                Hourly
               </Text>
             </View>
 
@@ -192,53 +201,64 @@ export default function SummaryScreen({
               </Text>
 
               <Text style={styles.detailValue}>
-                {durationText}
+                {hasHourlySchedule
+                  ? formatHours(hourlyTotalHours)
+                  : 'To be selected'}
               </Text>
             </View>
           </View>
 
-          {selectedPackage?.description ? (
+          {hasHourlySchedule ? (
             <>
               <View style={styles.divider} />
 
-              <Text style={styles.description}>
-                {selectedPackage.description}
-              </Text>
+              <View style={styles.scheduleRow}>
+                <View style={styles.scheduleItem}>
+                  <Text style={styles.detailLabel}>
+                    Start
+                  </Text>
+
+                  <Text style={styles.detailValue}>
+                    {hourlyStartTime}
+                  </Text>
+                </View>
+
+                <View style={styles.scheduleItem}>
+                  <Text style={styles.detailLabel}>
+                    End
+                  </Text>
+
+                  <Text style={styles.detailValue}>
+                    {hourlyEndTime}
+                  </Text>
+                </View>
+              </View>
             </>
           ) : null}
         </View>
 
-        {/* Price */}
+        {/* Pricing state */}
         <View style={styles.priceCard}>
           <Text style={styles.priceHeading}>
-            Booking estimate
+            BOOKING PRICE
           </Text>
 
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>
-              {serviceName}
-            </Text>
+          <Text style={styles.priceTitle}>
+            Calculated from your selected hours
+          </Text>
 
-            <Text style={styles.priceValue}>
-              {formatPrice(total)}
-            </Text>
-          </View>
+          <Text style={styles.priceText}>
+            TempStaff uses the configured hourly rate
+            and applicable admin-controlled discounts.
+            The final booking amount is calculated by
+            the backend.
+          </Text>
 
-          <View style={styles.priceDivider} />
+          <View style={styles.priceNotice}>
+            <View style={styles.noticeDot} />
 
-          <View style={styles.totalRow}>
-            <View>
-              <Text style={styles.totalLabel}>
-                Total
-              </Text>
-
-              <Text style={styles.taxNote}>
-                Final amount shown before payment
-              </Text>
-            </View>
-
-            <Text style={styles.totalValue}>
-              {formatPrice(total)}
+            <Text style={styles.priceNoticeText}>
+              No fixed package price is used.
             </Text>
           </View>
         </View>
@@ -278,11 +298,12 @@ export default function SummaryScreen({
 
             <View style={styles.processContent}>
               <Text style={styles.processStepTitle}>
-                Choose your schedule
+                Choose your booking schedule
               </Text>
 
               <Text style={styles.processText}>
-                Select when you need the staff.
+                Select Instant, Scheduled, or Recurring
+                based on the available booking flow.
               </Text>
             </View>
           </View>
@@ -298,12 +319,12 @@ export default function SummaryScreen({
 
             <View style={styles.processContent}>
               <Text style={styles.processStepTitle}>
-                TempStaff assigns a worker
+                TempStaff handles worker assignment
               </Text>
 
               <Text style={styles.processText}>
-                We handle worker availability and
-                assignment.
+                Worker selection and availability are
+                handled by the platform.
               </Text>
             </View>
           </View>
@@ -323,8 +344,9 @@ export default function SummaryScreen({
             </Text>
 
             <Text style={styles.infoText}>
-              TempStaff will assign a suitable
-              available worker based on your booking.
+              TempStaff determines worker availability,
+              service-area coverage, and assignment on
+              the backend.
             </Text>
           </View>
         </View>
@@ -333,7 +355,7 @@ export default function SummaryScreen({
         <View style={styles.bottom}>
           <PrimaryButton
             title="Continue to Address"
-            disabled={!selectedPackage}
+            disabled={!selectedVariant}
             onPress={continueToAddress}
           />
 
@@ -454,7 +476,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  packageName: {
+  variantName: {
     color: COLORS.teal,
     fontSize: 12,
     lineHeight: 17,
@@ -504,10 +526,13 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  description: {
-    color: COLORS.gray,
-    fontSize: 12,
-    lineHeight: 18,
+  scheduleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+
+  scheduleItem: {
+    width: '48%',
   },
 
   priceCard: {
@@ -523,57 +548,42 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     fontWeight: '800',
     letterSpacing: 0.8,
-    marginBottom: 14,
+    marginBottom: 10,
   },
 
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  priceTitle: {
+    color: COLORS.white,
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: '800',
   },
 
-  priceLabel: {
+  priceText: {
     color: '#D8E4EF',
-    fontSize: 12,
-    maxWidth: '65%',
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 7,
   },
 
-  priceValue: {
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-
-  priceDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    marginVertical: 14,
-  },
-
-  totalRow: {
+  priceNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    marginTop: 14,
   },
 
-  totalLabel: {
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: '800',
+  noticeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.orange,
+    marginRight: 7,
   },
 
-  taxNote: {
-    color: '#AEBECD',
-    fontSize: 9,
-    lineHeight: 14,
-    marginTop: 2,
-  },
-
-  totalValue: {
+  priceNoticeText: {
     color: COLORS.orange,
-    fontSize: 23,
-    lineHeight: 28,
-    fontWeight: '900',
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '800',
   },
 
   processCard: {
