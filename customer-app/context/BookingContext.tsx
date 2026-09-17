@@ -36,42 +36,113 @@ type CatalogPackage = {
   price: number
 }
 
+type HourlyServiceVariant = {
+  id: string
+  service_id: string
+  name: string
+  description: string | null
+  billing_type: string
+  duration_value: number | null
+  duration_unit: string | null
+  min_quantity: number
+  max_quantity: number | null
+  is_active: boolean
+  sort_order: number
+}
+
+type ScheduleOccurrence = {
+  occurrence_date: string
+  scheduled_start: string
+  scheduled_end: string
+}
+
+type BookingPricing = {
+  grossAmount: number
+  discountPercent: number
+  discountAmount: number
+  finalAmount: number
+  hourlyPrice: number
+  currency: string
+  pricingVersion: number | null
+}
+
 type BookingState = {
+  /*
+   * Service selection
+   */
   selectedService: string
   selectedServiceId: string
 
+  /*
+   * New hourly booking model.
+   *
+   * selectedVariantId is the backend service_variants.id
+   * for the active Hourly variant belonging to the selected service.
+   */
+  selectedVariantId: string
+  selectedVariant: HourlyServiceVariant | null
+
+  /*
+   * Legacy package fields are temporarily retained because
+   * the existing screens still reference them. They will be
+   * removed when the remaining booking screens are migrated.
+   */
   selectedDuration: string
   selectedPackageId: string
   selectedPackage: CatalogPackage | null
 
   services: CatalogService[]
+  hourlyVariants: HourlyServiceVariant[]
+
+  /*
+   * Legacy alias retained for the transition period.
+   */
   packages: CatalogPackage[]
 
   catalogueLoading: boolean
   catalogueError: string
 
+  /*
+   * Booking method
+   */
   bookingMode: BookingMode
-scheduledDate: string
 
-scheduleStartDate: string
-scheduleEndDate: string
-scheduleDailyStartTime: string
-scheduleDailyEndTime: string
-scheduleSelectedWeekdays: number[]
-scheduleOffDates: string[]
-scheduleTotalWorkingHours: number
-scheduleOccurrences: Array<{
-  occurrence_date: string
-  scheduled_start: string
-  scheduled_end: string
-}>
+  /*
+   * Single scheduled booking
+   */
+  scheduledDate: string
 
+  /*
+   * Multi-occurrence / recurring booking
+   */
+  scheduleStartDate: string
+  scheduleEndDate: string
+  scheduleDailyStartTime: string
+  scheduleDailyEndTime: string
+  scheduleSelectedWeekdays: number[]
+  scheduleOffDates: string[]
+  scheduleTotalWorkingHours: number
+  scheduleOccurrences: ScheduleOccurrence[]
+
+  /*
+   * Customer address
+   */
   address: string
   addressId: string
   coordinates: string
 
+  /*
+   * Worker
+   *
+   * The backend remains authoritative for worker assignment.
+   * This state is therefore only a UI/display preference and
+   * must never be treated as an availability guarantee.
+   */
   selectedWorker: Worker | null
 
+  /*
+   * Booking/payment/journey state
+   */
   bookingId: string
   paymentDone: boolean
 
@@ -81,99 +152,73 @@ scheduleOccurrences: Array<{
   shiftStarted: boolean
   shiftEnded: boolean
 
-  setSelectedService: (
-    value: string
+  /*
+   * Hourly duration / pricing
+   */
+  hourlyStartTime: string
+  hourlyEndTime: string
+  hourlyTotalHours: number
+
+  bookingPricing: BookingPricing | null
+  pricingLoading: boolean
+  pricingError: string
+
+  /*
+   * Setters
+   */
+  setSelectedService: (value: string) => void
+  setSelectedDuration: (value: string) => void
+
+  setSelectedVariantId: (value: string) => void
+
+  setBookingMode: (value: BookingMode) => void
+
+  setScheduledDate: (value: string) => void
+
+  setScheduleStartDate: (value: string) => void
+  setScheduleEndDate: (value: string) => void
+  setScheduleDailyStartTime: (value: string) => void
+  setScheduleDailyEndTime: (value: string) => void
+  setScheduleSelectedWeekdays: (value: number[]) => void
+  setScheduleOffDates: (value: string[]) => void
+  setScheduleTotalWorkingHours: (value: number) => void
+  setScheduleOccurrences: (
+    value: ScheduleOccurrence[]
   ) => void
 
-  setSelectedDuration: (
-    value: string
+  setHourlyStartTime: (value: string) => void
+  setHourlyEndTime: (value: string) => void
+  setHourlyTotalHours: (value: number) => void
+
+  setBookingPricing: (
+    value: BookingPricing | null
   ) => void
 
-  setBookingMode: (
-    value: BookingMode
-  ) => void
+  setPricingLoading: (value: boolean) => void
+  setPricingError: (value: string) => void
 
-  setScheduledDate: (
-    value: string
-  ) => void
-  setScheduleStartDate: (
-  value: string
-) => void
+  setAddress: (value: string) => void
+  setAddressId: (value: string) => void
+  setCoordinates: (value: string) => void
 
-setScheduleEndDate: (
-  value: string
-) => void
+  setSelectedWorker: (value: Worker | null) => void
 
-setScheduleDailyStartTime: (
-  value: string
-) => void
+  setBookingId: (value: string) => void
+  setPaymentDone: (value: boolean) => void
 
-setScheduleDailyEndTime: (
-  value: string
-) => void
+  setStartOtp: (value: string) => void
+  setEndOtp: (value: string) => void
 
-setScheduleSelectedWeekdays: (
-  value: number[]
-) => void
-
-setScheduleOffDates: (
-  value: string[]
-) => void
-
-setScheduleTotalWorkingHours: (
-  value: number
-) => void
-
-setScheduleOccurrences: (
-  value: Array<{
-    occurrence_date: string
-    scheduled_start: string
-    scheduled_end: string
-  }>
-) => void
-
-  setAddress: (
-    value: string
-  ) => void
-
-  setAddressId: (
-    value: string
-  ) => void
-
-  setCoordinates: (
-    value: string
-  ) => void
-
-  setSelectedWorker: (
-    value: Worker | null
-  ) => void
-
-  setBookingId: (
-    value: string
-  ) => void
-
-  setPaymentDone: (
-    value: boolean
-  ) => void
-
-  setStartOtp: (
-    value: string
-  ) => void
-
-  setEndOtp: (
-    value: string
-  ) => void
-
-  setShiftStarted: (
-    value: boolean
-  ) => void
-
-  setShiftEnded: (
-    value: boolean
-  ) => void
+  setShiftStarted: (value: boolean) => void
+  setShiftEnded: (value: boolean) => void
 
   refreshCatalogue: () => Promise<void>
 
+  /*
+   * Legacy total is retained temporarily.
+   *
+   * During migration, new screens should use bookingPricing.finalAmount.
+   */
   total: number
 
   resetBooking: () => void
@@ -187,6 +232,9 @@ export function BookingProvider({
 }: {
   children: ReactNode
 }) {
+  /*
+   * Service
+   */
   const [
     selectedService,
     setSelectedServiceState,
@@ -197,6 +245,19 @@ export function BookingProvider({
     setSelectedServiceId,
   ] = useState('')
 
+  /*
+   * New hourly variant
+   */
+  const [
+    selectedVariantId,
+    setSelectedVariantIdState,
+  ] = useState('')
+
+  /*
+   * Legacy fixed-duration/package state.
+   *
+   * Kept only until the remaining screens are migrated.
+   */
   const [
     selectedDuration,
     setSelectedDurationState,
@@ -207,11 +268,30 @@ export function BookingProvider({
     setSelectedPackageId,
   ] = useState('')
 
-  const [services, setServices] =
-    useState<CatalogService[]>([])
+  /*
+   * Catalogue
+   */
+  const [
+    services,
+    setServices,
+  ] = useState<CatalogService[]>([])
 
-  const [packages, setPackages] =
-    useState<CatalogPackage[]>([])
+  const [
+    hourlyVariants,
+    setHourlyVariants,
+  ] = useState<HourlyServiceVariant[]>([])
+
+  /*
+   * Legacy package array.
+   *
+   * It is intentionally empty in the new catalogue flow.
+   * The backend's active Hourly variant is represented by
+   * hourlyVariants instead.
+   */
+  const [
+    packages,
+    setPackages,
+  ] = useState<CatalogPackage[]>([])
 
   const [
     catalogueLoading,
@@ -223,67 +303,68 @@ export function BookingProvider({
     setCatalogueError,
   ] = useState('')
 
+  /*
+   * Booking method
+   */
   const [
     bookingMode,
     setBookingMode,
-  ] = useState<BookingMode>(
-    'Scheduled'
-  )
+  ] = useState<BookingMode>('Scheduled')
 
+  /*
+   * Single scheduled booking
+   */
   const [
     scheduledDate,
     setScheduledDate,
   ] = useState('')
 
+  /*
+   * Multi-occurrence / recurring booking
+   */
   const [
-  scheduleStartDate,
-  setScheduleStartDate,
-] = useState('')
+    scheduleStartDate,
+    setScheduleStartDate,
+  ] = useState('')
 
-const [
-  scheduleEndDate,
-  setScheduleEndDate,
-] = useState('')
+  const [
+    scheduleEndDate,
+    setScheduleEndDate,
+  ] = useState('')
 
-const [
-  scheduleDailyStartTime,
-  setScheduleDailyStartTime,
-] = useState('')
+  const [
+    scheduleDailyStartTime,
+    setScheduleDailyStartTime,
+  ] = useState('')
 
-const [
-  scheduleDailyEndTime,
-  setScheduleDailyEndTime,
-] = useState('')
+  const [
+    scheduleDailyEndTime,
+    setScheduleDailyEndTime,
+  ] = useState('')
 
-const [
-  scheduleSelectedWeekdays,
-  setScheduleSelectedWeekdays,
-] =
-  useState<number[]>([])
+  const [
+    scheduleSelectedWeekdays,
+    setScheduleSelectedWeekdays,
+  ] = useState<number[]>([])
 
-const [
-  scheduleOffDates,
-  setScheduleOffDates,
-] = useState<string[]>([])
+  const [
+    scheduleOffDates,
+    setScheduleOffDates,
+  ] = useState<string[]>([])
 
-const [
-  scheduleTotalWorkingHours,
-  setScheduleTotalWorkingHours,
-] =
-  useState(0)
+  const [
+    scheduleTotalWorkingHours,
+    setScheduleTotalWorkingHours,
+  ] = useState(0)
 
-const [
-  scheduleOccurrences,
-  setScheduleOccurrences,
-] =
-  useState<
-    Array<{
-      occurrence_date: string
-      scheduled_start: string
-      scheduled_end: string
-    }>
-  >([])
+  const [
+    scheduleOccurrences,
+    setScheduleOccurrences,
+  ] = useState<ScheduleOccurrence[]>([])
 
+  /*
+   * Address
+   */
   const [
     address,
     setAddress,
@@ -299,11 +380,17 @@ const [
     setCoordinates,
   ] = useState('')
 
+  /*
+   * Worker
+   */
   const [
     selectedWorker,
     setSelectedWorker,
   ] = useState<Worker | null>(null)
 
+  /*
+   * Booking/payment
+   */
   const [
     bookingId,
     setBookingId,
@@ -314,6 +401,9 @@ const [
     setPaymentDone,
   ] = useState(false)
 
+  /*
+   * Journey OTP
+   */
   const [
     startOtp,
     setStartOtp,
@@ -334,6 +424,54 @@ const [
     setShiftEnded,
   ] = useState(false)
 
+  /*
+   * Hourly booking duration
+   */
+  const [
+    hourlyStartTime,
+    setHourlyStartTime,
+  ] = useState('')
+
+  const [
+    hourlyEndTime,
+    setHourlyEndTime,
+  ] = useState('')
+
+  const [
+    hourlyTotalHours,
+    setHourlyTotalHours,
+  ] = useState(0)
+
+  /*
+   * Server-calculated pricing
+   */
+  const [
+    bookingPricing,
+    setBookingPricing,
+  ] = useState<BookingPricing | null>(null)
+
+  const [
+    pricingLoading,
+    setPricingLoading,
+  ] = useState(false)
+
+  const [
+    pricingError,
+    setPricingError,
+  ] = useState('')
+
+  /*
+   * Load only the customer-facing active services and
+   * active Hourly variants.
+   *
+   * Pricing is deliberately NOT loaded from service_variant_prices.
+   *
+   * The backend pricing RPCs are the authority for:
+   * - hourly price
+   * - dynamic hour discount
+   * - recurring commitment discount
+   * - final payable amount
+   */
   const refreshCatalogue =
     async () => {
       setCatalogueLoading(true)
@@ -356,14 +494,13 @@ const [
         }
 
         const activeServices =
-          (serviceData ??
-            []) as CatalogService[]
+          (serviceData ?? []) as CatalogService[]
 
         setServices(activeServices)
 
         const {
-          data: packageData,
-          error: packageError,
+          data: variantData,
+          error: variantError,
         } = await supabase
           .from('service_variants')
           .select(`
@@ -377,84 +514,23 @@ const [
             min_quantity,
             max_quantity,
             is_active,
-            sort_order,
-            service_variant_prices (
-              id,
-              price,
-              is_active,
-              effective_from,
-              effective_to
-            )
+            sort_order
           `)
           .eq('is_active', true)
+          .eq('billing_type', 'Hourly')
           .order('sort_order')
 
-        if (packageError) {
-          throw packageError
+        if (variantError) {
+          throw variantError
         }
 
-        const now = new Date()
-
-        const formattedPackages:
-          CatalogPackage[] = []
-
-        for (
-          const item of packageData ?? []
-        ) {
-          const prices =
-            Array.isArray(
-              item.service_variant_prices
-            )
-              ? item.service_variant_prices
-              : []
-
-          const activePrice =
-            prices
-              .filter(price => {
-                if (!price.is_active) {
-                  return false
-                }
-
-                const effectiveFrom =
-                  new Date(
-                    price.effective_from
-                  )
-
-                const effectiveTo =
-                  price.effective_to
-                    ? new Date(
-                        price.effective_to
-                      )
-                    : null
-
-                return (
-                  effectiveFrom <= now &&
-                  (!effectiveTo ||
-                    effectiveTo > now)
-                )
-              })
-              .sort(
-                (a, b) =>
-                  new Date(
-                    b.effective_from
-                  ).getTime() -
-                  new Date(
-                    a.effective_from
-                  ).getTime()
-              )[0]
-
-          if (!activePrice) {
-            continue
-          }
-
-          formattedPackages.push({
+        const activeHourlyVariants =
+          (variantData ?? []).map(item => ({
             id: item.id,
             service_id: item.service_id,
             name: item.name,
-            description:
-              item.description,
-            billing_type:
-              item.billing_type,
+            description: item.description,
+            billing_type: item.billing_type,
             duration_value:
               item.duration_value,
             duration_unit:
@@ -467,49 +543,80 @@ const [
               item.is_active,
             sort_order:
               item.sort_order,
-            price: Number(
-              activePrice.price
-            ),
-          })
+          })) as HourlyServiceVariant[]
+
+        /*
+         * Keep only variants whose parent service is active.
+         *
+         * This mirrors the backend's service/catalogue
+         * consistency requirement.
+         */
+        const activeServiceIds =
+          new Set(
+            activeServices.map(
+              service => service.id
+            )
+          )
+
+        const customerHourlyVariants =
+          activeHourlyVariants.filter(
+            variant =>
+              activeServiceIds.has(
+                variant.service_id
+              )
+          )
+
+        setHourlyVariants(
+          customerHourlyVariants
+        )
+
+        /*
+         * Legacy package state is intentionally cleared.
+         *
+         * New booking screens should consume hourlyVariants.
+         */
+        setPackages([])
+      } catch (error) {
+        console.error(
+          '[TempStaff] CATALOGUE LOAD ERROR:',
+          JSON.stringify(
+            error,
+            null,
+            2
+          )
+        )
+
+        if (
+          error &&
+          typeof error === 'object'
+        ) {
+          console.error(
+            '[TempStaff] Catalogue error details:',
+            {
+              message:
+                'message' in error
+                  ? error.message
+                  : undefined,
+              details:
+                'details' in error
+                  ? error.details
+                  : undefined,
+              hint:
+                'hint' in error
+                  ? error.hint
+                  : undefined,
+              code:
+                'code' in error
+                  ? error.code
+                  : undefined,
+            }
+          )
         }
 
-        setPackages(
-          formattedPackages
+        setCatalogueError(
+          'Unable to load services right now. Please try again.'
         )
-      } catch (error) {
-  console.error(
-    '[TempStaff] CATALOGUE LOAD ERROR:',
-    JSON.stringify(error, null, 2)
-  )
-
-  if (error && typeof error === 'object') {
-    console.error(
-      '[TempStaff] Catalogue error details:',
-      {
-        message:
-          'message' in error
-            ? error.message
-            : undefined,
-        details:
-          'details' in error
-            ? error.details
-            : undefined,
-        hint:
-          'hint' in error
-            ? error.hint
-            : undefined,
-        code:
-          'code' in error
-            ? error.code
-            : undefined,
-      }
-    )
-  }
-
-  setCatalogueError(
-    'Unable to load services right now. Please try again.'
-  )
-} finally {
+      } finally {
         setCatalogueLoading(false)
       }
     }
@@ -518,6 +625,26 @@ const [
     refreshCatalogue()
   }, [])
 
+  /*
+   * Selected hourly variant
+   */
+  const selectedVariant =
+    useMemo(() => {
+      return (
+        hourlyVariants.find(
+          variant =>
+            variant.id ===
+            selectedVariantId
+        ) ?? null
+      )
+    }, [
+      hourlyVariants,
+      selectedVariantId,
+    ])
+
+  /*
+   * Service selection
+   */
   const setSelectedService = (
     value: string
   ) => {
@@ -529,32 +656,100 @@ const [
           item.name === value
       )
 
-    setSelectedServiceId(
+    const serviceId =
       service?.id ?? ''
+
+    setSelectedServiceId(
+      serviceId
     )
 
+    /*
+     * Reset dependent selection.
+     */
+    setSelectedVariantIdState('')
+
+    /*
+     * Legacy state reset.
+     */
     setSelectedDurationState('')
     setSelectedPackageId('')
+
+    /*
+     * Pricing belongs to the selected service variant,
+     * so changing service invalidates the previous quote.
+     */
+    setBookingPricing(null)
+    setPricingError('')
   }
 
+  /*
+   * New variant selection
+   */
+  const setSelectedVariantId = (
+    value: string
+  ) => {
+    const variant =
+      hourlyVariants.find(
+        item =>
+          item.id === value
+      )
+
+    if (!variant) {
+      setSelectedVariantIdState('')
+      setBookingPricing(null)
+      setPricingError('')
+      return
+    }
+
+    /*
+     * Do not allow a variant from another service to
+     * become the active booking selection.
+     */
+    if (
+      selectedServiceId &&
+      variant.service_id !==
+        selectedServiceId
+    ) {
+      setSelectedVariantIdState('')
+      setBookingPricing(null)
+      setPricingError('')
+      return
+    }
+
+    setSelectedVariantIdState(value)
+
+    /*
+     * Changing the service variant invalidates a previous
+     * server pricing result.
+     */
+    setBookingPricing(null)
+    setPricingError('')
+  }
+
+  /*
+   * Legacy duration setter.
+   *
+   * Kept temporarily so existing screens continue to
+   * compile while they are migrated to selectedVariantId.
+   *
+   * No fixed package price is selected here.
+   */
   const setSelectedDuration = (
     value: string
   ) => {
     setSelectedDurationState(value)
 
-    const servicePackage =
-      packages.find(
-        item =>
-          item.service_id ===
-            selectedServiceId &&
-          item.name === value
-      )
-
-    setSelectedPackageId(
-      servicePackage?.id ?? ''
-    )
+    /*
+     * The old fixed package lookup is deliberately removed.
+     */
+    setSelectedPackageId('')
   }
 
+  /*
+   * Legacy selected package.
+   *
+   * New catalogue no longer exposes fixed-duration packages.
+   */
   const selectedPackage =
     useMemo(() => {
       return (
@@ -569,102 +764,215 @@ const [
       selectedPackageId,
     ])
 
+  /*
+   * Legacy total.
+   *
+   * Prefer bookingPricing.finalAmount for all new screens.
+   */
   const total =
-    selectedPackage?.price ?? 0
+    bookingPricing?.finalAmount ??
+    selectedPackage?.price ??
+    0
 
+  /*
+   * Reset all booking-specific state.
+   */
   const resetBooking = () => {
     setSelectedServiceState('')
     setSelectedServiceId('')
 
+    setSelectedVariantIdState('')
+
+    /*
+     * Legacy fields
+     */
     setSelectedDurationState('')
     setSelectedPackageId('')
 
+    /*
+     * Booking method
+     */
     setBookingMode('Scheduled')
-    setScheduledDate('')
-    setScheduleStartDate('')
-setScheduleEndDate('')
-setScheduleDailyStartTime('')
-setScheduleDailyEndTime('')
-setScheduleSelectedWeekdays([])
-setScheduleOffDates([])
-setScheduleTotalWorkingHours(0)
-setScheduleOccurrences([])
 
+    /*
+     * Single scheduled booking
+     */
+    setScheduledDate('')
+
+    /*
+     * Multi-occurrence / recurring
+     */
+    setScheduleStartDate('')
+    setScheduleEndDate('')
+    setScheduleDailyStartTime('')
+    setScheduleDailyEndTime('')
+    setScheduleSelectedWeekdays([])
+    setScheduleOffDates([])
+    setScheduleTotalWorkingHours(0)
+    setScheduleOccurrences([])
+
+    /*
+     * Address
+     */
     setAddress('')
     setAddressId('')
     setCoordinates('')
 
+    /*
+     * Worker
+     */
     setSelectedWorker(null)
 
+    /*
+     * Booking/payment
+     */
     setBookingId('')
     setPaymentDone(false)
 
+    /*
+     * Journey
+     */
     setStartOtp('')
     setEndOtp('')
-
     setShiftStarted(false)
     setShiftEnded(false)
+
+    /*
+     * Hourly duration
+     */
+    setHourlyStartTime('')
+    setHourlyEndTime('')
+    setHourlyTotalHours(0)
+
+    /*
+     * Pricing
+     */
+    setBookingPricing(null)
+    setPricingLoading(false)
+    setPricingError('')
   }
 
   return (
     <BookingContext.Provider
       value={{
+        /*
+         * Service
+         */
         selectedService,
         selectedServiceId,
 
+        /*
+         * New hourly model
+         */
+        selectedVariantId,
+        selectedVariant,
+
+        /*
+         * Legacy compatibility
+         */
         selectedDuration,
         selectedPackageId,
         selectedPackage,
 
+        /*
+         * Catalogue
+         */
         services,
+        hourlyVariants,
         packages,
 
         catalogueLoading,
         catalogueError,
 
+        /*
+         * Booking method
+         */
         bookingMode,
-scheduledDate,
 
-scheduleStartDate,
-scheduleEndDate,
-scheduleDailyStartTime,
-scheduleDailyEndTime,
-scheduleSelectedWeekdays,
-scheduleOffDates,
-scheduleTotalWorkingHours,
-scheduleOccurrences,
+        /*
+         * Single scheduled booking
+         */
+        scheduledDate,
 
-address,
+        /*
+         * Multi-occurrence / recurring
+         */
+        scheduleStartDate,
+        scheduleEndDate,
+        scheduleDailyStartTime,
+        scheduleDailyEndTime,
+        scheduleSelectedWeekdays,
+        scheduleOffDates,
+        scheduleTotalWorkingHours,
+        scheduleOccurrences,
 
-        
+        /*
+         * Address
+         */
+        address,
         addressId,
         coordinates,
 
+        /*
+         * Worker
+         */
         selectedWorker,
 
+        /*
+         * Booking/payment
+         */
         bookingId,
         paymentDone,
 
+        /*
+         * Journey
+         */
         startOtp,
         endOtp,
-
         shiftStarted,
         shiftEnded,
 
+        /*
+         * Hourly duration
+         */
+        hourlyStartTime,
+        hourlyEndTime,
+        hourlyTotalHours,
+
+        /*
+         * Pricing
+         */
+        bookingPricing,
+        pricingLoading,
+        pricingError,
+
+        /*
+         * Setters
+         */
         setSelectedService,
         setSelectedDuration,
+        setSelectedVariantId,
 
-       setBookingMode,
-setScheduledDate,
+        setBookingMode,
 
-setScheduleStartDate,
-setScheduleEndDate,
-setScheduleDailyStartTime,
-setScheduleDailyEndTime,
-setScheduleSelectedWeekdays,
-setScheduleOffDates,
-setScheduleTotalWorkingHours,
-setScheduleOccurrences,
+        setScheduledDate,
+
+        setScheduleStartDate,
+        setScheduleEndDate,
+        setScheduleDailyStartTime,
+        setScheduleDailyEndTime,
+        setScheduleSelectedWeekdays,
+        setScheduleOffDates,
+        setScheduleTotalWorkingHours,
+        setScheduleOccurrences,
+
+        setHourlyStartTime,
+        setHourlyEndTime,
+        setHourlyTotalHours,
+
+        setBookingPricing,
+        setPricingLoading,
+        setPricingError,
 
         setAddress,
         setAddressId,
