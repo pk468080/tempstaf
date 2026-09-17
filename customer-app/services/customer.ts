@@ -106,14 +106,27 @@ export async function saveCustomerProfile(
     )
   }
 
+  const phone =
+    typeof user.phone === 'string'
+      ? user.phone
+      : null
+
   const { data, error } = await supabase
     .from('profiles')
-    .update({
-      full_name: fullName,
-      company_name: companyName,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', user.id)
+    .upsert(
+      {
+        id: user.id,
+        phone,
+        role: 'customer',
+        is_active: true,
+        full_name: fullName,
+        company_name: companyName,
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: 'id',
+      }
+    )
     .select()
     .single()
 

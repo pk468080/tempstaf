@@ -982,15 +982,83 @@ export type CreateBookingInput = {
 }
 
 export async function createBooking(
-  _input: CreateBookingInput
-): Promise<never> {
-  throw new Error(
-    'Legacy booking creation is disabled. Use createInstantBooking(), createHourlyBooking(), createScheduledBooking(), or createRecurringBooking().'
+  input: CreateBookingInput
+) {
+  await requireAuthenticatedCustomer()
+
+  if (!input.serviceVariantId) {
+    throw new Error(
+      'Service variant is required.'
+    )
+  }
+
+  if (!input.addressId) {
+    throw new Error(
+      'Booking address is required.'
+    )
+  }
+
+  if (!input.scheduledStart) {
+    throw new Error(
+      'Booking start time is required.'
+    )
+  }
+
+  /*
+   * Keep this wrapper for old callers only.
+   *
+   * For new code, use createHourlyBooking(), because the new RPC requires
+   * both start and end timestamps.
+   */
+
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    'create_customer_booking',
+    {
+      p_service_variant_id:
+        input.serviceVariantId,
+
+      p_address_id:
+        input.addressId,
+
+      p_fulfillment_type:
+        input.fulfillmentType,
+
+      p_scheduled_start:
+        input.scheduledStart,
+
+      p_notes:
+        input.notes?.trim() ||
+        null,
+    }
   )
+
+  if (error) {
+    console.error(
+      '[TempStaff] Legacy booking RPC failed:',
+      error
+    )
+
+    throw error
+  }
+
+  if (!data?.booking_id) {
+    throw new Error(
+      'Booking was not created.'
+    )
+  }
+
+  return {
+    ...data,
+
+    id:
+      String(
+        data.booking_id
+      ),
+  }
 }
-  
-
-
 
 /*
  * =============================================================================

@@ -357,28 +357,7 @@ if (profileError) {
         return
       }
 
-      /*
-       * New customer or incomplete profile.
-       */
-      const {
-        error: profileError,
-      } = await supabase
-        .from('profiles')
-        .upsert(
-          {
-            id: data.user.id,
-            phone,
-            role: 'customer',
-            is_active: true,
-          },
-          {
-            onConflict: 'id',
-          }
-        )
-
-      if (profileError) {
-        throw profileError
-      }
+      
 
       console.log(
         '[TempStaff] New customer verified; details required'
