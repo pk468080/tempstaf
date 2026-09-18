@@ -513,11 +513,25 @@ export default function HomeScreen({
         style={styles.screen}
       >
         <ScrollView
-          contentContainerStyle={
-            styles.content
-          }
-          showsVerticalScrollIndicator={
-            false
+          return (
+  <SafeAreaView
+    style={styles.container}
+  >
+    <View
+      style={styles.screen}
+    >
+      <ScrollView
+        contentContainerStyle={
+          styles.content
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+      >
+        {/* HEADER */}
+
+        <View
+          style={styles.header}
         >
           {/* HEADER */}
 
