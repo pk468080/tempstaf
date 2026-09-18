@@ -13,11 +13,11 @@ import VerifyOtpScreen from '../screens/VerifyOtpScreen'
 import CustomerDetailsScreen from '../screens/CustomerDetailsScreen'
 import CustomerLocationScreen from '../screens/CustomerLocationScreen'
 import HomeScreen from '../screens/HomeScreen'
-
+import BookingScreen from '../screens/BookingScreen'
 import SummaryScreen from '../screens/SummaryScreen'
 import PaymentScreen from '../screens/PaymentScreen'
-
 import BookingConfirmedScreen from '../screens/BookingConfirmedScreen'
+
 import TrackingScreen from '../screens/TrackingScreen'
 import WorkerProfileScreen from '../screens/WorkerProfileScreen'
 import MyBookingsScreen from '../screens/MyBookingsScreen'
@@ -65,22 +65,21 @@ export default function AppNavigator() {
           name="CustomerDetails"
           component={CustomerDetailsScreen}
         />
+
         <Stack.Screen
-  name="CustomerLocation"
-  component={CustomerLocationScreen}
-/>
+          name="CustomerLocation"
+          component={CustomerLocationScreen}
+        />
 
         <Stack.Screen
           name="Home"
           component={HomeScreen}
         />
 
-      
-    
-
+        {/* Main booking flow */}
         <Stack.Screen
-          name="WorkerProfile"
-          component={WorkerProfileScreen}
+          name="Booking"
+          component={BookingScreen}
         />
 
         <Stack.Screen
@@ -92,16 +91,21 @@ export default function AppNavigator() {
           name="Payment"
           component={PaymentScreen}
         />
- 
 
         <Stack.Screen
           name="BookingConfirmed"
           component={BookingConfirmedScreen}
         />
 
+        {/* Post-booking / account screens */}
         <Stack.Screen
           name="Tracking"
           component={TrackingScreen}
+        />
+
+        <Stack.Screen
+          name="WorkerProfile"
+          component={WorkerProfileScreen}
         />
 
         <Stack.Screen
@@ -154,6 +158,7 @@ export default function AppNavigator() {
           component={DeleteAccountScreen}
         />
 
+        {/* Location utility */}
         <Stack.Screen
           name="ManualLocation"
           component={ManualLocationScreen}

@@ -71,7 +71,9 @@ export default function HomeScreen({
   const {
     resetBooking,
     setSelectedService,
+    setSelectedVariantId,
     services,
+    hourlyVariants,
     catalogueLoading,
     catalogueError,
   } = useBooking()
@@ -212,9 +214,7 @@ export default function HomeScreen({
 
               detail =
                 parts.length > 0
-                  ? parts.join(
-                      ', '
-                    )
+                  ? parts.join(', ')
                   : 'Current location'
             }
           } catch (
@@ -296,95 +296,120 @@ export default function HomeScreen({
    */
 
   const loadServiceAvailability =
-  useCallback(
-    async (
-      latitude: number,
-      longitude: number
-    ) => {
-      if (services.length === 0) {
-        return
-      }
-
-      setCheckingAvailability(true)
-
-      const initialState:
-        Record<string, AvailabilityState> = {}
-
-      services.forEach(service => {
-        initialState[service.id] = {
-          loading: true,
-          serviceAreaCovered: false,
-          instantAvailable: false,
-          availableWorkers: 0,
-          error: null,
+    useCallback(
+      async (
+        latitude: number,
+        longitude: number
+      ) => {
+        if (services.length === 0) {
+          return
         }
-      })
 
-      setAvailability(initialState)
+        setCheckingAvailability(true)
 
-      try {
-        const results = await Promise.all(
-          services.map(
-            async service => {
-              try {
-                const result =
-                  await checkServiceAvailability(
-                    service.id,
-                    latitude,
-                    longitude
-                  )
+        const initialState:
+          Record<
+            string,
+            AvailabilityState
+          > = {}
 
-                return {
-                  serviceId: service.id,
-                  state: {
-                    loading: false,
-                    serviceAreaCovered:
-                      result.service_area_covered,
-                    instantAvailable:
-                      result.service_area_covered &&
-                      result.available_workers > 0,
-                    availableWorkers:
-                      result.available_workers,
-                    error: null,
-                  },
-                }
-              } catch (error) {
-                console.error(
-                  `[TempStaff] Availability failed for ${service.name}:`,
-                  error
-                )
-
-                return {
-                  serviceId: service.id,
-                  state: {
-                    loading: false,
-                    serviceAreaCovered: false,
-                    instantAvailable: false,
-                    availableWorkers: 0,
-                    error:
-                      'Availability could not be checked.',
-                  },
-                }
-              }
-            }
-          )
-        )
-
-        const nextState:
-          Record<string, AvailabilityState> = {}
-
-        results.forEach(item => {
-          nextState[item.serviceId] =
-            item.state
+        services.forEach(service => {
+          initialState[service.id] = {
+            loading: true,
+            serviceAreaCovered: false,
+            instantAvailable: false,
+            availableWorkers: 0,
+            error: null,
+          }
         })
 
-        setAvailability(nextState)
-      } finally {
-        setCheckingAvailability(false)
-      }
-    },
-    [services]
-  )
+        setAvailability(
+          initialState
+        )
+
+        try {
+          const results =
+            await Promise.all(
+              services.map(
+                async service => {
+                  try {
+                    const result =
+                      await checkServiceAvailability(
+                        service.id,
+                        latitude,
+                        longitude
+                      )
+
+                    return {
+                      serviceId:
+                        service.id,
+                      state: {
+                        loading: false,
+                        serviceAreaCovered:
+                          result.service_area_covered,
+                        instantAvailable:
+                          result.service_area_covered &&
+                          result.available_workers >
+                            0,
+                        availableWorkers:
+                          result.available_workers,
+                        error: null,
+                      },
+                    }
+                  } catch (
+                    error
+                  ) {
+                    console.error(
+                      `[TempStaff] Availability failed for ${service.name}:`,
+                      error
+                    )
+
+                    return {
+                      serviceId:
+                        service.id,
+                      state: {
+                        loading: false,
+                        serviceAreaCovered:
+                          false,
+                        instantAvailable:
+                          false,
+                        availableWorkers:
+                          0,
+                        error:
+                          'Availability could not be checked.',
+                      },
+                    }
+                  }
+                }
+              )
+            )
+
+          const nextState:
+            Record<
+              string,
+              AvailabilityState
+            > = {}
+
+          results.forEach(
+            item => {
+              nextState[
+                item.serviceId
+              ] =
+                item.state
+            }
+          )
+
+          setAvailability(
+            nextState
+          )
+        } finally {
+          setCheckingAvailability(
+            false
+          )
+        }
+      },
+      [services]
+    )
 
   useEffect(() => {
     if (
@@ -408,94 +433,71 @@ export default function HomeScreen({
 
   /*
    * --------------------------------------------------
-   * SERVICE ACTIONS
+   * SERVICE SELECTION
    * --------------------------------------------------
+   *
+   * Home is responsible only for:
+   *
+   * 1. Showing services
+   * 2. Checking service-area availability
+   * 3. Selecting the service
+   * 4. Opening Booking
+   *
+   * Booking type is handled entirely by BookingScreen.
    */
 
   const handleServicePress = (
-  serviceId: string,
-  serviceName: string
-) => {
-  const state =
-    availability[serviceId]
+    serviceId: string,
+    serviceName: string
+  ) => {
+    const state =
+      availability[serviceId]
 
-  if (!state || state.loading) {
-    return
-  }
+    if (!state || state.loading) {
+      return
+    }
 
-  if (!state.serviceAreaCovered) {
-    Alert.alert(
-      'Service unavailable',
-      `${serviceName} is not available at your selected location.`,
-      [
-        {
-          text: 'OK',
-        },
-      ]
+    if (!state.serviceAreaCovered) {
+      Alert.alert(
+        'Service unavailable',
+        `${serviceName} is not available at your selected location.`,
+        [
+          {
+            text: 'OK',
+          },
+        ]
+      )
+
+      return
+    }
+
+    /*
+     * Start a fresh booking.
+     */
+    resetBooking()
+
+    /*
+     * Store selected service.
+     */
+    setSelectedService(
+      serviceName
     )
 
-    return
+    /*
+     * Clear any stale variant.
+     * BookingScreen will select the correct
+     * variant for this service.
+     */
+    setSelectedVariantId('')
+
+    /*
+     * Everything after service selection
+     * happens inside BookingScreen.
+     */
+    navigation.navigate(
+      'Booking'
+    )
   }
-
-  resetBooking()
-
-  setSelectedService(serviceName)
-
-  navigation.navigate('Booking')
-}
-
-  /*
-   * --------------------------------------------------
-   * BOOKING ACTIONS
-   * --------------------------------------------------
-   */
-
-  const handleScheduledBooking =
-    () => {
-      if (
-        locationState.loading
-      ) {
-        Alert.alert(
-          'Checking your location',
-          'Please wait while we check your service area.'
-        )
-
-        return
-      }
-
-      if (
-        locationState.error
-      ) {
-        Alert.alert(
-          'Location required',
-          'Please enable location or select a location manually before booking.'
-        )
-
-        return
-      }
-
-      resetBooking()
-
-      navigation.navigate(
-        'Services'
-      )
-    }
-
-  const handleInstantBooking =
-    () => {
-      Alert.alert(
-        'Coming soon',
-        'Instant Booking will be available in a future release.'
-      )
-    }
-
-  const handleRecurringBooking =
-    () => {
-      Alert.alert(
-        'Coming soon',
-        'Recurring Booking is being prepared and will be available in a future release.'
-      )
-    }
 
   /*
    * --------------------------------------------------
@@ -516,7 +518,6 @@ export default function HomeScreen({
           }
           showsVerticalScrollIndicator={
             false
-          }
         >
           {/* HEADER */}
 
@@ -645,7 +646,9 @@ export default function HomeScreen({
                       styles.locationError
                     }
                   >
-                    {locationState.error}
+                    {
+                      locationState.error
+                    }
                   </Text>
 
                   <View
@@ -657,9 +660,7 @@ export default function HomeScreen({
                       onPress={
                         loadLocation
                       }
-                      activeOpacity={
-                        0.8
-                      }
+                      activeOpacity={0.8}
                     >
                       <Text
                         style={
@@ -693,9 +694,7 @@ export default function HomeScreen({
                     style={
                       styles.locationValue
                     }
-                    numberOfLines={
-                      1
-                    }
+                    numberOfLines={1}
                   >
                     {
                       locationState.label
@@ -706,9 +705,7 @@ export default function HomeScreen({
                     style={
                       styles.locationDetail
                     }
-                    numberOfLines={
-                      1
-                    }
+                    numberOfLines={1}
                   >
                     {
                       locationState.detail
@@ -730,246 +727,7 @@ export default function HomeScreen({
             ) : null}
           </TouchableOpacity>
 
-          {/* PRIMARY BOOKING */}
-
-          <View
-            style={styles.bookingSection}
-          >
-            <View
-              style={
-                styles.sectionHeading
-              }
-            >
-              <Text
-                style={
-                  styles.sectionTitle
-                }
-              >
-                Book staff
-              </Text>
-
-              <Text
-                style={
-                  styles.sectionHint
-                }
-              >
-                Choose how you need them
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={
-                styles.scheduledCard
-              }
-              onPress={
-                handleScheduledBooking
-              }
-              activeOpacity={0.88}
-            >
-              <View
-                style={
-                  styles.scheduledTop
-                }
-              >
-                <View
-                  style={
-                    styles.primaryBadge
-                  }
-                >
-                  <Text
-  style={
-    styles.primaryBadgeText
-  }
->
-  PLAN AHEAD
-</Text>
-                </View>
-
-                <Text
-                  style={
-                    styles.cardArrow
-                  }
-                >
-                  →
-                </Text>
-              </View>
-
-              <Text
-                style={
-                  styles.scheduledTitle
-                }
-              >
-                Scheduled Booking
-              </Text>
-
-              <Text
-                style={
-                  styles.scheduledText
-                }
-              >
-                Select a service, duration,
-                date, time and location.
-              </Text>
-
-              <View
-                style={
-                  styles.scheduledFooter
-                }
-              >
-                <Text
-                  style={
-                    styles.scheduledAction
-                  }
-                >
-                  Book a staff member
-                </Text>
-
-                <View
-                  style={
-                    styles.actionCircle
-                  }
-                >
-                  <Text
-                    style={
-                      styles.actionCircleText
-                    }
-                  >
-                    →
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* SECONDARY MODES */}
-
-            <View
-              style={
-                styles.secondaryRow
-              }
-            >
-              <TouchableOpacity
-                style={
-                  styles.secondaryCard
-                }
-                onPress={
-                  handleInstantBooking
-                }
-                activeOpacity={0.88}
-              >
-                <View
-                  style={
-                    styles.secondaryHeader
-                  }
-                >
-                  <View
-                    style={
-                      styles.secondaryIcon
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.secondaryIconText
-                      }
-                    >
-                      ⚡
-                    </Text>
-                  </View>
-
-                  <View
-                    style={
-                      styles.comingSoonBadge
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.comingSoonText
-                      }
-                    >
-                      SOON
-                    </Text>
-                  </View>
-                </View>
-
-                <Text
-                  style={
-                    styles.secondaryTitle
-                  }
-                >
-                  Instant Booking
-                </Text>
-
-                <Text
-                  style={
-                    styles.secondaryDescription
-                  }
-                >
-                  Get staff on demand.
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={
-                  styles.secondaryCard
-                }
-                onPress={
-                  handleRecurringBooking
-                }
-                activeOpacity={0.88}
-              >
-                <View
-                  style={
-                    styles.secondaryHeader
-                  }
-                >
-                  <View
-                    style={
-                      styles.secondaryIcon
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.secondaryIconText
-                      }
-                    >
-                      ↻
-                    </Text>
-                  </View>
-
-                  <View
-                    style={
-                      styles.comingSoonBadge
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.comingSoonText
-                      }
-                    >
-                      SOON
-                    </Text>
-                  </View>
-                </View>
-
-                <Text
-                  style={
-                    styles.secondaryTitle
-                  }
-                >
-                  Recurring Booking
-                </Text>
-
-                <Text
-                  style={
-                    styles.secondaryDescription
-                  }
-                >
-                  Set up regular staffing.
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* BOOKINGS */}
+          {/* MY BOOKINGS */}
 
           <TouchableOpacity
             style={
@@ -1054,8 +812,8 @@ export default function HomeScreen({
                     styles.sectionHint
                   }
                 >
-                  Availability near your
-                  location
+                  Choose a service to
+                  start your booking
                 </Text>
               </View>
 
@@ -1110,7 +868,9 @@ export default function HomeScreen({
                     styles.stateText
                   }
                 >
-                  {catalogueError}
+                  {
+                    catalogueError
+                  }
                 </Text>
               </View>
             ) : services.length ===
@@ -1133,8 +893,9 @@ export default function HomeScreen({
                     styles.stateText
                   }
                 >
-                  There are currently no
-                  active services to display.
+                  There are currently
+                  no active services
+                  to display.
                 </Text>
               </View>
             ) : locationState.error ? (
@@ -1156,8 +917,9 @@ export default function HomeScreen({
                     styles.stateText
                   }
                 >
-                  Enable location to check
-                  service availability.
+                  Enable location to
+                  check service
+                  availability.
                 </Text>
 
                 <TouchableOpacity
@@ -1167,9 +929,7 @@ export default function HomeScreen({
                   onPress={
                     loadLocation
                   }
-                  activeOpacity={
-                    0.85
-                  }
+                  activeOpacity={0.85}
                 >
                   <Text
                     style={
@@ -1189,16 +949,15 @@ export default function HomeScreen({
                       'ManualLocation'
                     )
                   }
-                  activeOpacity={
-                    0.85
-                  }
+                  activeOpacity={0.85}
                 >
                   <Text
                     style={
                       styles.manualButtonText
                     }
                   >
-                    Select location manually
+                    Select location
+                    manually
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1220,8 +979,8 @@ export default function HomeScreen({
                       state.loading
 
                     const available =
-  state?.serviceAreaCovered ===
-  true
+                      state?.serviceAreaCovered ===
+                      true
 
                     return (
                       <TouchableOpacity
@@ -1321,11 +1080,11 @@ export default function HomeScreen({
                           style={
                             styles.serviceName
                           }
-                          numberOfLines={
-                            2
-                          }
+                          numberOfLines={2}
                         >
-                          {service.name}
+                          {
+                            service.name
+                          }
                         </Text>
 
                         {service.description ? (
@@ -1333,9 +1092,7 @@ export default function HomeScreen({
                             style={
                               styles.serviceDescription
                             }
-                            numberOfLines={
-                              2
-                            }
+                            numberOfLines={2}
                           >
                             {
                               service.description
@@ -1506,7 +1263,7 @@ const styles =
       borderColor:
         COLORS.border,
       padding: 14,
-      marginBottom: 22,
+      marginBottom: 18,
       shadowColor:
         COLORS.shadow,
       shadowOffset: {
@@ -1602,201 +1359,6 @@ const styles =
       marginLeft: 8,
     },
 
-    bookingSection: {
-      marginBottom: 22,
-    },
-
-    sectionHeading: {
-      marginBottom: 12,
-    },
-
-    sectionTitle: {
-      color: COLORS.navy,
-      fontSize: 20,
-      lineHeight: 24,
-      fontWeight: '900',
-      letterSpacing: -0.4,
-    },
-
-    sectionHint: {
-      color: COLORS.gray,
-      fontSize: 11,
-      lineHeight: 16,
-      marginTop: 2,
-    },
-
-    scheduledCard: {
-      backgroundColor:
-        COLORS.navy,
-      borderRadius: 26,
-      padding: 20,
-      marginBottom: 12,
-      shadowColor:
-        COLORS.shadow,
-      shadowOffset: {
-        width: 0,
-        height: 14,
-      },
-      shadowOpacity: 0.16,
-      shadowRadius: 24,
-      elevation: 5,
-    },
-
-    scheduledTop: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent:
-        'space-between',
-    },
-
-    primaryBadge: {
-      alignSelf: 'flex-start',
-      backgroundColor:
-        'rgba(255,255,255,0.12)',
-      borderRadius: 999,
-      paddingHorizontal: 9,
-      paddingVertical: 5,
-    },
-
-    primaryBadgeText: {
-      color: '#FFFFFF',
-      fontSize: 8,
-      fontWeight: '900',
-      letterSpacing: 0.8,
-    },
-
-    cardArrow: {
-      color: '#FFFFFF',
-      fontSize: 24,
-      fontWeight: '800',
-    },
-
-    scheduledTitle: {
-      color: '#FFFFFF',
-      fontSize: 24,
-      lineHeight: 29,
-      fontWeight: '900',
-      letterSpacing: -0.5,
-      marginTop: 17,
-    },
-
-    scheduledText: {
-      color: '#D8E4EF',
-      fontSize: 13,
-      lineHeight: 19,
-      marginTop: 6,
-      maxWidth: 300,
-    },
-
-    scheduledFooter: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent:
-        'space-between',
-      marginTop: 20,
-    },
-
-    scheduledAction: {
-      color: '#FFFFFF',
-      fontSize: 12,
-      fontWeight: '900',
-    },
-
-    actionCircle: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      backgroundColor:
-        COLORS.orange,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    actionCircleText: {
-      color: '#FFFFFF',
-      fontSize: 17,
-      fontWeight: '900',
-    },
-
-    secondaryRow: {
-      flexDirection: 'row',
-      gap: 10,
-    },
-
-    secondaryCard: {
-      flex: 1,
-      minHeight: 142,
-      backgroundColor:
-        COLORS.white,
-      borderRadius: 21,
-      borderWidth: 1,
-      borderColor:
-        COLORS.border,
-      padding: 15,
-      shadowColor:
-        COLORS.shadow,
-      shadowOffset: {
-        width: 0,
-        height: 7,
-      },
-      shadowOpacity: 0.035,
-      shadowRadius: 12,
-      elevation: 2,
-    },
-
-    secondaryHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent:
-        'space-between',
-      marginBottom: 13,
-    },
-
-    secondaryIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      backgroundColor:
-        COLORS.orangeSoft,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    secondaryIconText: {
-      color: COLORS.orange,
-      fontSize: 18,
-      fontWeight: '900',
-    },
-
-    comingSoonBadge: {
-      backgroundColor:
-        COLORS.navySoft,
-      borderRadius: 999,
-      paddingHorizontal: 7,
-      paddingVertical: 4,
-    },
-
-    comingSoonText: {
-      color: COLORS.gray,
-      fontSize: 7,
-      fontWeight: '900',
-      letterSpacing: 0.6,
-    },
-
-    secondaryTitle: {
-      color: COLORS.navy,
-      fontSize: 14,
-      lineHeight: 18,
-      fontWeight: '900',
-    },
-
-    secondaryDescription: {
-      color: COLORS.gray,
-      fontSize: 10,
-      lineHeight: 15,
-      marginTop: 4,
-    },
-
     bookingsCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1862,6 +1424,29 @@ const styles =
 
     servicesSection: {
       marginBottom: 8,
+    },
+
+    sectionHeading: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent:
+        'space-between',
+      marginBottom: 12,
+    },
+
+    sectionTitle: {
+      color: COLORS.navy,
+      fontSize: 20,
+      lineHeight: 24,
+      fontWeight: '900',
+      letterSpacing: -0.4,
+    },
+
+    sectionHint: {
+      color: COLORS.gray,
+      fontSize: 11,
+      lineHeight: 16,
+      marginTop: 2,
     },
 
     serviceList: {

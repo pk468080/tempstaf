@@ -1,3 +1,7 @@
+import React, {
+  useMemo,
+} from 'react'
+
 import {
   SafeAreaView,
   ScrollView,
@@ -6,34 +10,201 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { NativeStackScreenProps } from '@react-navigation/native-stack'
 
-import { COLORS } from '../constants/theme'
-import { RootStackParamList } from '../types'
-import { useBooking } from '../context/BookingContext'
-import Header from '../components/Header'
-import PrimaryButton from '../components/PrimaryButton'
+import {
+  NativeStackScreenProps,
+} from '@react-navigation/native-stack'
 
-type Props = NativeStackScreenProps<
+import {
+  COLORS,
+} from '../constants/theme'
+
+import {
   RootStackParamList,
-  'Summary'
->
+} from '../types'
 
-function formatAmount(
-  amount: number,
-  currency: string
-) {
-  return `${currency === 'INR' ? '₹' : currency + ' '}${amount.toFixed(2)}`
-}
+import {
+  useBooking,
+} from '../context/BookingContext'
 
-function formatHours(hours: number) {
-  if (!hours) {
-    return '—'
+type Props =
+  NativeStackScreenProps<
+    RootStackParamList,
+    'Summary'
+  >
+
+const pad = (
+  value: number
+) =>
+  String(value).padStart(
+    2,
+    '0'
+  )
+
+const formatDate = (
+  value: Date | string | null | undefined
+) => {
+  if (!value) {
+    return '--'
   }
 
-  return `${hours} ${
-    hours === 1 ? 'hour' : 'hours'
-  }`
+  const date =
+    value instanceof Date
+      ? value
+      : new Date(value)
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return '--'
+  }
+
+  return date.toLocaleDateString(
+    'en-IN',
+    {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }
+  )
+}
+
+const formatTime = (
+  value: Date | string | null | undefined
+) => {
+  if (!value) {
+    return '--'
+  }
+
+  const date =
+    value instanceof Date
+      ? value
+      : new Date(value)
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return '--'
+  }
+
+  return date.toLocaleTimeString(
+    'en-IN',
+    {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }
+  )
+}
+
+const formatCurrency = (
+  value:
+    | number
+    | string
+    | null
+    | undefined,
+  currency = 'INR'
+) => {
+  const amount =
+    Number(value)
+
+  if (
+    !Number.isFinite(
+      amount
+    )
+  ) {
+    return '--'
+  }
+
+  try {
+    return new Intl.NumberFormat(
+      'en-IN',
+      {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: 2,
+      }
+    ).format(amount)
+  } catch {
+    return `₹${amount.toFixed(
+      2
+    )}`
+  }
+}
+
+const formatWeekdays = (
+  weekdays: number[]
+) => {
+  const labels = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ]
+
+  return weekdays
+    .slice()
+    .sort(
+      (a, b) =>
+        a - b
+    )
+    .map(
+      day =>
+        labels[day] ||
+        String(day)
+    )
+    .join(', ')
+}
+
+const calculateHours = (
+  start:
+    | Date
+    | string
+    | null
+    | undefined,
+  end:
+    | Date
+    | string
+    | null
+    | undefined
+) => {
+  if (
+    !start ||
+    !end
+  ) {
+    return 0
+  }
+
+  const startDate =
+    start instanceof Date
+      ? start
+      : new Date(start)
+
+  const endDate =
+    end instanceof Date
+      ? end
+      : new Date(end)
+
+  const minutes =
+    (endDate.getTime() -
+      startDate.getTime()) /
+    60000
+
+  if (
+    minutes <= 0
+  ) {
+    return 0
+  }
+
+  return minutes / 60
 }
 
 export default function SummaryScreen({
@@ -42,6 +213,9 @@ export default function SummaryScreen({
   const {
     selectedService,
     selectedVariant,
+    hourlyVariants,
+    selectedVariantId,
+
     bookingMode,
 
     scheduledDate,
@@ -51,380 +225,1185 @@ export default function SummaryScreen({
     scheduleDailyStartTime,
     scheduleDailyEndTime,
     scheduleSelectedWeekdays,
-
-    hourlyStartTime,
-    hourlyEndTime,
-    hourlyTotalHours,
+    scheduleOffDates,
+    scheduleTotalWorkingHours,
 
     address,
+    coordinates,
+
     bookingPricing,
   } = useBooking()
 
-  const duration =
-    bookingMode === 'Recurring'
-      ? scheduleDailyStartTime &&
-        scheduleDailyEndTime
-        ? 0
-        : 0
-      : hourlyTotalHours
+  /*
+   * Resolve the selected variant from either
+   * context's selectedVariant or the catalogue.
+   */
+  const resolvedVariant =
+    useMemo(() => {
+      if (
+        selectedVariant
+      ) {
+        return selectedVariant
+      }
 
-  const scheduleText =
-    bookingMode === 'Recurring'
-      ? `${scheduleDailyStartTime} – ${scheduleDailyEndTime}`
-      : bookingMode === 'Scheduled'
-        ? `${scheduledDate || scheduleStartDate} · ${scheduleDailyStartTime} – ${scheduleDailyEndTime}`
-        : `${hourlyStartTime || 'Now'} – ${hourlyEndTime || '—'}`
+      if (
+        selectedVariantId
+      ) {
+        return hourlyVariants.find(
+          item =>
+            item.id ===
+            selectedVariantId
+        )
+      }
 
-  const continueToPayment = () => {
-    navigation.navigate('Payment')
-  }
+      return undefined
+    }, [
+      selectedVariant,
+      selectedVariantId,
+      hourlyVariants,
+    ])
+
+  const pricing =
+    bookingPricing as
+      | Record<
+          string,
+          any
+        >
+      | null
+      | undefined
+
+  const totalPrice =
+    pricing?.total_price ??
+    pricing?.total ??
+    pricing?.amount ??
+    pricing?.grand_total ??
+    null
+
+  const currency =
+    pricing?.currency ||
+    'INR'
+
+  const mode =
+    bookingMode ||
+    'Instant'
+
+  const scheduledStart =
+    scheduledDate
+
+  const scheduledHours =
+    mode === 'Scheduled'
+      ? calculateHours(
+          scheduledDate,
+          scheduledDate
+        )
+      : 0
+
+  const recurringHours =
+    Number(
+      scheduleTotalWorkingHours ||
+        0
+    )
+
+  const dailyRecurringHours =
+    calculateHours(
+      scheduleDailyStartTime
+        ? new Date(
+            scheduleDailyStartTime
+          )
+        : null,
+      scheduleDailyEndTime
+        ? new Date(
+            scheduleDailyEndTime
+          )
+        : null
+    )
+
+  /*
+   * --------------------------------------------------
+   * SUMMARY ROW
+   * --------------------------------------------------
+   */
+
+  const SummaryRow = ({
+    label,
+    value,
+    multiline = false,
+  }: {
+    label: string
+    value: string
+    multiline?: boolean
+  }) => (
+    <View
+      style={
+        styles.summaryRow
+      }
+    >
+      <Text
+        style={
+          styles.summaryLabel
+        }
+      >
+        {label}
+      </Text>
+
+      <Text
+        style={[
+          styles.summaryValue,
+          multiline
+            ? styles.summaryValueMultiline
+            : null,
+        ]}
+      >
+        {value}
+      </Text>
+    </View>
+  )
+
+  /*
+   * --------------------------------------------------
+   * DATE / TIME SECTION
+   * --------------------------------------------------
+   */
+
+  const renderTiming =
+    () => {
+      if (
+        mode === 'Recurring'
+      ) {
+        return (
+          <View
+            style={
+              styles.card
+            }
+          >
+            <View
+              style={
+                styles.cardHeader
+              }
+            >
+              <View
+                style={
+                  styles.cardIcon
+                }
+              >
+                <Text
+                  style={
+                    styles.cardIconText
+                  }
+                >
+                  ↻
+                </Text>
+              </View>
+
+              <View
+                style={
+                  styles.cardHeaderContent
+                }
+              >
+                <Text
+                  style={
+                    styles.cardTitle
+                  }
+                >
+                  Recurring schedule
+                </Text>
+
+                <Text
+                  style={
+                    styles.cardSubtitle
+                  }
+                >
+                  Repeated service
+                  schedule
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={
+                styles.divider
+              }
+            />
+
+            <SummaryRow
+              label="DATE RANGE"
+              value={`${formatDate(
+                scheduleStartDate
+              )} – ${formatDate(
+                scheduleEndDate
+              )}`}
+            />
+
+            <SummaryRow
+              label="WORKING DAYS"
+              value={
+                scheduleSelectedWeekdays
+                  .length
+                  ? formatWeekdays(
+                      scheduleSelectedWeekdays
+                    )
+                  : '--'
+              }
+              multiline
+            />
+
+            <SummaryRow
+              label="DAILY HOURS"
+              value={`${formatTime(
+                scheduleDailyStartTime
+              )} – ${formatTime(
+                scheduleDailyEndTime
+              )}`}
+            />
+
+            <SummaryRow
+              label="DAILY DURATION"
+              value={`${dailyRecurringHours} ${
+                dailyRecurringHours ===
+                1
+                  ? 'hour'
+                  : 'hours'
+              }`}
+            />
+
+            <SummaryRow
+              label="WORKING DATES"
+              value={`${scheduleTotalWorkingHours && dailyRecurringHours
+                ? Math.round(
+                    recurringHours /
+                      dailyRecurringHours
+                  )
+                : 0} dates`}
+            />
+
+            <SummaryRow
+              label="TOTAL HOURS"
+              value={`${recurringHours} ${
+                recurringHours ===
+                1
+                  ? 'hour'
+                  : 'hours'
+              }`}
+            />
+
+            <SummaryRow
+              label="OFF DATES"
+              value={
+                scheduleOffDates.length
+                  ? scheduleOffDates
+                      .slice()
+                      .sort()
+                      .map(
+                        value =>
+                          formatDate(
+                            new Date(
+                              `${value}T00:00:00`
+                            )
+                          )
+                      )
+                      .join(', ')
+                  : 'None'
+              }
+              multiline
+            />
+          </View>
+        )
+      }
+
+      return (
+        <View
+          style={
+            styles.card
+          }
+        >
+          <View
+            style={
+              styles.cardHeader
+            }
+          >
+            <View
+              style={
+                styles.cardIcon
+              }
+            >
+              <Text
+                style={
+                  styles.cardIconText
+                }
+              >
+                ◷
+              </Text>
+            </View>
+
+            <View
+              style={
+                styles.cardHeaderContent
+              }
+            >
+              <Text
+                style={
+                  styles.cardTitle
+                }
+              >
+                {mode ===
+                'Instant'
+                  ? 'Instant service'
+                  : 'Scheduled service'}
+              </Text>
+
+              <Text
+                style={
+                  styles.cardSubtitle
+                }
+              >
+                {mode ===
+                'Instant'
+                  ? 'As soon as staff is available'
+                  : 'Scheduled appointment'}
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={
+              styles.divider
+            }
+          />
+
+          {mode ===
+            'Scheduled' && (
+            <SummaryRow
+              label="DATE"
+              value={formatDate(
+                scheduledDate
+              )}
+            />
+          )}
+
+          {mode ===
+            'Instant' && (
+            <SummaryRow
+              label="DATE"
+              value={formatDate(
+                scheduledDate
+              )}
+            />
+          )}
+
+          <SummaryRow
+            label="START"
+            value={formatTime(
+              scheduledStart
+            )}
+          />
+
+          <SummaryRow
+            label="DURATION"
+            value="Configured in booking"
+          />
+
+          {mode ===
+            'Scheduled' &&
+            scheduledHours >
+              0 && (
+              <SummaryRow
+                label="CALCULATED HOURS"
+                value={`${scheduledHours} ${
+                  scheduledHours ===
+                  1
+                    ? 'hour'
+                    : 'hours'
+                }`}
+              />
+            )}
+        </View>
+      )
+    }
+
+  /*
+   * --------------------------------------------------
+   * CONTINUE
+   * --------------------------------------------------
+   */
+
+  const handleContinue =
+    () => {
+      navigation.navigate(
+        'Payment'
+      )
+    }
+
+  /*
+   * --------------------------------------------------
+   * RENDER
+   * --------------------------------------------------
+   */
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.page}
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView
+      style={styles.container}
+    >
+      <View
+        style={styles.header}
       >
-        <Header
-          onBack={() =>
+        <TouchableOpacity
+          style={
+            styles.backButton
+          }
+          onPress={() =>
             navigation.goBack()
           }
+          activeOpacity={0.8}
+        >
+          <Text
+            style={
+              styles.backText
+            }
+          >
+            ‹
+          </Text>
+        </TouchableOpacity>
+
+        <View
+          style={
+            styles.headerCenter
+          }
+        >
+          <Text
+            style={
+              styles.headerEyebrow
+            }
+          >
+            REVIEW
+          </Text>
+
+          <Text
+            style={
+              styles.headerTitle
+            }
+          >
+            Review your booking
+          </Text>
+        </View>
+
+        <View
+          style={
+            styles.headerSpacer
+          }
         />
+      </View>
 
-        <Text style={styles.step}>
-          STEP 3 OF 5 · REVIEW
-        </Text>
+      <ScrollView
+        style={
+          styles.scroll
+        }
+        contentContainerStyle={
+          styles.content
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+      >
+        {/* INTRO */}
 
-        <Text style={styles.title}>
-          Review your booking
-        </Text>
+        <View
+          style={
+            styles.intro
+          }
+        >
+          <Text
+            style={
+              styles.introTitle
+            }
+          >
+            Almost there
+          </Text>
 
-        <Text style={styles.subtitle}>
-          Check the details before continuing to
-          secure payment.
-        </Text>
+          <Text
+            style={
+              styles.introText
+            }
+          >
+            Check your booking details before
+            continuing to payment.
+          </Text>
+        </View>
 
-        <View style={styles.card}>
-          <View style={styles.headerRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>
+        {/* SERVICE */}
+
+        <View
+          style={
+            styles.card
+          }
+        >
+          <View
+            style={
+              styles.cardHeader
+            }
+          >
+            <View
+              style={
+                styles.serviceIcon
+              }
+            >
+              <Text
+                style={
+                  styles.serviceIconText
+                }
+              >
+                {selectedService
+                  ?.charAt(
+                    0
+                  )
+                  .toUpperCase() ||
+                  'S'}
+              </Text>
+            </View>
+
+            <View
+              style={
+                styles.cardHeaderContent
+              }
+            >
+              <Text
+                style={
+                  styles.smallLabel
+                }
+              >
                 SERVICE
               </Text>
 
-              <Text style={styles.service}>
+              <Text
+                style={
+                  styles.serviceTitle
+                }
+              >
                 {selectedService ||
-                  'Staff service'}
+                  'No service selected'}
               </Text>
 
-              <Text style={styles.variant}>
-                {selectedVariant?.name ||
-                  'Hourly staffing'}
+              {resolvedVariant ? (
+                <Text
+                  style={
+                    styles.serviceVariant
+                  }
+                >
+                  {
+                    resolvedVariant.name
+                  }
+                </Text>
+              ) : null}
+            </View>
+
+            <TouchableOpacity
+              onPress={() =>
+                navigation.goBack()
+              }
+              activeOpacity={0.8}
+            >
+              <Text
+                style={
+                  styles.editText
+                }
+              >
+                Edit
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* BOOKING TYPE */}
+
+        <View
+          style={
+            styles.card
+          }
+        >
+          <View
+            style={
+              styles.cardHeader
+            }
+          >
+            <View
+              style={
+                styles.cardIcon
+              }
+            >
+              <Text
+                style={
+                  styles.cardIconText
+                }
+              >
+                #
+              </Text>
+            </View>
+
+            <View
+              style={
+                styles.cardHeaderContent
+              }
+            >
+              <Text
+                style={
+                  styles.cardTitle
+                }
+              >
+                Booking type
+              </Text>
+
+              <Text
+                style={
+                  styles.cardSubtitle
+                }
+              >
+                Selected scheduling method
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={
+              styles.divider
+            }
+          />
+
+          <SummaryRow
+            label="TYPE"
+            value={mode}
+          />
+        </View>
+
+        {/* TIMING */}
+
+        {renderTiming()}
+
+        {/* LOCATION */}
+
+        <View
+          style={
+            styles.card
+          }
+        >
+          <View
+            style={
+              styles.cardHeader
+            }
+          >
+            <View
+              style={
+                styles.cardIcon
+              }
+            >
+              <Text
+                style={
+                  styles.cardIconText
+                }
+              >
+                ●
+              </Text>
+            </View>
+
+            <View
+              style={
+                styles.cardHeaderContent
+              }
+            >
+              <Text
+                style={
+                  styles.cardTitle
+                }
+              >
+                Service location
+              </Text>
+
+              <Text
+                style={
+                  styles.cardSubtitle
+                }
+              >
+                Where staff will provide the
+                service
               </Text>
             </View>
 
             <TouchableOpacity
-              style={styles.edit}
               onPress={() =>
                 navigation.goBack()
               }
+              activeOpacity={0.8}
             >
-              <Text style={styles.editText}>
+              <Text
+                style={
+                  styles.editText
+                }
+              >
                 Edit
               </Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.divider} />
-
-          <Row
-            label="Booking type"
-            value={bookingMode}
-          />
-
-          <Row
-            label="Schedule"
-            value={scheduleText}
-          />
-
-          {bookingMode ===
-          'Recurring' ? (
-            <>
-              <Row
-                label="Date range"
-                value={`${scheduleStartDate} – ${scheduleEndDate}`}
-              />
-
-              <Row
-                label="Working days"
-                value={scheduleSelectedWeekdays
-                  .slice()
-                  .sort(
-                    (a, b) => a - b
-                  )
-                  .map(day =>
-                    [
-                      'Sun',
-                      'Mon',
-                      'Tue',
-                      'Wed',
-                      'Thu',
-                      'Fri',
-                      'Sat',
-                    ][day]
-                  )
-                  .join(', ')}
-              />
-            </>
-          ) : (
-            <Row
-              label="Duration"
-              value={formatHours(duration)}
-            />
-          )}
-
-          <Row
-            label="Location"
-            value={
-              address ||
-              'Service address'
+          <View
+            style={
+              styles.divider
             }
           />
-        </View>
 
-        <View style={styles.priceCard}>
-          <Text style={styles.priceLabel}>
-            TOTAL PAYABLE
+          <Text
+            style={
+              styles.address
+            }
+          >
+            {address ||
+              'No location selected'}
           </Text>
 
-          <Text style={styles.price}>
-            {bookingPricing
-              ? formatAmount(
-                  bookingPricing.finalAmount,
-                  bookingPricing.currency
-                )
-              : '—'}
-          </Text>
-
-          {bookingPricing &&
-          bookingPricing.discountAmount >
-            0 ? (
-            <Text style={styles.discount}>
-              Discount applied: -
-              {formatAmount(
-                bookingPricing.discountAmount,
-                bookingPricing.currency
+          {coordinates ? (
+            <Text
+              style={
+                styles.coordinates
+              }
+            >
+              {coordinates.latitude.toFixed(
+                5
+              )}
+              ,{' '}
+              {coordinates.longitude.toFixed(
+                5
               )}
             </Text>
           ) : null}
+        </View>
 
-          <Text style={styles.priceNote}>
-            Final pricing is calculated using the
-            backend pricing configuration.
+        {/* PRICE */}
+
+        <View
+          style={
+            styles.priceCard
+          }
+        >
+          <View>
+            <Text
+              style={
+                styles.priceLabel
+              }
+            >
+              TOTAL
+            </Text>
+
+            <Text
+              style={
+                styles.priceCaption
+              }
+            >
+              Final amount calculated by the
+              booking service.
+            </Text>
+          </View>
+
+          <Text
+            style={
+              styles.priceValue
+            }
+          >
+            {formatCurrency(
+              totalPrice,
+              currency
+            )}
           </Text>
         </View>
 
-        <View style={styles.info}>
-          <Text style={styles.infoTitle}>
-            Worker assignment
-          </Text>
-
-          <Text style={styles.infoText}>
-            You do not need to select a worker.
-            TempStaff handles worker assignment and
-            availability.
+        <View
+          style={
+            styles.bottomNote
+          }
+        >
+          <Text
+            style={
+              styles.bottomNoteText
+            }
+          >
+            Your booking is not created until
+            the payment process is completed.
           </Text>
         </View>
-
-        <PrimaryButton
-          title="Continue to payment"
-          disabled={!bookingPricing}
-          onPress={continueToPayment}
-        />
       </ScrollView>
+
+      {/* FOOTER */}
+
+      <View
+        style={
+          styles.footer
+        }
+      >
+        <View
+          style={
+            styles.footerPrice
+          }
+        >
+          <Text
+            style={
+              styles.footerLabel
+            }
+          >
+            PAYABLE
+          </Text>
+
+          <Text
+            style={
+              styles.footerValue
+            }
+          >
+            {formatCurrency(
+              totalPrice,
+              currency
+            )}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={
+            styles.continueButton
+          }
+          onPress={
+            handleContinue
+          }
+          activeOpacity={0.88}
+        >
+          <Text
+            style={
+              styles.continueText
+            }
+          >
+            Continue to payment →
+          </Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   )
 }
 
-function Row({
-  label,
-  value,
-}: {
-  label: string
-  value: string
-}) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>
-        {label}
-      </Text>
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor:
+        COLORS.light,
+    },
 
-      <Text style={styles.rowValue}>
-        {value || '—'}
-      </Text>
-    </View>
-  )
-}
+    header: {
+      height: 70,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      backgroundColor:
+        COLORS.white,
+      borderBottomWidth: 1,
+      borderBottomColor:
+        COLORS.border,
+    },
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.light,
-  },
+    backButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor:
+        COLORS.light,
+    },
 
-  page: {
-    padding: 20,
-    paddingBottom: 45,
-  },
+    backText: {
+      color: COLORS.navy,
+      fontSize: 30,
+      lineHeight: 32,
+      fontWeight: '400',
+    },
 
-  step: {
-    color: COLORS.teal,
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    marginTop: 4,
-  },
+    headerCenter: {
+      flex: 1,
+      marginLeft: 12,
+    },
 
-  title: {
-    color: COLORS.navy,
-    fontSize: 28,
-    fontWeight: '900',
-    marginTop: 5,
-  },
+    headerEyebrow: {
+      color: COLORS.teal,
+      fontSize: 9,
+      fontWeight: '900',
+      letterSpacing: 1.2,
+    },
 
-  subtitle: {
-    color: COLORS.gray,
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 5,
-    marginBottom: 18,
-  },
+    headerTitle: {
+      color: COLORS.navy,
+      fontSize: 16,
+      fontWeight: '900',
+      marginTop: 2,
+    },
 
-  card: {
-    backgroundColor: COLORS.white,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 17,
-  },
+    headerSpacer: {
+      width: 42,
+    },
 
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
+    scroll: {
+      flex: 1,
+    },
 
-  label: {
-    color: COLORS.gray,
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 0.7,
-  },
+    content: {
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: 25,
+    },
 
-  service: {
-    color: COLORS.navy,
-    fontSize: 19,
-    fontWeight: '900',
-    marginTop: 4,
-  },
+    intro: {
+      marginBottom: 15,
+    },
 
-  variant: {
-    color: COLORS.teal,
-    fontSize: 12,
-    fontWeight: '800',
-    marginTop: 3,
-  },
+    introTitle: {
+      color: COLORS.navy,
+      fontSize: 21,
+      fontWeight: '900',
+      letterSpacing: -0.5,
+    },
 
-  edit: {
-    backgroundColor: COLORS.tealSoft,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 12,
-  },
+    introText: {
+      color: COLORS.gray,
+      fontSize: 11,
+      lineHeight: 17,
+      marginTop: 4,
+    },
 
-  editText: {
-    color: COLORS.teal,
-    fontSize: 10,
-    fontWeight: '900',
-  },
+    card: {
+      backgroundColor:
+        COLORS.white,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      padding: 15,
+      marginBottom: 12,
+    },
 
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: 15,
-  },
+    cardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
 
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 15,
-    marginBottom: 13,
-  },
+    cardHeaderContent: {
+      flex: 1,
+      marginLeft: 11,
+    },
 
-  rowLabel: {
-    flex: 1,
-    color: COLORS.gray,
-    fontSize: 12,
-  },
+    cardIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 13,
+      backgroundColor:
+        COLORS.tealSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  rowValue: {
-    flex: 1.5,
-    color: COLORS.navy,
-    fontSize: 12,
-    fontWeight: '800',
-    textAlign: 'right',
-  },
+    cardIconText: {
+      color: COLORS.teal,
+      fontSize: 16,
+      fontWeight: '900',
+    },
 
-  priceCard: {
-    backgroundColor: COLORS.navy,
-    borderRadius: 20,
-    padding: 19,
-    marginTop: 14,
-  },
+    serviceIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor:
+        COLORS.navy,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  priceLabel: {
-    color: '#CBD5E1',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
+    serviceIconText: {
+      color: '#FFFFFF',
+      fontSize: 17,
+      fontWeight: '900',
+    },
 
-  price: {
-    color: COLORS.white,
-    fontSize: 29,
-    fontWeight: '900',
-    marginTop: 5,
-  },
+    smallLabel: {
+      color: COLORS.gray,
+      fontSize: 8,
+      fontWeight: '900',
+      letterSpacing: 0.9,
+      marginBottom: 2,
+    },
 
-  discount: {
-    color: '#86EFAC',
-    fontSize: 11,
-    fontWeight: '800',
-    marginTop: 4,
-  },
+    serviceTitle: {
+      color: COLORS.navy,
+      fontSize: 15,
+      fontWeight: '900',
+    },
 
-  priceNote: {
-    color: '#CBD5E1',
-    fontSize: 10,
-    lineHeight: 16,
-    marginTop: 10,
-  },
+    serviceVariant: {
+      color: COLORS.gray,
+      fontSize: 10,
+      marginTop: 3,
+    },
 
-  info: {
-    backgroundColor: COLORS.tealSoft,
-    borderRadius: 17,
-    padding: 15,
-    marginVertical: 14,
-  },
+    editText: {
+      color: COLORS.orange,
+      fontSize: 10,
+      fontWeight: '900',
+    },
 
-  infoTitle: {
-    color: COLORS.navy,
-    fontSize: 13,
-    fontWeight: '900',
-  },
+    cardTitle: {
+      color: COLORS.navy,
+      fontSize: 13,
+      fontWeight: '900',
+    },
 
-  infoText: {
-    color: COLORS.gray,
-    fontSize: 11,
-    lineHeight: 17,
-    marginTop: 4,
-  },
-})
+    cardSubtitle: {
+      color: COLORS.gray,
+      fontSize: 9,
+      lineHeight: 14,
+      marginTop: 2,
+    },
+
+    divider: {
+      height: 1,
+      backgroundColor:
+        COLORS.border,
+      marginVertical: 13,
+    },
+
+    summaryRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent:
+        'space-between',
+      marginBottom: 10,
+      gap: 15,
+    },
+
+    summaryLabel: {
+      color: COLORS.gray,
+      fontSize: 8,
+      fontWeight: '900',
+      letterSpacing: 0.6,
+      flex: 0.8,
+    },
+
+    summaryValue: {
+      color: COLORS.navy,
+      fontSize: 11,
+      fontWeight: '800',
+      textAlign: 'right',
+      flex: 1.6,
+    },
+
+    summaryValueMultiline: {
+      lineHeight: 16,
+    },
+
+    address: {
+      color: COLORS.navy,
+      fontSize: 12,
+      lineHeight: 18,
+      fontWeight: '800',
+    },
+
+    coordinates: {
+      color: COLORS.gray,
+      fontSize: 9,
+      marginTop: 5,
+    },
+
+    priceCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent:
+        'space-between',
+      backgroundColor:
+        COLORS.navy,
+      borderRadius: 20,
+      padding: 17,
+      marginTop: 3,
+    },
+
+    priceLabel: {
+      color:
+        'rgba(255,255,255,0.65)',
+      fontSize: 8,
+      fontWeight: '900',
+      letterSpacing: 1,
+    },
+
+    priceCaption: {
+      color:
+        'rgba(255,255,255,0.65)',
+      fontSize: 9,
+      lineHeight: 14,
+      marginTop: 4,
+      maxWidth: 185,
+    },
+
+    priceValue: {
+      color: '#FFFFFF',
+      fontSize: 20,
+      fontWeight: '900',
+    },
+
+    bottomNote: {
+      paddingHorizontal: 4,
+      paddingVertical: 12,
+    },
+
+    bottomNoteText: {
+      color: COLORS.gray,
+      fontSize: 9,
+      lineHeight: 14,
+      textAlign: 'center',
+    },
+
+    footer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor:
+        COLORS.white,
+      borderTopWidth: 1,
+      borderTopColor:
+        COLORS.border,
+      paddingHorizontal: 14,
+      paddingTop: 10,
+      paddingBottom: 10,
+      gap: 10,
+    },
+
+    footerPrice: {
+      minWidth: 90,
+    },
+
+    footerLabel: {
+      color: COLORS.gray,
+      fontSize: 7,
+      fontWeight: '900',
+      letterSpacing: 0.7,
+    },
+
+    footerValue: {
+      color: COLORS.navy,
+      fontSize: 14,
+      fontWeight: '900',
+      marginTop: 2,
+    },
+
+    continueButton: {
+      flex: 1,
+      minHeight: 50,
+      borderRadius: 16,
+      backgroundColor:
+        COLORS.orange,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 12,
+    },
+
+    continueText: {
+      color: '#FFFFFF',
+      fontSize: 11,
+      fontWeight: '900',
+    },
+  })
