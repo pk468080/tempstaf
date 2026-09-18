@@ -1,34 +1,26 @@
-export type BookingMode = 'Instant' | 'Scheduled' | 'Recurring';
+export type BookingMode =
+  | 'Instant'
+  | 'Scheduled'
+  | 'Recurring'
 
 export type RootStackParamList = {
-  Splash: undefined;
-  Login: undefined;
-  VerifyOtp: undefined;
-  CustomerDetails: undefined;
-  CustomerLocation: undefined;
+  Splash: undefined
+  Login: undefined
 
-  // Main app
-  Home: undefined;
+  VerifyOtp: {
+    phone: string
+  }
 
-  // New booking flow
-  Booking: undefined;
-  Summary: undefined;
-  Payment: undefined;
-  BookingConfirmed: undefined;
+  CustomerDetails: undefined
+  CustomerLocation: undefined
 
-  // Existing non-booking screens
-  MyBookings: undefined;
-  BookingDetails: { bookingId: string };
-  Tracking: { bookingId: string };
-  WorkerProfile: { workerId: string };
+  Home: undefined
 
-  Profile: undefined;
-  EditProfile: undefined;
-  SavedAddresses: undefined;
-  Money: undefined;
-  HelpSupport: undefined;
-  AboutUs: undefined;
-  PrivacyPolicy: undefined;
-  DeleteAccount: undefined;
-  ManualLocation: undefined;
-};
+  Booking: undefined
+  Summary: undefined
+  Payment: undefined
+  BookingConfirmed: undefined
+
+  MyBookings: undefined
+  Profile: undefined
+}

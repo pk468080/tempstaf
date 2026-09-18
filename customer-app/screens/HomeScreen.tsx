@@ -1,6 +1,8 @@
+
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react'
 
@@ -64,9 +66,39 @@ type AvailabilityState = {
   error: string | null
 }
 
+type Offer = {
+  id: string
+  eyebrow: string
+  title: string
+  description: string
+}
+
+const OFFERS: Offer[] = [
+  {
+    id: 'offer-1',
+    eyebrow: 'TEMPSTAFF',
+    title: 'Reliable staff when you need them.',
+    description:
+      'Book professional temporary staff for your business.',
+  },
+  {
+    id: 'offer-2',
+    eyebrow: 'HOURLY STAFF',
+    title: 'Simple hourly booking.',
+    description:
+      'Choose a service and continue to the booking screen.',
+  },
+  {
+    id: 'offer-3',
+    eyebrow: 'FAST & SIMPLE',
+    title: 'Find staff around your location.',
+    description:
+      'We check service availability for your current area.',
+  },
+]
+
 export default function HomeScreen({
   navigation,
-  route,
 }: Props) {
   const {
     resetBooking,
@@ -81,32 +113,34 @@ export default function HomeScreen({
   const [
     locationState,
     setLocationState,
-  ] =
-    useState<LocationState>({
-      loading: true,
-      label: null,
-      detail: null,
-      error: null,
-      latitude: null,
-      longitude: null,
-    })
+  ] = useState<LocationState>({
+    loading: true,
+    label: null,
+    detail: null,
+    error: null,
+    latitude: null,
+    longitude: null,
+  })
 
   const [
     availability,
     setAvailability,
-  ] =
-    useState<
-      Record<
-        string,
-        AvailabilityState
-      >
-    >({})
+  ] = useState<
+    Record<
+      string,
+      AvailabilityState
+    >
+  >({})
 
   const [
     checkingAvailability,
     setCheckingAvailability,
-  ] =
-    useState(false)
+  ] = useState(false)
+
+  const [
+    activeOffer,
+    setActiveOffer,
+  ] = useState(0)
 
   /*
    * --------------------------------------------------
@@ -150,12 +184,10 @@ export default function HomeScreen({
           }
 
           const current =
-            await Location.getCurrentPositionAsync(
-              {
-                accuracy:
-                  Location.Accuracy.Balanced,
-              }
-            )
+            await Location.getCurrentPositionAsync({
+              accuracy:
+                Location.Accuracy.Balanced,
+            })
 
           const {
             latitude,
@@ -205,8 +237,7 @@ export default function HomeScreen({
               const parts = [
                 locality &&
                 region &&
-                locality !==
-                  region
+                locality !== region
                   ? region
                   : null,
                 country,
@@ -255,39 +286,8 @@ export default function HomeScreen({
     )
 
   useEffect(() => {
-    const manualLocation =
-      route.params
-
-    if (
-      manualLocation &&
-      typeof manualLocation.latitude ===
-        'number' &&
-      typeof manualLocation.longitude ===
-        'number'
-    ) {
-      setLocationState({
-        loading: false,
-        label:
-          manualLocation.label,
-        detail:
-          manualLocation.detail,
-        error: null,
-        latitude:
-          manualLocation.latitude,
-        longitude:
-          manualLocation.longitude,
-      })
-
-      setAvailability({})
-
-      return
-    }
-
     loadLocation()
-  }, [
-    route.params,
-    loadLocation,
-  ])
+  }, [loadLocation])
 
   /*
    * --------------------------------------------------
@@ -313,15 +313,21 @@ export default function HomeScreen({
             AvailabilityState
           > = {}
 
-        services.forEach(service => {
-          initialState[service.id] = {
-            loading: true,
-            serviceAreaCovered: false,
-            instantAvailable: false,
-            availableWorkers: 0,
-            error: null,
+        services.forEach(
+          service => {
+            initialState[
+              service.id
+            ] = {
+              loading: true,
+              serviceAreaCovered:
+                false,
+              instantAvailable:
+                false,
+              availableWorkers: 0,
+              error: null,
+            }
           }
-        })
+        )
 
         setAvailability(
           initialState
@@ -373,8 +379,7 @@ export default function HomeScreen({
                           false,
                         instantAvailable:
                           false,
-                        availableWorkers:
-                          0,
+                        availableWorkers: 0,
                         error:
                           'Availability could not be checked.',
                       },
@@ -394,8 +399,7 @@ export default function HomeScreen({
             item => {
               nextState[
                 item.serviceId
-              ] =
-                item.state
+              ] = item.state
             }
           )
 
@@ -433,17 +437,91 @@ export default function HomeScreen({
 
   /*
    * --------------------------------------------------
+   * OFFER CAROUSEL
+   * --------------------------------------------------
+   */
+
+  useEffect(() => {
+    const timer =
+      setInterval(() => {
+        setActiveOffer(
+          current =>
+            (current + 1) %
+            OFFERS.length
+        )
+      }, 4500)
+
+    return () =>
+      clearInterval(timer)
+  }, [])
+
+  /*
+   * --------------------------------------------------
+   * HOURLY PRICING DISPLAY
+   *
+   * The customer app does not calculate a payable
+   * booking total here.
+   *
+   * This only finds the hourly catalogue variant.
+   * Final pricing remains backend-controlled.
+   * --------------------------------------------------
+   */
+
+  const getHourlyVariant =
+    useCallback(
+      (serviceId: string) => {
+        const variants =
+          hourlyVariants.filter(
+            variant =>
+              variant.service_id ===
+                serviceId &&
+              variant.billing_type ===
+                'hourly'
+          )
+
+        if (variants.length === 0) {
+          return null
+        }
+
+        return (
+          variants.sort(
+            (a, b) =>
+              a.sort_order -
+              b.sort_order
+          )[0] ?? null
+        )
+      },
+      [hourlyVariants]
+    )
+
+  const hourlyVariantByService =
+    useMemo(() => {
+      const result: Record<
+        string,
+        ReturnType<
+          typeof getHourlyVariant
+        >
+      > = {}
+
+      services.forEach(
+        service => {
+          result[service.id] =
+            getHourlyVariant(
+              service.id
+            )
+        }
+      )
+
+      return result
+    }, [
+      services,
+      getHourlyVariant,
+    ])
+
+  /*
+   * --------------------------------------------------
    * SERVICE SELECTION
    * --------------------------------------------------
-   *
-   * Home is responsible only for:
-   *
-   * 1. Showing services
-   * 2. Checking service-area availability
-   * 3. Selecting the service
-   * 4. Opening Booking
-   *
-   * Booking type is handled entirely by BookingScreen.
    */
 
   const handleServicePress = (
@@ -460,39 +538,47 @@ export default function HomeScreen({
     if (!state.serviceAreaCovered) {
       Alert.alert(
         'Service unavailable',
-        `${serviceName} is not available at your selected location.`,
-        [
-          {
-            text: 'OK',
-          },
-        ]
+        `${serviceName} is not available at your selected location.`
+      )
+
+      return
+    }
+
+    const hourlyVariant =
+      hourlyVariantByService[
+        serviceId
+      ]
+
+    if (!hourlyVariant) {
+      Alert.alert(
+        'Service unavailable',
+        `${serviceName} does not currently have an hourly option.`
       )
 
       return
     }
 
     /*
-     * Start a fresh booking.
+     * Start a completely fresh booking.
      */
     resetBooking()
 
     /*
-     * Store selected service.
+     * Store service selection.
      */
     setSelectedService(
       serviceName
     )
 
     /*
-     * Clear any stale variant.
-     * BookingScreen will select the correct
-     * variant for this service.
+     * Store the active hourly variant.
      */
-    setSelectedVariantId('')
+    setSelectedVariantId(
+      hourlyVariant.id
+    )
 
     /*
-     * Everything after service selection
-     * happens inside BookingScreen.
+     * Continue into the booking screen.
      */
     navigation.navigate(
       'Booking'
@@ -505,6 +591,9 @@ export default function HomeScreen({
    * --------------------------------------------------
    */
 
+  const offer =
+    OFFERS[activeOffer]
+
   return (
     <SafeAreaView
       style={styles.container}
@@ -513,25 +602,12 @@ export default function HomeScreen({
         style={styles.screen}
       >
         <ScrollView
-          return (
-  <SafeAreaView
-    style={styles.container}
-  >
-    <View
-      style={styles.screen}
-    >
-      <ScrollView
-        contentContainerStyle={
-          styles.content
+          contentContainerStyle={
+            styles.content
+          }
+          showsVerticalScrollIndicator={
+            false
         }
-        showsVerticalScrollIndicator={
-          false
-        }
-      >
-        {/* HEADER */}
-
-        <View
-          style={styles.header}
         >
           {/* HEADER */}
 
@@ -539,9 +615,7 @@ export default function HomeScreen({
             style={styles.header}
           >
             <View
-              style={
-                styles.brandArea
-              }
+              style={styles.brandArea}
             >
               <Image
                 source={LOGO}
@@ -550,9 +624,7 @@ export default function HomeScreen({
               />
 
               <View
-                style={
-                  styles.greeting
-                }
+                style={styles.greeting}
               >
                 <Text
                   style={
@@ -566,6 +638,7 @@ export default function HomeScreen({
                   style={styles.title}
                 >
                   Book staff with
+                  {'\n'}
                   confidence.
                 </Text>
               </View>
@@ -592,18 +665,12 @@ export default function HomeScreen({
             </TouchableOpacity>
           </View>
 
-          {/* LOCATION */}
+          {/* CURRENT LOCATION */}
 
-          <TouchableOpacity
+          <View
             style={
               styles.locationCard
             }
-            onPress={() =>
-              navigation.navigate(
-                'ManualLocation'
-              )
-            }
-            activeOpacity={0.9}
           >
             <View
               style={
@@ -629,7 +696,7 @@ export default function HomeScreen({
                   styles.locationLabel
                 }
               >
-                SERVICE LOCATION
+                CURRENT LOCATION
               </Text>
 
               {locationState.loading ? (
@@ -665,42 +732,20 @@ export default function HomeScreen({
                     }
                   </Text>
 
-                  <View
-                    style={
-                      styles.locationActionRow
+                  <TouchableOpacity
+                    onPress={
+                      loadLocation
                     }
+                    activeOpacity={0.8}
                   >
-                    <TouchableOpacity
-                      onPress={
-                        loadLocation
-                      }
-                      activeOpacity={0.8}
-                    >
-                      <Text
-                        style={
-                          styles.locationRetry
-                        }
-                      >
-                        Try again
-                      </Text>
-                    </TouchableOpacity>
-
                     <Text
                       style={
-                        styles.locationDivider
+                        styles.locationRetry
                       }
                     >
-                      •
+                      Try again
                     </Text>
-
-                    <Text
-                      style={
-                        styles.locationManual
-                      }
-                    >
-                      Select manually
-                    </Text>
-                  </View>
+                  </TouchableOpacity>
                 </>
               ) : (
                 <>
@@ -736,69 +781,75 @@ export default function HomeScreen({
                   styles.locationArrow
                 }
               >
-                ›
+                ✓
               </Text>
             ) : null}
-          </TouchableOpacity>
+          </View>
 
-          {/* MY BOOKINGS */}
+          {/* ANNOUNCEMENT / OFFER BANNER */}
 
-          <TouchableOpacity
-            style={
-              styles.bookingsCard
-            }
-            onPress={() =>
-              navigation.navigate(
-                'MyBookings'
-              )
-            }
-            activeOpacity={0.88}
+          <View
+            style={styles.offerCard}
           >
             <View
-              style={
-                styles.bookingsIcon
-              }
+              style={styles.offerCopy}
             >
               <Text
                 style={
-                  styles.bookingsIconText
+                  styles.offerEyebrow
                 }
               >
-                ▣
+                {offer.eyebrow}
+              </Text>
+
+              <Text
+                style={
+                  styles.offerTitle
+                }
+              >
+                {offer.title}
+              </Text>
+
+              <Text
+                style={
+                  styles.offerDescription
+                }
+              >
+                {offer.description}
               </Text>
             </View>
 
             <View
-              style={
-                styles.bookingsContent
-              }
+              style={styles.offerMark}
             >
               <Text
                 style={
-                  styles.bookingsTitle
+                  styles.offerMarkText
                 }
               >
-                My Bookings
-              </Text>
-
-              <Text
-                style={
-                  styles.bookingsDescription
-                }
-              >
-                View and manage your
-                bookings.
+                →
               </Text>
             </View>
 
-            <Text
-              style={
-                styles.bookingsArrow
-              }
+            <View
+              style={styles.offerDots}
             >
-              →
-            </Text>
-          </TouchableOpacity>
+              {OFFERS.map(
+                item => (
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.offerDot,
+                      item.id ===
+                        offer.id
+                        ? styles.offerDotActive
+                        : null,
+                    ]}
+                  />
+                )
+              )}
+            </View>
+          </View>
 
           {/* SERVICES */}
 
@@ -826,8 +877,8 @@ export default function HomeScreen({
                     styles.sectionHint
                   }
                 >
-                  Choose a service to
-                  start your booking
+                  Choose a service and
+                  book by the hour.
                 </Text>
               </View>
 
@@ -882,9 +933,7 @@ export default function HomeScreen({
                     styles.stateText
                   }
                 >
-                  {
-                    catalogueError
-                  }
+                  {catalogueError}
                 </Text>
               </View>
             ) : services.length ===
@@ -907,9 +956,9 @@ export default function HomeScreen({
                     styles.stateText
                   }
                 >
-                  There are currently
-                  no active services
-                  to display.
+                  There are currently no
+                  active services to
+                  display.
                 </Text>
               </View>
             ) : locationState.error ? (
@@ -953,27 +1002,6 @@ export default function HomeScreen({
                     Try again
                   </Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={
-                    styles.manualButton
-                  }
-                  onPress={() =>
-                    navigation.navigate(
-                      'ManualLocation'
-                    )
-                  }
-                  activeOpacity={0.85}
-                >
-                  <Text
-                    style={
-                      styles.manualButtonText
-                    }
-                  >
-                    Select location
-                    manually
-                  </Text>
-                </TouchableOpacity>
               </View>
             ) : (
               <View
@@ -995,6 +1023,11 @@ export default function HomeScreen({
                     const available =
                       state?.serviceAreaCovered ===
                       true
+
+                    const hourlyVariant =
+                      hourlyVariantByService[
+                        service.id
+                      ]
 
                     return (
                       <TouchableOpacity
@@ -1114,6 +1147,46 @@ export default function HomeScreen({
                           </Text>
                         ) : null}
 
+                        {/* 1-HOUR PRICE */}
+
+                        <View
+                          style={
+                            styles.priceRow
+                          }
+                        >
+                          <View>
+                            <Text
+                              style={
+                                styles.priceLabel
+                              }
+                            >
+                              1 HOUR
+                            </Text>
+
+                            <Text
+                              style={
+                                styles.priceValue
+                              }
+                            >
+                              {hourlyVariant
+                                ? 'Hourly rate available'
+                                : 'Price unavailable'}
+                            </Text>
+                          </View>
+
+                          {hourlyVariant ? (
+                            <Text
+                              style={
+                                styles.hourlyBadge
+                              }
+                            >
+                              / hour
+                            </Text>
+                          ) : null}
+                        </View>
+
+                        {/* SERVICE FOOTER */}
+
                         <View
                           style={
                             styles.serviceFooter
@@ -1151,7 +1224,8 @@ export default function HomeScreen({
                           )}
 
                           {!loading &&
-                          available ? (
+                          available &&
+                          hourlyVariant ? (
                             <Text
                               style={
                                 styles.serviceArrow
@@ -1168,7 +1242,15 @@ export default function HomeScreen({
               </View>
             )}
           </View>
+
+          {/* BOTTOM SPACING */}
+
+          <View
+            style={styles.bottomSpace}
+          />
         </ScrollView>
+
+        {/* STICKY NAVIGATION */}
 
         <CustomerBottomNav
           navigation={
@@ -1196,7 +1278,11 @@ const styles =
     content: {
       paddingHorizontal: 18,
       paddingTop: 16,
-      paddingBottom: 28,
+      paddingBottom: 20,
+    },
+
+    bottomSpace: {
+      height: 30,
     },
 
     header: {
@@ -1277,7 +1363,7 @@ const styles =
       borderColor:
         COLORS.border,
       padding: 14,
-      marginBottom: 18,
+      marginBottom: 16,
       shadowColor:
         COLORS.shadow,
       shadowOffset: {
@@ -1342,98 +1428,100 @@ const styles =
       lineHeight: 17,
     },
 
-    locationActionRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 5,
-    },
-
     locationRetry: {
       color: COLORS.orange,
       fontSize: 11,
       fontWeight: '900',
-    },
-
-    locationDivider: {
-      color: COLORS.border,
-      fontSize: 11,
-      marginHorizontal: 7,
-    },
-
-    locationManual: {
-      color: COLORS.teal,
-      fontSize: 11,
-      fontWeight: '900',
+      marginTop: 5,
     },
 
     locationArrow: {
-      color: COLORS.navy,
-      fontSize: 27,
-      fontWeight: '400',
-      marginLeft: 8,
-    },
-
-    bookingsCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor:
-        COLORS.white,
-      borderRadius: 21,
-      borderWidth: 1,
-      borderColor:
-        COLORS.border,
-      padding: 15,
-      marginBottom: 26,
-      shadowColor:
-        COLORS.shadow,
-      shadowOffset: {
-        width: 0,
-        height: 7,
-      },
-      shadowOpacity: 0.035,
-      shadowRadius: 12,
-      elevation: 2,
-    },
-
-    bookingsIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
-      backgroundColor:
-        COLORS.tealSoft,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 12,
-    },
-
-    bookingsIconText: {
       color: COLORS.teal,
-      fontSize: 18,
-      fontWeight: '900',
-    },
-
-    bookingsContent: {
-      flex: 1,
-    },
-
-    bookingsTitle: {
-      color: COLORS.navy,
       fontSize: 15,
       fontWeight: '900',
+      marginLeft: 8,
     },
 
-    bookingsDescription: {
-      color: COLORS.gray,
+    offerCard: {
+      position: 'relative',
+      minHeight: 156,
+      borderRadius: 24,
+      backgroundColor:
+        COLORS.navy,
+      padding: 20,
+      marginBottom: 26,
+      overflow: 'hidden',
+    },
+
+    offerCopy: {
+      width: '78%',
+    },
+
+    offerEyebrow: {
+      color: COLORS.orange,
+      fontSize: 9,
+      fontWeight: '900',
+      letterSpacing: 1.4,
+      marginBottom: 6,
+    },
+
+    offerTitle: {
+      color: COLORS.white,
+      fontSize: 20,
+      lineHeight: 25,
+      fontWeight: '900',
+      letterSpacing: -0.4,
+    },
+
+    offerDescription: {
+      color: '#D8E1EA',
       fontSize: 11,
-      lineHeight: 16,
-      marginTop: 2,
+      lineHeight: 17,
+      marginTop: 7,
     },
 
-    bookingsArrow: {
-      color: COLORS.navy,
+    offerMark: {
+      position: 'absolute',
+      right: 18,
+      top: 18,
+      width: 48,
+      height: 48,
+      borderRadius: 17,
+      backgroundColor:
+        COLORS.orange,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    offerMarkText: {
+      color: COLORS.white,
       fontSize: 22,
       fontWeight: '900',
-      marginLeft: 8,
+    },
+
+    offerDots: {
+      position: 'absolute',
+      left: 20,
+      bottom: 17,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+
+    offerDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor:
+        COLORS.gray,
+      opacity: 0.5,
+    },
+
+    offerDotActive: {
+      width: 18,
+      backgroundColor:
+        COLORS.orange,
+      opacity: 1,
     },
 
     servicesSection: {
@@ -1577,6 +1665,38 @@ const styles =
       marginTop: 4,
     },
 
+    priceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent:
+        'space-between',
+      marginTop: 14,
+      padding: 12,
+      borderRadius: 15,
+      backgroundColor:
+        COLORS.light,
+    },
+
+    priceLabel: {
+      color: COLORS.gray,
+      fontSize: 8,
+      fontWeight: '900',
+      letterSpacing: 1,
+    },
+
+    priceValue: {
+      color: COLORS.navy,
+      fontSize: 12,
+      fontWeight: '900',
+      marginTop: 3,
+    },
+
+    hourlyBadge: {
+      color: COLORS.teal,
+      fontSize: 10,
+      fontWeight: '900',
+    },
+
     serviceFooter: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1646,24 +1766,6 @@ const styles =
 
     stateButtonText: {
       color: '#FFFFFF',
-      fontSize: 11,
-      fontWeight: '900',
-    },
-
-    manualButton: {
-      borderRadius: 13,
-      borderWidth: 1,
-      borderColor:
-        COLORS.teal,
-      backgroundColor:
-        COLORS.tealSoft,
-      paddingHorizontal: 14,
-      paddingVertical: 9,
-      marginTop: 9,
-    },
-
-    manualButtonText: {
-      color: COLORS.teal,
       fontSize: 11,
       fontWeight: '900',
     },

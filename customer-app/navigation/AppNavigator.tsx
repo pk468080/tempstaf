@@ -2,50 +2,56 @@ import {
   NavigationContainer,
   useNavigationContainerRef,
 } from '@react-navigation/native'
-import { createNativeStackNavigator } from '@react-navigation/native-stack'
 
-import { RootStackParamList } from '../types'
+import {
+  createNativeStackNavigator,
+} from '@react-navigation/native-stack'
 
-import ManualLocationScreen from '../screens/ManualLocationScreen'
+import {
+  RootStackParamList,
+} from '../types'
+
 import SplashScreen from '../screens/SplashScreen'
 import LoginScreen from '../screens/LoginScreen'
 import VerifyOtpScreen from '../screens/VerifyOtpScreen'
 import CustomerDetailsScreen from '../screens/CustomerDetailsScreen'
 import CustomerLocationScreen from '../screens/CustomerLocationScreen'
 import HomeScreen from '../screens/HomeScreen'
+
 import BookingScreen from '../screens/BookingScreen'
 import SummaryScreen from '../screens/SummaryScreen'
 import PaymentScreen from '../screens/PaymentScreen'
 import BookingConfirmedScreen from '../screens/BookingConfirmedScreen'
 
-import TrackingScreen from '../screens/TrackingScreen'
-import WorkerProfileScreen from '../screens/WorkerProfileScreen'
 import MyBookingsScreen from '../screens/MyBookingsScreen'
-import BookingDetailsScreen from '../screens/BookingDetailsScreen'
 import ProfileScreen from '../screens/ProfileScreen'
-import EditProfileScreen from '../screens/EditProfileScreen'
-import SavedAddressesScreen from '../screens/SavedAddressesScreen'
-import MoneyScreen from '../screens/MoneyScreen'
-import HelpSupportScreen from '../screens/HelpSupportScreen'
-import AboutUsScreen from '../screens/AboutUsScreen'
-import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen'
-import DeleteAccountScreen from '../screens/DeleteAccountScreen'
 
 const Stack =
-  createNativeStackNavigator<RootStackParamList>()
+  createNativeStackNavigator<
+    RootStackParamList
+  >()
 
 export default function AppNavigator() {
   const navigationRef =
-    useNavigationContainerRef<RootStackParamList>()
+    useNavigationContainerRef<
+      RootStackParamList
+    >()
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer
+      ref={navigationRef}
+    >
       <Stack.Navigator
         initialRouteName="Splash"
         screenOptions={{
           headerShown: false,
+          animation: 'fade',
         }}
       >
+        {/* ==========================================
+            AUTHENTICATION FLOW
+           ========================================== */}
+
         <Stack.Screen
           name="Splash"
           component={SplashScreen}
@@ -63,20 +69,31 @@ export default function AppNavigator() {
 
         <Stack.Screen
           name="CustomerDetails"
-          component={CustomerDetailsScreen}
+          component={
+            CustomerDetailsScreen
+          }
         />
 
         <Stack.Screen
           name="CustomerLocation"
-          component={CustomerLocationScreen}
+          component={
+            CustomerLocationScreen
+          }
         />
+
+        {/* ==========================================
+            MAIN CUSTOMER APP
+           ========================================== */}
 
         <Stack.Screen
           name="Home"
           component={HomeScreen}
         />
 
-        {/* Main booking flow */}
+        {/* ==========================================
+            BOOKING FLOW
+           ========================================== */}
+
         <Stack.Screen
           name="Booking"
           component={BookingScreen}
@@ -94,19 +111,14 @@ export default function AppNavigator() {
 
         <Stack.Screen
           name="BookingConfirmed"
-          component={BookingConfirmedScreen}
+          component={
+            BookingConfirmedScreen
+          }
         />
 
-        {/* Post-booking / account screens */}
-        <Stack.Screen
-          name="Tracking"
-          component={TrackingScreen}
-        />
-
-        <Stack.Screen
-          name="WorkerProfile"
-          component={WorkerProfileScreen}
-        />
+        {/* ==========================================
+            CUSTOMER ACCOUNT
+           ========================================== */}
 
         <Stack.Screen
           name="MyBookings"
@@ -114,54 +126,8 @@ export default function AppNavigator() {
         />
 
         <Stack.Screen
-          name="BookingDetails"
-          component={BookingDetailsScreen}
-        />
-
-        <Stack.Screen
           name="Profile"
           component={ProfileScreen}
-        />
-
-        <Stack.Screen
-          name="EditProfile"
-          component={EditProfileScreen}
-        />
-
-        <Stack.Screen
-          name="SavedAddresses"
-          component={SavedAddressesScreen}
-        />
-
-        <Stack.Screen
-          name="Money"
-          component={MoneyScreen}
-        />
-
-        <Stack.Screen
-          name="HelpSupport"
-          component={HelpSupportScreen}
-        />
-
-        <Stack.Screen
-          name="AboutUs"
-          component={AboutUsScreen}
-        />
-
-        <Stack.Screen
-          name="PrivacyPolicy"
-          component={PrivacyPolicyScreen}
-        />
-
-        <Stack.Screen
-          name="DeleteAccount"
-          component={DeleteAccountScreen}
-        />
-
-        {/* Location utility */}
-        <Stack.Screen
-          name="ManualLocation"
-          component={ManualLocationScreen}
         />
       </Stack.Navigator>
     </NavigationContainer>
