@@ -26,7 +26,7 @@ type CatalogPackage = {
   service_id: string
   name: string
   description: string | null
-  billing_type: string
+  billing_type: 'hourly' | 'fixed' | string
   duration_value: number | null
   duration_unit: string | null
   min_quantity: number
@@ -41,7 +41,7 @@ type HourlyServiceVariant = {
   service_id: string
   name: string
   description: string | null
-  billing_type: string
+  billing_type: 'hourly' | 'fixed' | string
   duration_value: number | null
   duration_unit: string | null
   min_quantity: number
@@ -517,7 +517,7 @@ export function BookingProvider({
             sort_order
           `)
           .eq('is_active', true)
-          .eq('billing_type', 'Hourly')
+          .eq('billing_type', 'hourly')
           .order('sort_order')
 
         if (variantError) {

@@ -143,6 +143,25 @@ export default function WorkerRegistrationScreen({
        * - worker_profiles
        * - worker_applications
        */
+      const { data: accountCheck, error: accountCheckError } =
+  await supabase.rpc('check_account_phone', {
+    p_phone: cleanMobile,
+  })
+
+if (accountCheckError) {
+  throw accountCheckError
+}
+
+if (
+  accountCheck?.exists &&
+  accountCheck?.account_type === 'customer'
+) {
+  Alert.alert(
+    'Customer account already exists',
+    'This phone number is already registered as a customer account. Delete your customer account or use a different number.'
+  )
+  return
+}
 
       const {
         data: authData,
