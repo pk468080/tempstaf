@@ -441,7 +441,7 @@ export default function HomeScreen({
 
   setSelectedService(serviceName)
 
-  navigation.navigate('Services')
+  navigation.navigate('Booking')
 }
 
   /*

@@ -19,57 +19,21 @@ type Props = NativeStackScreenProps<
   'Summary'
 >
 
-const iconForService = (service: string) => {
-  const name = service.toLowerCase()
-
-  if (
-    name.includes('clean') ||
-    name.includes('housekeeping')
-  ) {
-    return '🧹'
-  }
-
-  if (
-    name.includes('pantry') ||
-    name.includes('kitchen')
-  ) {
-    return '🍽️'
-  }
-
-  if (
-    name.includes('security') ||
-    name.includes('guard')
-  ) {
-    return '🛡️'
-  }
-
-  if (
-    name.includes('driver') ||
-    name.includes('delivery')
-  ) {
-    return '🚗'
-  }
-
-  if (
-    name.includes('office') ||
-    name.includes('admin')
-  ) {
-    return '💼'
-  }
-
-  return '👷'
+function formatAmount(
+  amount: number,
+  currency: string
+) {
+  return `${currency === 'INR' ? '₹' : currency + ' '}${amount.toFixed(2)}`
 }
 
-const formatHours = (hours: number) => {
-  if (!Number.isFinite(hours) || hours <= 0) {
-    return 'Not selected'
+function formatHours(hours: number) {
+  if (!hours) {
+    return '—'
   }
 
-  if (Number.isInteger(hours)) {
-    return `${hours} ${hours === 1 ? 'hour' : 'hours'}`
-  }
-
-  return `${hours.toFixed(2)} hours`
+  return `${hours} ${
+    hours === 1 ? 'hour' : 'hours'
+  }`
 }
 
 export default function SummaryScreen({
@@ -78,32 +42,41 @@ export default function SummaryScreen({
   const {
     selectedService,
     selectedVariant,
+    bookingMode,
+
+    scheduledDate,
+
+    scheduleStartDate,
+    scheduleEndDate,
+    scheduleDailyStartTime,
+    scheduleDailyEndTime,
+    scheduleSelectedWeekdays,
+
     hourlyStartTime,
     hourlyEndTime,
     hourlyTotalHours,
+
+    address,
+    bookingPricing,
   } = useBooking()
 
-  const serviceName =
-    selectedService || 'Staff service'
+  const duration =
+    bookingMode === 'Recurring'
+      ? scheduleDailyStartTime &&
+        scheduleDailyEndTime
+        ? 0
+        : 0
+      : hourlyTotalHours
 
-  const variantName =
-    selectedVariant?.name || 'Hourly staffing'
+  const scheduleText =
+    bookingMode === 'Recurring'
+      ? `${scheduleDailyStartTime} – ${scheduleDailyEndTime}`
+      : bookingMode === 'Scheduled'
+        ? `${scheduledDate || scheduleStartDate} · ${scheduleDailyStartTime} – ${scheduleDailyEndTime}`
+        : `${hourlyStartTime || 'Now'} – ${hourlyEndTime || '—'}`
 
-  const hasHourlySchedule =
-    Boolean(hourlyStartTime && hourlyEndTime) &&
-    Number.isFinite(hourlyTotalHours) &&
-    hourlyTotalHours > 0
-
-  const continueToAddress = () => {
-    if (!selectedVariant) {
-      return
-    }
-
-    navigation.navigate('Location')
-  }
-
-  const editSelection = () => {
-    navigation.goBack()
+  const continueToPayment = () => {
+    navigation.navigate('Payment')
   }
 
   return (
@@ -113,65 +86,47 @@ export default function SummaryScreen({
         showsVerticalScrollIndicator={false}
       >
         <Header
-          onBack={() => navigation.goBack()}
+          onBack={() =>
+            navigation.goBack()
+          }
         />
 
-        {/* Progress */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressTrack}>
-            <View style={styles.progressFill} />
-          </View>
+        <Text style={styles.step}>
+          STEP 3 OF 5 · REVIEW
+        </Text>
 
-          <Text style={styles.progressText}>
-            STEP 2 OF 4 · REVIEW
-          </Text>
-        </View>
+        <Text style={styles.title}>
+          Review your booking
+        </Text>
 
-        {/* Heading */}
-        <View style={styles.heading}>
-          <Text style={styles.title}>
-            Review your service
-          </Text>
+        <Text style={styles.subtitle}>
+          Check the details before continuing to
+          secure payment.
+        </Text>
 
-          <Text style={styles.subtitle}>
-            Confirm the service you want before adding
-            the location where staff will be required.
-          </Text>
-        </View>
-
-        {/* Main service card */}
-        <View style={styles.bookingCard}>
-          <View style={styles.bookingHeader}>
-            <View style={styles.serviceIcon}>
-              <Text style={styles.serviceEmoji}>
-                {iconForService(serviceName)}
-              </Text>
-            </View>
-
-            <View style={styles.serviceContent}>
-              <Text style={styles.smallLabel}>
-                STAFF SERVICE
+        <View style={styles.card}>
+          <View style={styles.headerRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>
+                SERVICE
               </Text>
 
-              <Text
-                style={styles.serviceName}
-                numberOfLines={2}
-              >
-                {serviceName}
+              <Text style={styles.service}>
+                {selectedService ||
+                  'Staff service'}
               </Text>
 
-              <Text
-                style={styles.variantName}
-                numberOfLines={2}
-              >
-                {variantName}
+              <Text style={styles.variant}>
+                {selectedVariant?.name ||
+                  'Hourly staffing'}
               </Text>
             </View>
 
             <TouchableOpacity
-              style={styles.editButton}
-              onPress={editSelection}
-              activeOpacity={0.8}
+              style={styles.edit}
+              onPress={() =>
+                navigation.goBack()
+              }
             >
               <Text style={styles.editText}>
                 Edit
@@ -181,191 +136,132 @@ export default function SummaryScreen({
 
           <View style={styles.divider} />
 
-          <View style={styles.detailGrid}>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>
-                Service type
-              </Text>
-
-              <Text
-                style={styles.detailValue}
-                numberOfLines={2}
-              >
-                Hourly
-              </Text>
-            </View>
-
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>
-                Duration
-              </Text>
-
-              <Text style={styles.detailValue}>
-                {hasHourlySchedule
-                  ? formatHours(hourlyTotalHours)
-                  : 'To be selected'}
-              </Text>
-            </View>
-          </View>
-
-          {hasHourlySchedule ? (
-            <>
-              <View style={styles.divider} />
-
-              <View style={styles.scheduleRow}>
-                <View style={styles.scheduleItem}>
-                  <Text style={styles.detailLabel}>
-                    Start
-                  </Text>
-
-                  <Text style={styles.detailValue}>
-                    {hourlyStartTime}
-                  </Text>
-                </View>
-
-                <View style={styles.scheduleItem}>
-                  <Text style={styles.detailLabel}>
-                    End
-                  </Text>
-
-                  <Text style={styles.detailValue}>
-                    {hourlyEndTime}
-                  </Text>
-                </View>
-              </View>
-            </>
-          ) : null}
-        </View>
-
-        {/* Pricing state */}
-        <View style={styles.priceCard}>
-          <Text style={styles.priceHeading}>
-            BOOKING PRICE
-          </Text>
-
-          <Text style={styles.priceTitle}>
-            Calculated from your selected hours
-          </Text>
-
-          <Text style={styles.priceText}>
-            TempStaff uses the configured hourly rate
-            and applicable admin-controlled discounts.
-            The final booking amount is calculated by
-            the backend.
-          </Text>
-
-          <View style={styles.priceNotice}>
-            <View style={styles.noticeDot} />
-
-            <Text style={styles.priceNoticeText}>
-              No fixed package price is used.
-            </Text>
-          </View>
-        </View>
-
-        {/* Booking process */}
-        <View style={styles.processCard}>
-          <Text style={styles.processTitle}>
-            What happens next?
-          </Text>
-
-          <View style={styles.processStep}>
-            <View style={styles.stepCircle}>
-              <Text style={styles.stepNumber}>
-                1
-              </Text>
-            </View>
-
-            <View style={styles.processContent}>
-              <Text style={styles.processStepTitle}>
-                Add service location
-              </Text>
-
-              <Text style={styles.processText}>
-                Tell us where the staff is needed.
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.processLine} />
-
-          <View style={styles.processStep}>
-            <View style={styles.stepCircle}>
-              <Text style={styles.stepNumber}>
-                2
-              </Text>
-            </View>
-
-            <View style={styles.processContent}>
-              <Text style={styles.processStepTitle}>
-                Choose your booking schedule
-              </Text>
-
-              <Text style={styles.processText}>
-                Select Instant, Scheduled, or Recurring
-                based on the available booking flow.
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.processLine} />
-
-          <View style={styles.processStep}>
-            <View style={styles.stepCircle}>
-              <Text style={styles.stepNumber}>
-                3
-              </Text>
-            </View>
-
-            <View style={styles.processContent}>
-              <Text style={styles.processStepTitle}>
-                TempStaff handles worker assignment
-              </Text>
-
-              <Text style={styles.processText}>
-                Worker selection and availability are
-                handled by the platform.
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Important information */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoIcon}>
-            <Text style={styles.infoIconText}>
-              ✓
-            </Text>
-          </View>
-
-          <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>
-              You don't need to choose a worker
-            </Text>
-
-            <Text style={styles.infoText}>
-              TempStaff determines worker availability,
-              service-area coverage, and assignment on
-              the backend.
-            </Text>
-          </View>
-        </View>
-
-        {/* Continue */}
-        <View style={styles.bottom}>
-          <PrimaryButton
-            title="Continue to Address"
-            disabled={!selectedVariant}
-            onPress={continueToAddress}
+          <Row
+            label="Booking type"
+            value={bookingMode}
           />
 
-          <Text style={styles.bottomText}>
-            Next, you'll add the location where the
-            staff is required.
+          <Row
+            label="Schedule"
+            value={scheduleText}
+          />
+
+          {bookingMode ===
+          'Recurring' ? (
+            <>
+              <Row
+                label="Date range"
+                value={`${scheduleStartDate} – ${scheduleEndDate}`}
+              />
+
+              <Row
+                label="Working days"
+                value={scheduleSelectedWeekdays
+                  .slice()
+                  .sort(
+                    (a, b) => a - b
+                  )
+                  .map(day =>
+                    [
+                      'Sun',
+                      'Mon',
+                      'Tue',
+                      'Wed',
+                      'Thu',
+                      'Fri',
+                      'Sat',
+                    ][day]
+                  )
+                  .join(', ')}
+              />
+            </>
+          ) : (
+            <Row
+              label="Duration"
+              value={formatHours(duration)}
+            />
+          )}
+
+          <Row
+            label="Location"
+            value={
+              address ||
+              'Service address'
+            }
+          />
+        </View>
+
+        <View style={styles.priceCard}>
+          <Text style={styles.priceLabel}>
+            TOTAL PAYABLE
+          </Text>
+
+          <Text style={styles.price}>
+            {bookingPricing
+              ? formatAmount(
+                  bookingPricing.finalAmount,
+                  bookingPricing.currency
+                )
+              : '—'}
+          </Text>
+
+          {bookingPricing &&
+          bookingPricing.discountAmount >
+            0 ? (
+            <Text style={styles.discount}>
+              Discount applied: -
+              {formatAmount(
+                bookingPricing.discountAmount,
+                bookingPricing.currency
+              )}
+            </Text>
+          ) : null}
+
+          <Text style={styles.priceNote}>
+            Final pricing is calculated using the
+            backend pricing configuration.
           </Text>
         </View>
+
+        <View style={styles.info}>
+          <Text style={styles.infoTitle}>
+            Worker assignment
+          </Text>
+
+          <Text style={styles.infoText}>
+            You do not need to select a worker.
+            TempStaff handles worker assignment and
+            availability.
+          </Text>
+        </View>
+
+        <PrimaryButton
+          title="Continue to payment"
+          disabled={!bookingPricing}
+          onPress={continueToPayment}
+        />
       </ScrollView>
     </SafeAreaView>
+  )
+}
+
+function Row({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.rowLabel}>
+        {label}
+      </Text>
+
+      <Text style={styles.rowValue}>
+        {value || '—'}
+      </Text>
+    </View>
   )
 }
 
@@ -376,119 +272,72 @@ const styles = StyleSheet.create({
   },
 
   page: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
+    padding: 20,
     paddingBottom: 45,
   },
 
-  progressContainer: {
-    marginTop: 5,
-    marginBottom: 21,
-  },
-
-  progressTrack: {
-    height: 4,
-    width: '100%',
-    backgroundColor: '#DDE3E9',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-
-  progressFill: {
-    width: '50%',
-    height: '100%',
-    backgroundColor: COLORS.teal,
-    borderRadius: 3,
-  },
-
-  progressText: {
-    color: COLORS.gray,
+  step: {
+    color: COLORS.teal,
     fontSize: 9,
-    lineHeight: 14,
-    fontWeight: '800',
-    letterSpacing: 0.7,
-    marginTop: 7,
-  },
-
-  heading: {
-    marginBottom: 21,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    marginTop: 4,
   },
 
   title: {
     color: COLORS.navy,
-    fontSize: 29,
-    lineHeight: 35,
-    fontWeight: '800',
+    fontSize: 28,
+    fontWeight: '900',
+    marginTop: 5,
   },
 
   subtitle: {
     color: COLORS.gray,
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 7,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 5,
+    marginBottom: 18,
   },
 
-  bookingCard: {
+  card: {
     backgroundColor: COLORS.white,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 20,
     padding: 17,
   },
 
-  bookingHeader: {
+  headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
 
-  serviceIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 17,
-    backgroundColor: '#FFF1DD',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-
-  serviceEmoji: {
-    fontSize: 29,
-  },
-
-  serviceContent: {
-    flex: 1,
-    paddingRight: 6,
-  },
-
-  smallLabel: {
+  label: {
     color: COLORS.gray,
     fontSize: 8,
-    lineHeight: 13,
     fontWeight: '900',
-    letterSpacing: 0.8,
+    letterSpacing: 0.7,
   },
 
-  serviceName: {
+  service: {
     color: COLORS.navy,
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 19,
     fontWeight: '900',
-    marginTop: 2,
+    marginTop: 4,
   },
 
-  variantName: {
+  variant: {
     color: COLORS.teal,
     fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '700',
+    fontWeight: '800',
     marginTop: 3,
   },
 
-  editButton: {
-    paddingHorizontal: 10,
+  edit: {
+    backgroundColor: COLORS.tealSoft,
+    paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: 15,
-    backgroundColor: '#E8F6F6',
+    borderRadius: 12,
   },
 
   editText: {
@@ -503,206 +352,79 @@ const styles = StyleSheet.create({
     marginVertical: 15,
   },
 
-  detailGrid: {
+  row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 15,
+    marginBottom: 13,
   },
 
-  detailItem: {
-    width: '48%',
-  },
-
-  detailLabel: {
+  rowLabel: {
+    flex: 1,
     color: COLORS.gray,
-    fontSize: 10,
-    lineHeight: 15,
+    fontSize: 12,
   },
 
-  detailValue: {
+  rowValue: {
+    flex: 1.5,
     color: COLORS.navy,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
     fontWeight: '800',
-    marginTop: 3,
-  },
-
-  scheduleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-
-  scheduleItem: {
-    width: '48%',
+    textAlign: 'right',
   },
 
   priceCard: {
     backgroundColor: COLORS.navy,
     borderRadius: 20,
-    padding: 18,
+    padding: 19,
     marginTop: 14,
   },
 
-  priceHeading: {
-    color: '#D8E4EF',
-    fontSize: 10,
-    lineHeight: 15,
-    fontWeight: '800',
+  priceLabel: {
+    color: '#CBD5E1',
+    fontSize: 9,
+    fontWeight: '900',
     letterSpacing: 0.8,
-    marginBottom: 10,
   },
 
-  priceTitle: {
+  price: {
     color: COLORS.white,
-    fontSize: 16,
-    lineHeight: 21,
-    fontWeight: '800',
+    fontSize: 29,
+    fontWeight: '900',
+    marginTop: 5,
   },
 
-  priceText: {
-    color: '#D8E4EF',
+  discount: {
+    color: '#86EFAC',
     fontSize: 11,
-    lineHeight: 17,
-    marginTop: 7,
+    fontWeight: '800',
+    marginTop: 4,
   },
 
-  priceNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 14,
-  },
-
-  noticeDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: COLORS.orange,
-    marginRight: 7,
-  },
-
-  priceNoticeText: {
-    color: COLORS.orange,
+  priceNote: {
+    color: '#CBD5E1',
     fontSize: 10,
-    lineHeight: 15,
-    fontWeight: '800',
-  },
-
-  processCard: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 20,
-    padding: 17,
-    marginTop: 14,
-  },
-
-  processTitle: {
-    color: COLORS.navy,
-    fontSize: 16,
-    lineHeight: 21,
-    fontWeight: '800',
-    marginBottom: 16,
-  },
-
-  processStep: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  stepCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#E8F6F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 11,
-  },
-
-  stepNumber: {
-    color: COLORS.teal,
-    fontSize: 12,
-    fontWeight: '900',
-  },
-
-  processContent: {
-    flex: 1,
-  },
-
-  processStepTitle: {
-    color: COLORS.navy,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '800',
-  },
-
-  processText: {
-    color: COLORS.gray,
-    fontSize: 10.5,
     lineHeight: 16,
-    marginTop: 2,
+    marginTop: 10,
   },
 
-  processLine: {
-    width: 1,
-    height: 17,
-    backgroundColor: '#DCE3E8',
-    marginLeft: 14.5,
-    marginVertical: 3,
-  },
-
-  infoCard: {
-    backgroundColor: '#E8F6F6',
+  info: {
+    backgroundColor: COLORS.tealSoft,
     borderRadius: 17,
-    padding: 14,
-    marginTop: 14,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-
-  infoIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: COLORS.teal,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-
-  infoIconText: {
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-
-  infoContent: {
-    flex: 1,
+    padding: 15,
+    marginVertical: 14,
   },
 
   infoTitle: {
     color: COLORS.navy,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '900',
   },
 
   infoText: {
     color: COLORS.gray,
-    fontSize: 10.5,
-    lineHeight: 16,
-    marginTop: 3,
-  },
-
-  bottom: {
-    marginTop: 20,
-  },
-
-  bottomText: {
-    color: COLORS.gray,
-    fontSize: 10.5,
-    lineHeight: 16,
-    textAlign: 'center',
-    marginTop: 10,
-    paddingHorizontal: 15,
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 4,
   },
 })

@@ -13,13 +13,10 @@ import VerifyOtpScreen from '../screens/VerifyOtpScreen'
 import CustomerDetailsScreen from '../screens/CustomerDetailsScreen'
 import CustomerLocationScreen from '../screens/CustomerLocationScreen'
 import HomeScreen from '../screens/HomeScreen'
-import ServicesScreen from '../screens/ServicesScreen'
-import LocationScreen from '../screens/LocationScreen'
-import WorkersScreen from '../screens/WorkersScreen'
+
 import SummaryScreen from '../screens/SummaryScreen'
 import PaymentScreen from '../screens/PaymentScreen'
-import ScheduleScreen from '../screens/ScheduleScreen'
-import CheckoutScreen from '../screens/CheckoutScreen'
+
 import BookingConfirmedScreen from '../screens/BookingConfirmedScreen'
 import TrackingScreen from '../screens/TrackingScreen'
 import WorkerProfileScreen from '../screens/WorkerProfileScreen'
@@ -78,20 +75,8 @@ export default function AppNavigator() {
           component={HomeScreen}
         />
 
-        <Stack.Screen
-          name="Services"
-          component={ServicesScreen}
-        />
-
-        <Stack.Screen
-          name="Location"
-          component={LocationScreen}
-        />
-
-        <Stack.Screen
-          name="Workers"
-          component={WorkersScreen}
-        />
+      
+    
 
         <Stack.Screen
           name="WorkerProfile"
@@ -107,16 +92,7 @@ export default function AppNavigator() {
           name="Payment"
           component={PaymentScreen}
         />
-
-        <Stack.Screen
-          name="Schedule"
-          component={ScheduleScreen}
-        />
-
-        <Stack.Screen
-          name="Checkout"
-          component={CheckoutScreen}
-        />
+ 
 
         <Stack.Screen
           name="BookingConfirmed"

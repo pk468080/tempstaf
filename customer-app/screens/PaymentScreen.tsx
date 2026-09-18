@@ -1,51 +1,39 @@
 import {
+  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native'
-
+import { useState } from 'react'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
+import RazorpayCheckout from 'react-native-razorpay'
 
 import { COLORS } from '../constants/theme'
 import { RootStackParamList } from '../types'
 import { useBooking } from '../context/BookingContext'
+import {
+  createHourlyBooking,
+  createRecurringBooking,
+} from '../services/booking'
+import {
+  createRazorpayOrder,
+  verifyRazorpayPayment,
+} from '../services/payment'
 import Header from '../components/Header'
+import PrimaryButton from '../components/PrimaryButton'
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
   'Payment'
 >
 
-function getVariantName(
-  value: unknown
-): string {
-  if (
-    typeof value === 'string'
-  ) {
-    return value
-  }
-
-  if (
-    value &&
-    typeof value === 'object' &&
-    'name' in value
-  ) {
-    const name =
-      (value as {
-        name?: unknown
-      }).name
-
-    if (
-      typeof name === 'string'
-    ) {
-      return name
-    }
-  }
-
-  return 'Hourly service'
+function combineDateAndTime(
+  date: string,
+  time: string
+) {
+  return `${date}T${time}:00`
 }
 
 export default function PaymentScreen({
@@ -53,53 +41,256 @@ export default function PaymentScreen({
 }: Props) {
   const {
     selectedService,
-    selectedVariant,
-    address,
-    setBookingMode,
+    selectedVariantId,
+    bookingMode,
+
+    scheduledDate,
+
+    scheduleStartDate,
+    scheduleEndDate,
+    scheduleDailyStartTime,
+    scheduleDailyEndTime,
+    scheduleSelectedWeekdays,
+    scheduleOffDates,
+
+    hourlyStartTime,
+    hourlyEndTime,
+
+    addressId,
+
+    bookingPricing,
+
+    setBookingId,
+    setPaymentDone,
   } = useBooking()
 
-  /*
-   * ---------------------------------------------------------------------------
-   * All three booking methods now use the same scheduling flow.
-   *
-   * PaymentScreen is only the booking-method selection step.
-   * It does NOT create a booking and does NOT open Razorpay.
-   *
-   * The actual booking/payment boundary is CheckoutScreen.
-   * ---------------------------------------------------------------------------
-   */
+  const [paying, setPaying] =
+    useState(false)
 
-  const chooseInstant = () => {
-    setBookingMode('Instant')
-    navigation.navigate('Schedule')
+  const [error, setError] =
+    useState('')
+
+  const createBooking = async () => {
+    if (
+      !selectedVariantId ||
+      !addressId
+    ) {
+      throw new Error(
+        'Booking information is incomplete.'
+      )
+    }
+
+    if (
+      bookingMode === 'Instant'
+    ) {
+      return createHourlyBooking({
+        serviceVariantId:
+          selectedVariantId,
+        addressId,
+        bookingType: 'instant',
+        scheduledStart:
+          hourlyStartTime,
+        scheduledEnd:
+          hourlyEndTime,
+      })
+    }
+
+    if (
+      bookingMode === 'Scheduled'
+    ) {
+      return createHourlyBooking({
+        serviceVariantId:
+          selectedVariantId,
+        addressId,
+        bookingType: 'scheduled',
+        scheduledStart:
+          combineDateAndTime(
+            scheduledDate ||
+              scheduleStartDate,
+            scheduleDailyStartTime
+          ),
+        scheduledEnd:
+          combineDateAndTime(
+            scheduledDate ||
+              scheduleStartDate,
+            scheduleDailyEndTime
+          ),
+      })
+    }
+
+    return createRecurringBooking({
+      serviceVariantId:
+        selectedVariantId,
+
+      addressId,
+
+      scheduleStartDate,
+      scheduleEndDate,
+
+      dailyStartTime:
+        scheduleDailyStartTime,
+
+      dailyEndTime:
+        scheduleDailyEndTime,
+
+      selectedWeekdays:
+        scheduleSelectedWeekdays,
+
+      offDates:
+        scheduleOffDates,
+    })
   }
 
-  const chooseScheduled = () => {
-    setBookingMode('Scheduled')
-    navigation.navigate('Schedule')
-  }
+  const payNow = async () => {
+    if (paying) {
+      return
+    }
 
-  const chooseRecurring = () => {
-    setBookingMode('Recurring')
-    navigation.navigate('Schedule')
-  }
+    try {
+      setPaying(true)
+      setError('')
 
-  const variantName =
-    getVariantName(
-      selectedVariant
-    )
+      const booking =
+        await createBooking()
+
+      /*
+       * Instant booking may legitimately fail because
+       * no worker is currently available.
+       */
+      if (
+        bookingMode === 'Instant' &&
+        booking.instantAvailable === false &&
+        booking.fallbackToScheduled
+      ) {
+        Alert.alert(
+          'No worker available now',
+          booking.message ||
+            'No worker is currently available. Please choose a scheduled time.',
+          [
+            {
+              text: 'Back to booking',
+              onPress: () =>
+                navigation.goBack(),
+            },
+          ]
+        )
+
+        return
+      }
+
+      if (
+        booking.success === false &&
+        !booking.id
+      ) {
+        throw new Error(
+          booking.message ||
+            'The booking could not be created.'
+        )
+      }
+
+      const currentBookingId =
+        booking.id ||
+        booking.bookingId
+
+      if (!currentBookingId) {
+        throw new Error(
+          'The server did not return a booking ID.'
+        )
+      }
+
+      setBookingId(
+        currentBookingId
+      )
+
+      const order =
+        await createRazorpayOrder(
+          currentBookingId
+        )
+
+      const payment =
+        await RazorpayCheckout.open({
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency,
+          name: 'TempStaff',
+          description:
+            `${selectedService || 'Staff service'} booking`,
+          order_id: order.orderId,
+
+          prefill: {
+            name: '',
+            email: '',
+            contact: '',
+          },
+
+          theme: {
+            color: COLORS.orange,
+          },
+        })
+
+      const verification =
+        await verifyRazorpayPayment(
+          currentBookingId,
+
+          String(
+            payment.razorpay_order_id ||
+              order.orderId
+          ),
+
+          String(
+            payment.razorpay_payment_id ||
+              ''
+          ),
+
+          String(
+            payment.razorpay_signature ||
+              ''
+          )
+        )
+
+      if (!verification?.success) {
+        throw new Error(
+          verification?.error ||
+            'Payment verification failed.'
+        )
+      }
+
+      setPaymentDone(true)
+
+      navigation.navigate(
+        'BookingConfirmed'
+      )
+    } catch (err: any) {
+      const message =
+        String(
+          err?.description ||
+            err?.message ||
+            'Payment could not be completed.'
+        )
+
+      const cancelled =
+        message
+          .toLowerCase()
+          .includes('cancel')
+
+      if (!cancelled) {
+        setError(message)
+
+        Alert.alert(
+          'Payment not completed',
+          message
+        )
+      }
+    } finally {
+      setPaying(false)
+    }
+  }
 
   return (
-    <SafeAreaView
-      style={styles.container}
-    >
+    <SafeAreaView style={styles.container}>
       <ScrollView
-        contentContainerStyle={
-          styles.page
-        }
-        showsVerticalScrollIndicator={
-          false
-        }
+        contentContainerStyle={styles.page}
+        showsVerticalScrollIndicator={false}
       >
         <Header
           onBack={() =>
@@ -107,702 +298,179 @@ export default function PaymentScreen({
           }
         />
 
-        {/* Progress */}
+        <Text style={styles.step}>
+          STEP 4 OF 5 · PAYMENT
+        </Text>
 
-        <View
-          style={
-            styles.progressContainer
-          }
-        >
-          <View
-            style={
-              styles.progressTrack
-            }
-          >
-            <View
-              style={
-                styles.progressFill
-              }
-            />
-          </View>
+        <Text style={styles.title}>
+          Secure payment
+        </Text>
 
-          <Text
-            style={
-              styles.progressText
-            }
-          >
-            STEP 4 OF 4 · BOOKING TIME
+        <Text style={styles.subtitle}>
+          Your booking is created and payment is
+          verified securely through Razorpay.
+        </Text>
+
+        <View style={styles.amountCard}>
+          <Text style={styles.amountLabel}>
+            AMOUNT TO PAY
+          </Text>
+
+          <Text style={styles.amount}>
+            {bookingPricing
+              ? `₹${bookingPricing.finalAmount.toFixed(2)}`
+              : '—'}
+          </Text>
+
+          <Text style={styles.amountNote}>
+            The payable amount comes from the
+            server-side booking price.
           </Text>
         </View>
 
-        {/* Heading */}
-
-        <View
-          style={styles.heading}
-        >
-          <Text
-            style={styles.title}
-          >
-            When do you need the staff?
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            Secure payment
           </Text>
 
-          <Text
-            style={styles.subtitle}
-          >
-            Choose how you want to schedule your
-            staffing service. TempStaff handles worker
-            availability and assignment.
+          <Text style={styles.cardText}>
+            TempStaff never trusts the mobile app to
+            mark a booking as paid. Razorpay payment is
+            verified by the TempStaff backend before the
+            confirmation screen is shown.
           </Text>
         </View>
 
-        {/* Booking summary */}
+        {error ? (
+          <View style={styles.error}>
+            <Text style={styles.errorTitle}>
+              Payment issue
+            </Text>
 
-        <View
-          style={
-            styles.summaryCard
-          }
-        >
-          <Text
-            style={
-              styles.summaryLabel
-            }
-          >
-            YOUR BOOKING
-          </Text>
-
-          <Text
-            style={
-              styles.summaryService
-            }
-          >
-            {selectedService ||
-              'Staff service'}
-          </Text>
-
-          <Text
-            style={
-              styles.summaryVariant
-            }
-          >
-            {variantName}
-          </Text>
-
-          <View
-            style={
-              styles.summaryDivider
-            }
-          />
-
-          <Text
-            style={
-              styles.addressLabel
-            }
-          >
-            SERVICE LOCATION
-          </Text>
-
-          <Text
-            style={styles.address}
-            numberOfLines={3}
-          >
-            {address ||
-              'Service address'}
-          </Text>
-        </View>
-
-        {/* Booking options */}
-
-        <View
-          style={
-            styles.optionHeader
-          }
-        >
-          <Text
-            style={
-              styles.optionSectionTitle
-            }
-          >
-            Booking options
-          </Text>
-        </View>
-
-        {/* Instant */}
-
-        <TouchableOpacity
-          style={
-            styles.optionCard
-          }
-          onPress={
-            chooseInstant
-          }
-          activeOpacity={0.88}
-        >
-          <View
-            style={
-              styles.optionIcon
-            }
-          >
-            <Text
-              style={
-                styles.optionEmoji
-              }
-            >
-              ⚡
+            <Text style={styles.errorText}>
+              {error}
             </Text>
           </View>
+        ) : null}
 
-          <View
-            style={
-              styles.optionContent
-            }
-          >
-            <View
-              style={
-                styles.optionTitleRow
-              }
-            >
-              <Text
-                style={
-                  styles.optionTitle
-                }
-              >
-                Instant
-              </Text>
-
-              <View
-                style={
-                  styles.availableBadge
-                }
-              >
-                <Text
-                  style={
-                    styles.availableText
-                  }
-                >
-                  AVAILABLE
-                </Text>
-              </View>
-            </View>
-
-            <Text
-              style={
-                styles.optionDescription
-              }
-            >
-              Request staff for a time starting today.
-              TempStaff checks nearby live worker
-              availability when you submit the booking.
-            </Text>
-
-            <Text
-              style={
-                styles.optionAction
-              }
-            >
-              Choose time →
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Scheduled */}
-
-        <TouchableOpacity
-          style={
-            styles.optionCard
+        <PrimaryButton
+          title={
+            paying
+              ? 'Processing...'
+              : 'Pay securely'
           }
-          onPress={
-            chooseScheduled
+          disabled={
+            paying ||
+            !bookingPricing
           }
-          activeOpacity={0.88}
-        >
-          <View
-            style={
-              styles.optionIcon
-            }
-          >
-            <Text
-              style={
-                styles.optionEmoji
-              }
-            >
-              📅
-            </Text>
-          </View>
-
-          <View
-            style={
-              styles.optionContent
-            }
-          >
-            <View
-              style={
-                styles.optionTitleRow
-              }
-            >
-              <Text
-                style={
-                  styles.optionTitle
-                }
-              >
-                Scheduled
-              </Text>
-
-              <View
-                style={
-                  styles.availableBadge
-                }
-              >
-                <Text
-                  style={
-                    styles.availableText
-                  }
-                >
-                  AVAILABLE
-                </Text>
-              </View>
-            </View>
-
-            <Text
-              style={
-                styles.optionDescription
-              }
-            >
-              Choose a future date and time. For near-term
-              dates, available worker schedule slots can
-              be used.
-            </Text>
-
-            <Text
-              style={
-                styles.optionAction
-              }
-            >
-              Choose date & time →
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Recurring */}
-
-        <TouchableOpacity
-          style={
-            styles.optionCard
-          }
-          onPress={
-            chooseRecurring
-          }
-          activeOpacity={0.88}
-        >
-          <View
-            style={
-              styles.optionIcon
-            }
-          >
-            <Text
-              style={
-                styles.optionEmoji
-              }
-            >
-              🔁
-            </Text>
-          </View>
-
-          <View
-            style={
-              styles.optionContent
-            }
-          >
-            <View
-              style={
-                styles.optionTitleRow
-              }
-            >
-              <Text
-                style={
-                  styles.optionTitle
-                }
-              >
-                Recurring
-              </Text>
-
-              <View
-                style={
-                  styles.availableBadge
-                }
-              >
-                <Text
-                  style={
-                    styles.availableText
-                  }
-                >
-                  AVAILABLE
-                </Text>
-              </View>
-            </View>
-
-            <Text
-              style={
-                styles.optionDescription
-              }
-            >
-              Choose one or more weekdays, a date range,
-              and exclusions for individual dates.
-            </Text>
-
-            <Text
-              style={
-                styles.optionAction
-              }
-            >
-              Set recurring schedule →
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Assignment explanation */}
-
-        <View
-          style={
-            styles.infoCard
-          }
-        >
-          <View
-            style={
-              styles.infoIcon
-            }
-          >
-            <Text
-              style={
-                styles.infoIconText
-              }
-            >
-              ✓
-            </Text>
-          </View>
-
-          <View
-            style={
-              styles.infoContent
-            }
-          >
-            <Text
-              style={
-                styles.infoTitle
-              }
-            >
-              TempStaff assigns the worker
-            </Text>
-
-            <Text
-              style={
-                styles.infoText
-              }
-            >
-              You choose the service, location, time,
-              and booking method. Worker assignment is
-              handled by the TempStaff system according
-              to availability and booking rules.
-            </Text>
-          </View>
-        </View>
-
-        {/* Pricing explanation */}
-
-        <View
-          style={
-            styles.pricingCard
-          }
-        >
-          <Text
-            style={
-              styles.pricingTitle
-            }
-          >
-            Hourly pricing
-          </Text>
-
-          <Text
-            style={
-              styles.pricingText
-            }
-          >
-            Your final amount is calculated by the
-            TempStaff backend from the selected service,
-            working hours, and applicable admin-configured
-            discounts.
-          </Text>
-        </View>
+          onPress={payNow}
+        />
       </ScrollView>
     </SafeAreaView>
   )
 }
 
-const styles =
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor:
-        COLORS.light,
-    },
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.light,
+  },
 
-    page: {
-      paddingHorizontal: 20,
-      paddingTop: 8,
-      paddingBottom: 45,
-    },
+  page: {
+    padding: 20,
+    paddingBottom: 45,
+  },
 
-    progressContainer: {
-      marginTop: 5,
-      marginBottom: 20,
-    },
+  step: {
+    color: COLORS.teal,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    marginTop: 5,
+  },
 
-    progressTrack: {
-      height: 4,
-      width: '100%',
-      backgroundColor:
-        '#DDE3E9',
-      borderRadius: 3,
-      overflow: 'hidden',
-    },
+  title: {
+    color: COLORS.navy,
+    fontSize: 29,
+    fontWeight: '900',
+    marginTop: 5,
+  },
 
-    progressFill: {
-      width: '100%',
-      height: '100%',
-      backgroundColor:
-        COLORS.teal,
-      borderRadius: 3,
-    },
+  subtitle: {
+    color: COLORS.gray,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 5,
+    marginBottom: 18,
+  },
 
-    progressText: {
-      color: COLORS.gray,
-      fontSize: 9,
-      lineHeight: 14,
-      fontWeight: '800',
-      letterSpacing: 0.7,
-      marginTop: 7,
-    },
+  amountCard: {
+    backgroundColor: COLORS.navy,
+    borderRadius: 22,
+    padding: 20,
+    marginBottom: 14,
+  },
 
-    heading: {
-      marginBottom: 18,
-    },
+  amountLabel: {
+    color: '#CBD5E1',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
 
-    title: {
-      color: COLORS.navy,
-      fontSize: 28,
-      lineHeight: 35,
-      fontWeight: '800',
-    },
+  amount: {
+    color: COLORS.white,
+    fontSize: 34,
+    fontWeight: '900',
+    marginTop: 6,
+  },
 
-    subtitle: {
-      color: COLORS.gray,
-      fontSize: 14,
-      lineHeight: 21,
-      marginTop: 7,
-    },
+  amountNote: {
+    color: '#CBD5E1',
+    fontSize: 10,
+    lineHeight: 16,
+    marginTop: 9,
+  },
 
-    summaryCard: {
-      backgroundColor:
-        COLORS.navy,
-      borderRadius: 20,
-      padding: 17,
-      marginBottom: 20,
-    },
+  card: {
+    backgroundColor: COLORS.white,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 17,
+    marginBottom: 14,
+  },
 
-    summaryLabel: {
-      color: '#B9C9D8',
-      fontSize: 9,
-      fontWeight: '900',
-      letterSpacing: 0.8,
-    },
+  cardTitle: {
+    color: COLORS.navy,
+    fontSize: 14,
+    fontWeight: '900',
+  },
 
-    summaryService: {
-      color: COLORS.white,
-      fontSize: 19,
-      lineHeight: 25,
-      fontWeight: '900',
-      marginTop: 5,
-    },
+  cardText: {
+    color: COLORS.gray,
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 6,
+  },
 
-    summaryVariant: {
-      color: '#9FE0DE',
-      fontSize: 12,
-      lineHeight: 17,
-      fontWeight: '700',
-      marginTop: 2,
-    },
+  error: {
+    backgroundColor: '#FFF1F0',
+    borderRadius: 16,
+    padding: 15,
+    marginBottom: 15,
+  },
 
-    summaryDivider: {
-      height: 1,
-      backgroundColor:
-        'rgba(255,255,255,0.14)',
-      marginVertical: 14,
-    },
+  errorTitle: {
+    color: '#B42318',
+    fontSize: 13,
+    fontWeight: '900',
+  },
 
-    addressLabel: {
-      color: '#B9C9D8',
-      fontSize: 9,
-      fontWeight: '900',
-      letterSpacing: 0.8,
-    },
-
-    address: {
-      color: COLORS.white,
-      fontSize: 13,
-      lineHeight: 19,
-      marginTop: 5,
-    },
-
-    optionHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent:
-        'space-between',
-      marginBottom: 10,
-    },
-
-    optionSectionTitle: {
-      color: COLORS.navy,
-      fontSize: 17,
-      fontWeight: '900',
-    },
-
-    optionCard: {
-      flexDirection: 'row',
-      backgroundColor:
-        COLORS.white,
-      borderWidth: 1,
-      borderColor:
-        COLORS.border,
-      borderRadius: 20,
-      padding: 16,
-      marginBottom: 12,
-    },
-
-    optionIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 16,
-      backgroundColor:
-        '#E4F6F5',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 13,
-    },
-
-    optionEmoji: {
-      fontSize: 22,
-    },
-
-    optionContent: {
-      flex: 1,
-    },
-
-    optionTitleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-
-    optionTitle: {
-      color: COLORS.navy,
-      fontSize: 17,
-      fontWeight: '900',
-    },
-
-    availableBadge: {
-      backgroundColor:
-        '#E4F6F5',
-      borderRadius: 8,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-    },
-
-    availableText: {
-      color: COLORS.teal,
-      fontSize: 8,
-      fontWeight: '900',
-      letterSpacing: 0.5,
-    },
-
-    optionDescription: {
-      color: COLORS.gray,
-      fontSize: 13,
-      lineHeight: 19,
-      marginTop: 6,
-    },
-
-    optionAction: {
-      color: COLORS.teal,
-      fontSize: 12,
-      fontWeight: '900',
-      marginTop: 10,
-    },
-
-    infoCard: {
-      flexDirection: 'row',
-      backgroundColor:
-        '#EAF6F5',
-      borderRadius: 18,
-      padding: 15,
-      marginTop: 4,
-    },
-
-    infoIcon: {
-      width: 34,
-      height: 34,
-      borderRadius: 12,
-      backgroundColor:
-        COLORS.teal,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 11,
-    },
-
-    infoIconText: {
-      color: COLORS.white,
-      fontSize: 15,
-      fontWeight: '900',
-    },
-
-    infoContent: {
-      flex: 1,
-    },
-
-    infoTitle: {
-      color: COLORS.navy,
-      fontSize: 13,
-      fontWeight: '900',
-    },
-
-    infoText: {
-      color: COLORS.gray,
-      fontSize: 12,
-      lineHeight: 18,
-      marginTop: 4,
-    },
-
-    pricingCard: {
-      backgroundColor:
-        COLORS.white,
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor:
-        COLORS.border,
-      padding: 15,
-      marginTop: 12,
-    },
-
-    pricingTitle: {
-      color: COLORS.navy,
-      fontSize: 13,
-      fontWeight: '900',
-    },
-
-    pricingText: {
-      color: COLORS.gray,
-      fontSize: 12,
-      lineHeight: 18,
-      marginTop: 5,
-    },
-  })
+  errorText: {
+    color: COLORS.gray,
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+})
