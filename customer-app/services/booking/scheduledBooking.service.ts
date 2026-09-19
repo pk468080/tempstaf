@@ -88,7 +88,7 @@ export async function createCustomerScheduledBooking(
       data,
       error,
     } = await supabase.rpc(
-      'create_customer_scheduled_range_booking',
+      'create_customer_scheduled_booking',
       {
         p_service_variant_id:
           input.serviceVariantId,
@@ -96,10 +96,10 @@ export async function createCustomerScheduledBooking(
         p_address_id:
           input.addressId,
 
-        p_start_date:
+        p_schedule_start_date:
           input.startDate,
 
-        p_end_date:
+        p_schedule_end_date:
           input.endDate,
 
         p_daily_start_time:
@@ -107,6 +107,16 @@ export async function createCustomerScheduledBooking(
 
         p_daily_end_time:
           input.endTime,
+
+        p_selected_weekdays: [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+        ],
 
         p_off_dates:
           input.excludedDates,
