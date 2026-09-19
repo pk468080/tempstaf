@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Modal,
   Platform,
@@ -13,6 +13,7 @@ import DateTimePicker, {
 } from '@react-native-community/datetimepicker'
 
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
+import { useAvailability } from '../../hooks/useAvailability'
 import type { HomeService } from '../../types/service'
 
 type BookingType =
@@ -80,14 +81,6 @@ function startOfToday() {
   return date
 }
 
-function addDays(date: Date, days: number) {
-  const result = new Date(date)
-
-  result.setDate(result.getDate() + days)
-
-  return result
-}
-
 function formatDate(date: Date | null) {
   if (!date) {
     return 'Select date'
@@ -99,16 +92,6 @@ function formatDate(date: Date | null) {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
-    },
-  )
-}
-
-function formatTime(date: Date) {
-  return date.toLocaleTimeString(
-    undefined,
-    {
-      hour: '2-digit',
-      minute: '2-digit',
     },
   )
 }
@@ -125,14 +108,14 @@ function dateKey(date: Date) {
   return `${year}-${month}-${day}`
 }
 
-function formatDateTimeForSummary(
-  date: Date | null,
-) {
-  if (!date) {
-    return 'Not selected'
-  }
-
-  return `${formatDate(date)} ${formatTime(date)}`
+function formatTime(date: Date) {
+  return date.toLocaleTimeString(
+    undefined,
+    {
+      hour: '2-digit',
+      minute: '2-digit',
+    },
+  )
 }
 
 export default function BookingScreen({
@@ -147,6 +130,13 @@ export default function BookingScreen({
 
   const [bookingType, setBookingType] =
     useState<BookingType>('instant')
+
+  const {
+    status: availabilityStatus,
+    result: availabilityResult,
+    error: availabilityError,
+    checkInstant,
+  } = useAvailability()
 
   const [startTime, setStartTime] =
     useState(() => {
@@ -184,12 +174,39 @@ export default function BookingScreen({
   const [excludeDateValue, setExcludeDateValue] =
     useState<Date>(today)
 
+  useEffect(() => {
+    if (!location) {
+      return
+    }
+
+    void checkInstant(
+      service.id,
+      location.latitude,
+      location.longitude,
+    )
+  }, [
+    checkInstant,
+    location,
+    service.id,
+  ])
+
+  useEffect(() => {
+    if (
+      availabilityResult &&
+      !availabilityResult.instantAvailable &&
+      bookingType === 'instant'
+    ) {
+      setBookingType('scheduled')
+    }
+  }, [
+    availabilityResult,
+    bookingType,
+  ])
+
   function openPicker(
     mode: PickerMode,
   ) {
-    if (
-      mode === 'excludeDate'
-    ) {
+    if (mode === 'excludeDate') {
       setExcludeDateValue(today)
     }
 
@@ -262,7 +279,22 @@ export default function BookingScreen({
         break
 
       case 'endTime':
-        setEndTime(selectedDate)
+        if (selectedDate <= startTime) {
+          const nextEnd =
+            new Date(startTime)
+
+          nextEnd.setHours(
+            startTime.getHours() + 1,
+            startTime.getMinutes(),
+            0,
+            0,
+          )
+
+          setEndTime(nextEnd)
+        } else {
+          setEndTime(selectedDate)
+        }
+
         break
 
       case 'excludeDate': {
@@ -326,6 +358,84 @@ export default function BookingScreen({
 
         <View
           style={
+            styles.availabilityCard
+          }
+        >
+          <Text
+            style={
+              styles.availabilityTitle
+            }
+          >
+            Instant availability
+          </Text>
+
+          {!location ? (
+            <Text
+              style={
+                styles.availabilityText
+              }
+            >
+              A service location is required
+              to check nearby worker
+              availability.
+            </Text>
+          ) : availabilityStatus ===
+            'checking' ? (
+            <Text
+              style={
+                styles.availabilityText
+              }
+            >
+              Checking service area and
+              nearby workers…
+            </Text>
+          ) : availabilityStatus ===
+            'error' ? (
+            <Text
+              style={
+                styles.availabilityError
+              }
+            >
+              {availabilityError ??
+                'Unable to check availability.'}
+            </Text>
+          ) : availabilityResult?.instantAvailable ? (
+            <Text
+              style={
+                styles.availabilitySuccess
+              }
+            >
+              {availabilityResult.nearbyWorkerCount}{' '}
+              nearby worker
+              {availabilityResult.nearbyWorkerCount ===
+              1
+                ? ''
+                : 's'} available.
+            </Text>
+          ) : availabilityResult ? (
+            <Text
+              style={
+                styles.availabilityWarning
+              }
+            >
+              No nearby worker is currently
+              available. Booking has been
+              switched to Scheduled.
+            </Text>
+          ) : (
+            <Text
+              style={
+                styles.availabilityText
+              }
+            >
+              Availability will be checked
+              for this location.
+            </Text>
+          )}
+        </View>
+
+        <View
+          style={
             styles.typeContainer
           }
         >
@@ -334,6 +444,11 @@ export default function BookingScreen({
               bookingType ===
               type.value
 
+            const instantDisabled =
+              type.value === 'instant' &&
+              availabilityResult !== null &&
+              !availabilityResult.instantAvailable
+
             return (
               <TouchableOpacity
                 key={type.value}
@@ -341,8 +456,13 @@ export default function BookingScreen({
                   styles.typeCard,
                   selected &&
                     styles.typeCardSelected,
+                  instantDisabled &&
+                    styles.typeCardDisabled,
                 ]}
                 activeOpacity={0.8}
+                disabled={
+                  instantDisabled
+                }
                 onPress={() =>
                   setBookingType(
                     type.value,
@@ -354,6 +474,8 @@ export default function BookingScreen({
                     styles.typeLabel,
                     selected &&
                       styles.typeLabelSelected,
+                    instantDisabled &&
+                      styles.disabledText,
                   ]}
                 >
                   {type.label}
@@ -364,9 +486,13 @@ export default function BookingScreen({
                     styles.typeDescription,
                     selected &&
                       styles.typeDescriptionSelected,
+                    instantDisabled &&
+                      styles.disabledText,
                   ]}
                 >
-                  {type.description}
+                  {instantDisabled
+                    ? 'Currently unavailable.'
+                    : type.description}
                 </Text>
               </TouchableOpacity>
             )
@@ -698,20 +824,16 @@ export default function BookingScreen({
             <>
               <SummaryRow
                 label="Start"
-                value={
-                  formatDate(
-                    startDate,
-                  )
-                }
+                value={formatDate(
+                  startDate,
+                )}
               />
 
               <SummaryRow
                 label="End"
-                value={
-                  formatDate(
-                    endDate,
-                  )
-                }
+                value={formatDate(
+                  endDate,
+                )}
               />
             </>
           ) : null}
@@ -799,10 +921,10 @@ export default function BookingScreen({
           endDate={endDate}
           startTime={startTime}
           endTime={endTime}
+          today={today}
           excludeDateValue={
             excludeDateValue
           }
-          today={today}
           onChange={
             handlePickerChange
           }
@@ -821,8 +943,8 @@ function PickerModal({
   endDate,
   startTime,
   endTime,
-  excludeDateValue,
   today,
+  excludeDateValue,
   onChange,
   onClose,
 }: {
@@ -831,8 +953,8 @@ function PickerModal({
   endDate: Date | null
   startTime: Date
   endTime: Date
-  excludeDateValue: Date
   today: Date
+  excludeDateValue: Date
   onChange: (
     event: DateTimePickerEvent,
     date?: Date,
@@ -1106,6 +1228,47 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
+  availabilityCard: {
+    marginTop: 18,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+
+  availabilityTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+
+  availabilityText: {
+    marginTop: 5,
+    color: '#6B7280',
+    lineHeight: 19,
+  },
+
+  availabilitySuccess: {
+    marginTop: 5,
+    color: '#166534',
+    lineHeight: 19,
+    fontWeight: '600',
+  },
+
+  availabilityWarning: {
+    marginTop: 5,
+    color: '#92400E',
+    lineHeight: 19,
+    fontWeight: '600',
+  },
+
+  availabilityError: {
+    marginTop: 5,
+    color: '#B91C1C',
+    lineHeight: 19,
+  },
+
   typeContainer: {
     marginTop: 22,
     gap: 10,
@@ -1121,6 +1284,10 @@ const styles = StyleSheet.create({
   typeCardSelected: {
     borderColor: '#111827',
     backgroundColor: '#F3F4F6',
+  },
+
+  typeCardDisabled: {
+    opacity: 0.5,
   },
 
   typeLabel: {
@@ -1141,6 +1308,10 @@ const styles = StyleSheet.create({
 
   typeDescriptionSelected: {
     color: '#374151',
+  },
+
+  disabledText: {
+    color: '#9CA3AF',
   },
 
   section: {
