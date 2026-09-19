@@ -15,6 +15,11 @@ import DateTimePicker, {
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
 import { useAvailability } from '../../hooks/useAvailability'
 import type { HomeService } from '../../types/service'
+import type { BookingDraft } from '../../types/booking'
+import {
+  validateBooking,
+  type BookingValidationResult,
+} from '../../services/booking/bookingValidation.service'
 
 type BookingType =
   | 'instant'
@@ -35,7 +40,9 @@ type BookingScreenProps = {
     longitude: number
     address: string
   } | null
-  onContinue?: () => void
+  onContinue?: (
+    draft: BookingDraft,
+  ) => void
 }
 
 const BOOKING_TYPES: {
@@ -72,7 +79,6 @@ const WEEKDAYS = [
   'Friday',
   'Saturday',
 ]
-
 function startOfToday() {
   const date = new Date()
 
@@ -130,6 +136,12 @@ export default function BookingScreen({
 
   const [bookingType, setBookingType] =
     useState<BookingType>('instant')
+
+  const [validation, setValidation] =
+    useState<BookingValidationResult>({
+      valid: false,
+      errors: [],
+    })
 
   const {
     status: availabilityStatus,
@@ -889,6 +901,19 @@ export default function BookingScreen({
           </Text>
         </View>
 
+        {validation.errors.length > 0 ? (
+  <View style={styles.validationBox}>
+    {validation.errors.map(error => (
+      <Text
+        key={error}
+        style={styles.validationError}
+      >
+        {error}
+      </Text>
+    ))}
+  </View>
+) : null}
+
         <TouchableOpacity
           style={[
             styles.continueButton,
@@ -900,9 +925,56 @@ export default function BookingScreen({
             service.hourlyPrice ===
             null
           }
-          onPress={
-            onContinue
-          }
+          onPress={() => {
+  const result = validateBooking({
+    service,
+    bookingType,
+    location,
+    startDate,
+    endDate,
+    startTime,
+    endTime,
+    selectedWeekdays,
+    excludedDates,
+    instantAvailable:
+      availabilityResult?.instantAvailable ??
+      false,
+  })
+
+  setValidation(result)
+
+  if (!result.valid || !location) {
+    return
+  }
+
+  if (service.hourlyPrice === null) {
+    return
+  }
+
+  const draft: BookingDraft = {
+    serviceId: service.id,
+    bookingType,
+    location: {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      address: location.address,
+    },
+    startDate: startDate
+      ? startDate.toISOString()
+      : null,
+    endDate: endDate
+      ? endDate.toISOString()
+      : null,
+    startTime: startTime.toISOString(),
+    endTime: endTime.toISOString(),
+    selectedWeekdays,
+    excludedDates,
+    hourlyPrice: service.hourlyPrice,
+    currency: service.currency,
+  }
+
+  onContinue?.(draft)
+}}
         >
           <Text
             style={
@@ -1538,4 +1610,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
+  validationBox: {
+  marginTop: 16,
+  padding: 14,
+  borderRadius: 12,
+  backgroundColor: '#FEF2F2',
+  borderWidth: 1,
+  borderColor: '#FECACA',
+},
+
+validationError: {
+  color: '#B91C1C',
+  lineHeight: 20,
+},
 })

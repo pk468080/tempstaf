@@ -5,4 +5,7 @@ export type RootStackParamList = {
   Registration: undefined
   Location: undefined
   Customer: undefined
+  BookingDetails: {
+  draft: import('./booking').BookingDraft
+}
 }

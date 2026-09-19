@@ -10,8 +10,10 @@ import {
   createNativeStackNavigator,
 } from '@react-navigation/native-stack'
 
+import BookingDetailsScreen from '../screens/bookings/BookingDetailsScreen'
 import BookingScreen from '../screens/bookings/BookingScreen'
 import HomeScreen from '../screens/home/HomeScreen'
+import type { BookingDraft } from '../types/booking'
 import type { HomeService } from '../types/service'
 
 type CustomerLocation = {
@@ -31,9 +33,15 @@ type CustomerNavigatorProps = {
 
 type CustomerStackParamList = {
   Tabs: undefined
+
   Booking: {
     service: HomeService
   }
+
+  BookingDetails: {
+  draft: BookingDraft
+  service: HomeService
+}
 }
 
 const Tab =
@@ -58,7 +66,8 @@ export default function CustomerNavigator({
             screenOptions={{
               headerShown: false,
               tabBarStyle: styles.tabBar,
-              tabBarLabelStyle: styles.tabBarLabel,
+              tabBarLabelStyle:
+                styles.tabBarLabel,
             }}
           >
             <Tab.Screen name="Home">
@@ -68,7 +77,7 @@ export default function CustomerNavigator({
                   onLocationChange={
                     onLocationChange
                   }
-                  onServicePress={(service) => {
+                  onServicePress={service => {
                     navigation.navigate(
                       'Booking',
                       {
@@ -100,19 +109,74 @@ export default function CustomerNavigator({
       </Stack.Screen>
 
       <Stack.Screen name="Booking">
-        {({ route }) => (
+        {({ route, navigation }) => (
           <BookingScreen
             service={route.params.service}
             location={location}
-            onContinue={() => {
-              console.log(
-                'Booking configuration:',
-                route.params.service.id,
-              )
+            onContinue={draft => {
+              navigation.navigate(
+  'BookingDetails',
+  {
+    draft,
+    service: route.params.service,
+  },
+)
             }}
           />
         )}
       </Stack.Screen>
+
+      <Stack.Screen name="BookingDetails">
+  {({ route }) => {
+    const { draft, service } = route.params
+
+    return (
+      <BookingDetailsScreen
+        service={service}
+        bookingType={
+          draft.bookingType
+        }
+        location={draft.location}
+        startDate={
+          draft.startDate
+            ? new Date(
+                draft.startDate,
+              )
+            : null
+        }
+        endDate={
+          draft.endDate
+            ? new Date(
+                draft.endDate,
+              )
+            : null
+        }
+        startTime={
+          new Date(
+            draft.startTime,
+          )
+        }
+        endTime={
+          new Date(
+            draft.endTime,
+          )
+        }
+        selectedWeekdays={
+          draft.selectedWeekdays
+        }
+        excludedDates={
+          draft.excludedDates
+        }
+        onContinue={() => {
+          console.log(
+            'Proceed to payment:',
+            draft.serviceId,
+          )
+        }}
+      />
+    )
+  }}
+</Stack.Screen>
     </Stack.Navigator>
   )
 }
@@ -123,12 +187,22 @@ function Placeholder({
   title: string
 }) {
   return (
-    <View style={styles.placeholder}>
-      <Text style={styles.placeholderText}>
+    <View
+      style={styles.placeholder}
+    >
+      <Text
+        style={
+          styles.placeholderText
+        }
+      >
         {title}
       </Text>
 
-      <Text style={styles.placeholderSubtext}>
+      <Text
+        style={
+          styles.placeholderSubtext
+        }
+      >
         This screen will be built separately.
       </Text>
     </View>
