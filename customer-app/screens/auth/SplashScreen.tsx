@@ -36,6 +36,7 @@ export default function SplashScreen({
         {
           authenticated: false,
           needsRegistration: true,
+          phone: '',
         }
 
       /*
