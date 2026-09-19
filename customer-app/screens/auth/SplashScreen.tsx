@@ -2,26 +2,63 @@ import { useEffect } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 
 import { UI } from '../../constants/ui'
+import {
+  CustomerAuthState,
+  getCustomerAuthState,
+} from '../../services/auth/auth.service'
 
 type SplashScreenProps = {
-  onFinished: () => void
+  onFinished: (authState: CustomerAuthState) => void
 }
 
 export default function SplashScreen({
   onFinished,
 }: SplashScreenProps) {
   useEffect(() => {
-    const timer = setTimeout(() => {
-      onFinished()
-    }, UI.splashDuration)
+    let mounted = true
 
-    return () => clearTimeout(timer)
+    async function initialize() {
+      let authState: CustomerAuthState = {
+        authenticated: false,
+        needsRegistration: true,
+      }
+
+      try {
+        authState = await getCustomerAuthState()
+      } catch (error) {
+        console.error(
+          'Unable to restore customer session:',
+          error,
+        )
+      }
+
+      const timer = setTimeout(() => {
+        if (mounted) {
+          onFinished(authState)
+        }
+      }, UI.splashDuration)
+
+      return () => clearTimeout(timer)
+    }
+
+    let cleanup: (() => void) | undefined
+
+    initialize().then(result => {
+      cleanup = result
+    })
+
+    return () => {
+      mounted = false
+      cleanup?.()
+    }
   }, [onFinished])
 
   return (
     <View style={styles.container}>
       <Text style={styles.logo}>TempStaff</Text>
-      <Text style={styles.subtitle}>On-demand workforce</Text>
+      <Text style={styles.subtitle}>
+        On-demand workforce
+      </Text>
     </View>
   )
 }
