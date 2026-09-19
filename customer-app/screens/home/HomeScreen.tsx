@@ -56,6 +56,8 @@ export default function HomeScreen({
 
   const [areaUnavailable, setAreaUnavailable] =
     useState(false)
+    const [pricingUnavailable, setPricingUnavailable] =
+  useState(false)
 
   const [
     locationPickerVisible,
@@ -74,53 +76,58 @@ export default function HomeScreen({
     useState('')
 
   async function loadServices() {
-    try {
-      setError('')
-      setAreaUnavailable(false)
+  try {
+    setError('')
+    setAreaUnavailable(false)
+    setPricingUnavailable(false)
 
-      const pricedServices =
-        await getHomeServices()
+    const pricedServices =
+      await getHomeServices()
 
-      if (!location) {
-        setServices([])
-        return
-      }
-
-      if (pricedServices.length === 0) {
-        setServices([])
-        return
-      }
-
-      const availableServiceIds =
-        await getAvailableServiceIds(
-          location.latitude,
-          location.longitude,
-        )
-
-      const availableServices =
-        pricedServices.filter((service) =>
-          availableServiceIds.has(service.id),
-        )
-
-      setServices(availableServices)
-
-      setAreaUnavailable(
-        availableServices.length === 0,
-      )
-    } catch (err) {
-      console.error(
-        'Home services error:',
-        err,
-      )
-
+    if (!location) {
       setServices([])
-      setAreaUnavailable(false)
-
-      setError(
-        'Unable to load services. Please try again.',
-      )
+      return
     }
+
+    // Backend has active services/variants,
+    // but no current customer-visible hourly prices.
+    if (pricedServices.length === 0) {
+      setServices([])
+      setPricingUnavailable(true)
+      return
+    }
+
+    const availableServiceIds =
+      await getAvailableServiceIds(
+        location.latitude,
+        location.longitude,
+      )
+
+    const availableServices =
+      pricedServices.filter((service) =>
+        availableServiceIds.has(service.id),
+      )
+
+    setServices(availableServices)
+
+    setAreaUnavailable(
+      availableServices.length === 0,
+    )
+  } catch (err) {
+    console.error(
+      'Home services error:',
+      err,
+    )
+
+    setServices([])
+    setAreaUnavailable(false)
+    setPricingUnavailable(false)
+
+    setError(
+      'Unable to load services. Please try again.',
+    )
   }
+}
 
   async function loadAddress() {
     if (!location) {
@@ -334,8 +341,12 @@ export default function HomeScreen({
     )
   }
 
-  const showAreaUnavailable =
-    !error && areaUnavailable
+ const showAreaUnavailable =
+  !error &&
+  !pricingUnavailable &&
+  areaUnavailable
+  const showPricingUnavailable =
+  !error && pricingUnavailable
 
   return (
     <ScreenContainer>
@@ -372,19 +383,23 @@ export default function HomeScreen({
           </Text>
         </TouchableOpacity>
 
-        <View style={styles.banner}>
-          <Text style={styles.bannerTitle}>
-            {showAreaUnavailable
-              ? 'Services will be available soon in your area'
-              : 'Services available in your area'}
-          </Text>
+       <View style={styles.banner}>
+  <Text style={styles.bannerTitle}>
+    {showPricingUnavailable
+      ? 'Services are not currently available'
+      : showAreaUnavailable
+        ? 'Services will be available soon in your area'
+        : 'Services available in your area'}
+  </Text>
 
-          <Text style={styles.bannerText}>
-            {showAreaUnavailable
-              ? 'We do not currently have an active service area for this location.'
-              : 'Choose a service to continue with your booking.'}
-          </Text>
-        </View>
+  <Text style={styles.bannerText}>
+    {showPricingUnavailable
+      ? 'There are currently no active hourly prices configured for customer bookings.'
+      : showAreaUnavailable
+        ? 'We do not currently have an active service area for this location.'
+        : 'Choose a service to continue with your booking.'}
+  </Text>
+</View>
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
@@ -415,17 +430,20 @@ export default function HomeScreen({
             </Text>
           </View>
         ) : services.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>
-              No services available
-            </Text>
+  <View style={styles.empty}>
+    <Text style={styles.emptyTitle}>
+      {showPricingUnavailable
+        ? 'No hourly services priced'
+        : 'No services available'}
+    </Text>
 
-            <Text style={styles.emptyText}>
-              There are currently no active hourly
-              services available.
-            </Text>
-          </View>
-        ) : (
+    <Text style={styles.emptyText}>
+      {showPricingUnavailable
+        ? 'Hourly services will appear here when customer pricing is configured.'
+        : 'There are currently no services available at this location.'}
+    </Text>
+  </View>
+) : (
           <FlatList
             data={services}
             scrollEnabled={false}
