@@ -22,11 +22,72 @@ type CreateScheduledBookingInput = {
   notes?: string | null
 }
 
+function normalizeSupabaseError(
+  error: unknown,
+): Error {
+  if (error instanceof Error) {
+    return error
+  }
+
+  if (
+    typeof error === 'object' &&
+    error !== null
+  ) {
+    const value =
+      error as Record<string, unknown>
+
+    const message =
+      typeof value.message === 'string'
+        ? value.message
+        : 'Unable to create the booking.'
+
+    const code =
+      typeof value.code === 'string'
+        ? value.code
+        : null
+
+    const details =
+      typeof value.details === 'string'
+        ? value.details
+        : null
+
+    const hint =
+      typeof value.hint === 'string'
+        ? value.hint
+        : null
+
+    const parts = [message]
+
+    if (code) {
+      parts.push(`Code: ${code}`)
+    }
+
+    if (details) {
+      parts.push(`Details: ${details}`)
+    }
+
+    if (hint) {
+      parts.push(`Hint: ${hint}`)
+    }
+
+    return new Error(
+      parts.join('\n'),
+    )
+  }
+
+  return new Error(
+    'Unable to create the booking.',
+  )
+}
+
 export async function createCustomerScheduledBooking(
   input: CreateScheduledBookingInput,
 ): Promise<ScheduledBookingResult> {
-  const { data, error } =
-    await supabase.rpc(
+  try {
+    const {
+      data,
+      error,
+    } = await supabase.rpc(
       'create_customer_scheduled_range_booking',
       {
         p_service_variant_id:
@@ -55,15 +116,25 @@ export async function createCustomerScheduledBooking(
       },
     )
 
-  if (error) {
-    throw error
-  }
+    if (error) {
+      throw error
+    }
 
-  if (!data) {
-    throw new Error(
-      'The backend did not return a booking result.',
+    if (!data) {
+      throw new Error(
+        'The backend did not return a booking result.',
+      )
+    }
+
+    return data as ScheduledBookingResult
+  } catch (error) {
+    console.error(
+      'Scheduled booking RPC failed:',
+      error,
+    )
+
+    throw normalizeSupabaseError(
+      error,
     )
   }
-
-  return data as ScheduledBookingResult
 }
