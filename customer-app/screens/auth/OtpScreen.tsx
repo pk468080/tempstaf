@@ -14,7 +14,10 @@ import { verifyOtp } from '../../services/auth/auth.service'
 
 type OtpScreenProps = {
   phone: string
-  onVerified: (phone: string) => void
+  onVerified: (
+    phone: string,
+    needsRegistration: boolean,
+  ) => void
 }
 
 export default function OtpScreen({
@@ -22,13 +25,10 @@ export default function OtpScreen({
   onVerified,
 }: OtpScreenProps) {
   const [otp, setOtp] = useState('')
-  const [companyName, setCompanyName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const isValid =
-    otp.length === 6 &&
-    companyName.trim().length > 0
+  const isValid = otp.length === 6
 
   async function handleVerify() {
     if (!isValid || loading) {
@@ -38,22 +38,21 @@ export default function OtpScreen({
     setError('')
     setLoading(true)
 
-    const result = await verifyOtp(
-      phone,
-      otp,
-      companyName.trim(),
-    )
+    const result = await verifyOtp(phone, otp)
 
     setLoading(false)
 
     if (!result.success) {
       setError(
-        result.error ?? 'Unable to create the customer account.',
+        result.error ?? 'Unable to verify the OTP.',
       )
       return
     }
 
-    onVerified(phone)
+    onVerified(
+      phone,
+      result.needsRegistration,
+    )
   }
 
   return (
@@ -69,32 +68,19 @@ export default function OtpScreen({
         <View style={styles.container}>
           <View>
             <Text style={styles.title}>
-              Create your account
+              Verify your mobile number
             </Text>
 
             <Text style={styles.subtitle}>
-              Enter your OTP and company name to
-              continue.
+              Enter the 6-digit OTP sent to
+            </Text>
+
+            <Text style={styles.phone}>
+              {phone}
             </Text>
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.label}>
-              Company name
-            </Text>
-
-            <TextInput
-              value={companyName}
-              onChangeText={value => {
-                setError('')
-                setCompanyName(value)
-              }}
-              placeholder="Enter company name"
-              autoCapitalize="words"
-              autoCorrect={false}
-              style={styles.companyInput}
-            />
-
             <Text style={styles.label}>
               OTP
             </Text>
@@ -110,7 +96,8 @@ export default function OtpScreen({
               placeholder="Enter 6-digit OTP"
               keyboardType="number-pad"
               maxLength={6}
-              autoFocus={false}
+              autoFocus
+              textContentType="oneTimeCode"
               style={styles.input}
             />
 
@@ -123,12 +110,10 @@ export default function OtpScreen({
             <AppButton
               title={
                 loading
-                  ? 'Creating account...'
+                  ? 'Verifying...'
                   : 'Verify OTP'
               }
-              disabled={
-                !isValid || loading
-              }
+              disabled={!isValid || loading}
               onPress={handleVerify}
             />
           </View>
@@ -158,10 +143,17 @@ const styles = StyleSheet.create({
   },
 
   subtitle: {
-    marginTop: 10,
+    marginTop: 12,
     fontSize: 16,
     lineHeight: 24,
     color: '#6B7280',
+  },
+
+  phone: {
+    marginTop: 4,
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#111827',
   },
 
   form: {
@@ -174,16 +166,6 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
 
-  companyInput: {
-    height: 52,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: '#111827',
-  },
-
   input: {
     height: 52,
     borderWidth: 1,
@@ -193,6 +175,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     letterSpacing: 4,
     color: '#111827',
+    textAlign: 'center',
   },
 
   error: {
