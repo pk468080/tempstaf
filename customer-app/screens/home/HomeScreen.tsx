@@ -579,8 +579,10 @@ function ServiceCard({
         ) : null}
 
         <Text style={styles.price}>
-          Hourly pricing
-        </Text>
+  {service.hourlyPrice === null
+    ? 'Pricing unavailable'
+    : `${service.currency ?? ''} ${service.hourlyPrice}/hour`}
+</Text>
       </View>
 
       <Text
