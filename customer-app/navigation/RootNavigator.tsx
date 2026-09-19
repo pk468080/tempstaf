@@ -1,6 +1,10 @@
 import { useState } from 'react'
-import { NavigationContainer } from '@react-navigation/native'
-import { createNativeStackNavigator } from '@react-navigation/native-stack'
+import {
+  NavigationContainer,
+} from '@react-navigation/native'
+import {
+  createNativeStackNavigator,
+} from '@react-navigation/native-stack'
 
 import CustomerNavigator from './CustomerNavigator'
 
@@ -10,8 +14,14 @@ import OtpScreen from '../screens/auth/OtpScreen'
 import RegistrationScreen from '../screens/auth/RegistrationScreen'
 import LocationFetchingScreen from '../screens/location/LocationFetchingScreen'
 
-import { sendOtp } from '../services/auth/auth.service'
-import { RootStackParamList } from '../types/navigation'
+import {
+  createCustomerProfile,
+  sendOtp,
+} from '../services/auth/auth.service'
+
+import {
+  RootStackParamList,
+} from '../types/navigation'
 
 const Stack =
   createNativeStackNavigator<RootStackParamList>()
@@ -24,12 +34,6 @@ type CustomerLocation = {
 
 export default function RootNavigator() {
   const [phone, setPhone] = useState('')
-
-  const [registrationData, setRegistrationData] =
-    useState({
-      name: '',
-      companyName: '',
-    })
 
   const [customerLocation, setCustomerLocation] =
     useState<CustomerLocation | null>(null)
@@ -55,7 +59,7 @@ export default function RootNavigator() {
         <Stack.Screen name="Login">
           {({ navigation }) => (
             <LoginScreen
-              onContinue={async (mobile) => {
+              onContinue={async mobile => {
                 await sendOtp(mobile)
 
                 setPhone(mobile)
@@ -70,10 +74,20 @@ export default function RootNavigator() {
           {({ navigation }) => (
             <OtpScreen
               phone={phone}
-              onVerified={(verifiedPhone) => {
+              onVerified={(
+                verifiedPhone,
+                needsRegistration,
+              ) => {
                 setPhone(verifiedPhone)
 
-                navigation.navigate('Registration')
+                if (needsRegistration) {
+                  navigation.replace(
+                    'Registration',
+                  )
+                  return
+                }
+
+                navigation.replace('Location')
               }}
             />
           )}
@@ -83,16 +97,28 @@ export default function RootNavigator() {
           {({ navigation }) => (
             <RegistrationScreen
               phone={phone}
-              onContinue={(
+              onContinue={async (
                 name,
                 companyName,
               ) => {
-                setRegistrationData({
-                  name,
-                  companyName,
-                })
+                const result =
+                  await createCustomerProfile(
+                    phone,
+                    name,
+                    companyName,
+                  )
 
-                navigation.navigate('Location')
+                if (!result.success) {
+                  console.error(
+                    'Registration failed:',
+                    result.error,
+                  )
+                  return
+                }
+
+                navigation.replace(
+                  'Location',
+                )
               }}
             />
           )}
@@ -111,7 +137,9 @@ export default function RootNavigator() {
                   address: '',
                 })
 
-                navigation.replace('Customer')
+                navigation.replace(
+                  'Customer',
+                )
               }}
             />
           )}
