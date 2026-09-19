@@ -1,11 +1,16 @@
 import { useMemo, useState } from 'react'
 import {
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native'
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from '@react-native-community/datetimepicker'
 
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
 import type { HomeService } from '../../types/service'
@@ -14,6 +19,13 @@ type BookingType =
   | 'instant'
   | 'scheduled'
   | 'recurring'
+
+type PickerMode =
+  | 'startDate'
+  | 'endDate'
+  | 'startTime'
+  | 'endTime'
+  | 'excludeDate'
 
 type BookingScreenProps = {
   service: HomeService
@@ -33,17 +45,20 @@ const BOOKING_TYPES: {
   {
     value: 'instant',
     label: 'Instant',
-    description: 'Start as soon as a suitable worker is available.',
+    description:
+      'Start when a suitable worker is available.',
   },
   {
     value: 'scheduled',
     label: 'Scheduled',
-    description: 'Choose a date and time range.',
+    description:
+      'Choose a future date and time range.',
   },
   {
     value: 'recurring',
     label: 'Recurring',
-    description: 'Book repeating dates and time ranges.',
+    description:
+      'Choose repeating dates and time range.',
   },
 ]
 
@@ -57,25 +72,105 @@ const WEEKDAYS = [
   'Saturday',
 ]
 
+function startOfToday() {
+  const date = new Date()
+
+  date.setHours(0, 0, 0, 0)
+
+  return date
+}
+
+function addDays(date: Date, days: number) {
+  const result = new Date(date)
+
+  result.setDate(result.getDate() + days)
+
+  return result
+}
+
+function formatDate(date: Date | null) {
+  if (!date) {
+    return 'Select date'
+  }
+
+  return date.toLocaleDateString(
+    undefined,
+    {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    },
+  )
+}
+
+function formatTime(date: Date) {
+  return date.toLocaleTimeString(
+    undefined,
+    {
+      hour: '2-digit',
+      minute: '2-digit',
+    },
+  )
+}
+
+function dateKey(date: Date) {
+  const year = date.getFullYear()
+  const month = String(
+    date.getMonth() + 1,
+  ).padStart(2, '0')
+  const day = String(
+    date.getDate(),
+  ).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+function formatDateTimeForSummary(
+  date: Date | null,
+) {
+  if (!date) {
+    return 'Not selected'
+  }
+
+  return `${formatDate(date)} ${formatTime(date)}`
+}
+
 export default function BookingScreen({
   service,
   location,
   onContinue,
 }: BookingScreenProps) {
+  const today = useMemo(
+    () => startOfToday(),
+    [],
+  )
+
   const [bookingType, setBookingType] =
     useState<BookingType>('instant')
 
   const [startTime, setStartTime] =
-    useState('10:00')
+    useState(() => {
+      const date = new Date()
+
+      date.setHours(10, 0, 0, 0)
+
+      return date
+    })
 
   const [endTime, setEndTime] =
-    useState('18:00')
+    useState(() => {
+      const date = new Date()
+
+      date.setHours(18, 0, 0, 0)
+
+      return date
+    })
 
   const [startDate, setStartDate] =
-    useState('')
+    useState<Date | null>(null)
 
   const [endDate, setEndDate] =
-    useState('')
+    useState<Date | null>(null)
 
   const [selectedWeekdays, setSelectedWeekdays] =
     useState<string[]>([])
@@ -83,56 +178,182 @@ export default function BookingScreen({
   const [excludedDates, setExcludedDates] =
     useState<string[]>([])
 
-  const durationLabel = useMemo(() => {
-    if (!startTime || !endTime) {
-      return 'Select a time range'
+  const [pickerMode, setPickerMode] =
+    useState<PickerMode | null>(null)
+
+  const [excludeDateValue, setExcludeDateValue] =
+    useState<Date>(today)
+
+  function openPicker(
+    mode: PickerMode,
+  ) {
+    if (
+      mode === 'excludeDate'
+    ) {
+      setExcludeDateValue(today)
     }
 
-    return `${startTime} – ${endTime}`
-  }, [startTime, endTime])
+    setPickerMode(mode)
+  }
 
-  function toggleWeekday(day: string) {
+  function closePicker() {
+    setPickerMode(null)
+  }
+
+  function handlePickerChange(
+    event: DateTimePickerEvent,
+    selectedDate?: Date,
+  ) {
+    if (
+      event.type === 'dismissed' ||
+      !selectedDate
+    ) {
+      if (Platform.OS === 'android') {
+        closePicker()
+      }
+
+      return
+    }
+
+    switch (pickerMode) {
+      case 'startDate':
+        setStartDate(selectedDate)
+
+        if (
+          endDate &&
+          endDate < selectedDate
+        ) {
+          setEndDate(selectedDate)
+        }
+
+        break
+
+      case 'endDate':
+        if (
+          startDate &&
+          selectedDate < startDate
+        ) {
+          setEndDate(startDate)
+        } else {
+          setEndDate(selectedDate)
+        }
+
+        break
+
+      case 'startTime':
+        setStartTime(selectedDate)
+
+        if (
+          selectedDate >= endTime
+        ) {
+          const nextEnd =
+            new Date(selectedDate)
+
+          nextEnd.setHours(
+            selectedDate.getHours() + 1,
+            selectedDate.getMinutes(),
+            0,
+            0,
+          )
+
+          setEndTime(nextEnd)
+        }
+
+        break
+
+      case 'endTime':
+        setEndTime(selectedDate)
+        break
+
+      case 'excludeDate': {
+        const key =
+          dateKey(selectedDate)
+
+        setExcludedDates(current =>
+          current.includes(key)
+            ? current
+            : [
+                ...current,
+                key,
+              ].sort(),
+        )
+
+        break
+      }
+    }
+
+    if (Platform.OS === 'android') {
+      closePicker()
+    }
+  }
+
+  function toggleWeekday(
+    day: string,
+  ) {
     setSelectedWeekdays(current =>
       current.includes(day)
-        ? current.filter(item => item !== day)
-        : [...current, day],
+        ? current.filter(
+            item => item !== day,
+          )
+        : [
+            ...current,
+            day,
+          ],
     )
   }
+
+  const durationLabel =
+    `${formatTime(startTime)} – ${formatTime(endTime)}`
 
   return (
     <ScreenContainer>
       <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          styles.content
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
       >
         <Text style={styles.title}>
           Book {service.name}
         </Text>
 
         <Text style={styles.location}>
-          {location?.address || 'Select a service location'}
+          {location?.address ||
+            'Select a service location'}
         </Text>
 
-        <View style={styles.typeContainer}>
+        <View
+          style={
+            styles.typeContainer
+          }
+        >
           {BOOKING_TYPES.map(type => {
             const selected =
-              bookingType === type.value
+              bookingType ===
+              type.value
 
             return (
               <TouchableOpacity
                 key={type.value}
                 style={[
                   styles.typeCard,
-                  selected && styles.typeCardSelected,
+                  selected &&
+                    styles.typeCardSelected,
                 ]}
+                activeOpacity={0.8}
                 onPress={() =>
-                  setBookingType(type.value)
+                  setBookingType(
+                    type.value,
+                  )
                 }
               >
                 <Text
                   style={[
                     styles.typeLabel,
-                    selected && styles.typeLabelSelected,
+                    selected &&
+                      styles.typeLabelSelected,
                   ]}
                 >
                   {type.label}
@@ -152,46 +373,301 @@ export default function BookingScreen({
           })}
         </View>
 
-        {bookingType === 'instant' ? (
-          <InstantSection
-            startTime={startTime}
-            endTime={endTime}
-            onStartTimeChange={setStartTime}
-            onEndTimeChange={setEndTime}
-          />
+        {bookingType ===
+        'instant' ? (
+          <Section title="Instant booking">
+            <Text style={styles.helperText}>
+              Select the time range you
+              need. Worker availability
+              will be checked before
+              confirmation.
+            </Text>
+
+            <TimeButton
+              label="Start time"
+              value={formatTime(
+                startTime,
+              )}
+              onPress={() =>
+                openPicker(
+                  'startTime',
+                )
+              }
+            />
+
+            <TimeButton
+              label="End time"
+              value={formatTime(
+                endTime,
+              )}
+              onPress={() =>
+                openPicker(
+                  'endTime',
+                )
+              }
+            />
+          </Section>
         ) : null}
 
-        {bookingType === 'scheduled' ? (
-          <ScheduledSection
-            startDate={startDate}
-            endDate={endDate}
-            startTime={startTime}
-            endTime={endTime}
-            onStartDateChange={setStartDate}
-            onEndDateChange={setEndDate}
-            onStartTimeChange={setStartTime}
-            onEndTimeChange={setEndTime}
-          />
+        {bookingType ===
+        'scheduled' ? (
+          <Section title="Scheduled booking">
+            <Text style={styles.helperText}>
+              Select the requested date
+              range and time range.
+            </Text>
+
+            <DateButton
+              label="Start date"
+              value={formatDate(
+                startDate,
+              )}
+              onPress={() =>
+                openPicker(
+                  'startDate',
+                )
+              }
+            />
+
+            <DateButton
+              label="End date"
+              value={formatDate(
+                endDate,
+              )}
+              onPress={() =>
+                openPicker(
+                  'endDate',
+                )
+              }
+            />
+
+            <TimeButton
+              label="Start time"
+              value={formatTime(
+                startTime,
+              )}
+              onPress={() =>
+                openPicker(
+                  'startTime',
+                )
+              }
+            />
+
+            <TimeButton
+              label="End time"
+              value={formatTime(
+                endTime,
+              )}
+              onPress={() =>
+                openPicker(
+                  'endTime',
+                )
+              }
+            />
+          </Section>
         ) : null}
 
-        {bookingType === 'recurring' ? (
-          <RecurringSection
-            startDate={startDate}
-            endDate={endDate}
-            startTime={startTime}
-            endTime={endTime}
-            selectedWeekdays={selectedWeekdays}
-            excludedDates={excludedDates}
-            onStartDateChange={setStartDate}
-            onEndDateChange={setEndDate}
-            onStartTimeChange={setStartTime}
-            onEndTimeChange={setEndTime}
-            onToggleWeekday={toggleWeekday}
-          />
+        {bookingType ===
+        'recurring' ? (
+          <Section title="Recurring booking">
+            <Text style={styles.helperText}>
+              Select the recurring period,
+              weekdays, exclusions and
+              time range.
+            </Text>
+
+            <DateButton
+              label="Period start"
+              value={formatDate(
+                startDate,
+              )}
+              onPress={() =>
+                openPicker(
+                  'startDate',
+                )
+              }
+            />
+
+            <DateButton
+              label="Period end"
+              value={formatDate(
+                endDate,
+              )}
+              onPress={() =>
+                openPicker(
+                  'endDate',
+                )
+              }
+            />
+
+            <Text
+              style={
+                styles.fieldLabel
+              }
+            >
+              Weekdays
+            </Text>
+
+            <View
+              style={
+                styles.weekdayGrid
+              }
+            >
+              {WEEKDAYS.map(day => {
+                const selected =
+                  selectedWeekdays.includes(
+                    day,
+                  )
+
+                return (
+                  <TouchableOpacity
+                    key={day}
+                    style={[
+                      styles.weekday,
+                      selected &&
+                        styles.weekdaySelected,
+                    ]}
+                    onPress={() =>
+                      toggleWeekday(
+                        day,
+                      )
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.weekdayText,
+                        selected &&
+                          styles.weekdayTextSelected,
+                      ]}
+                    >
+                      {day.slice(
+                        0,
+                        3,
+                      )}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+
+            <TimeButton
+              label="Start time"
+              value={formatTime(
+                startTime,
+              )}
+              onPress={() =>
+                openPicker(
+                  'startTime',
+                )
+              }
+            />
+
+            <TimeButton
+              label="End time"
+              value={formatTime(
+                endTime,
+              )}
+              onPress={() =>
+                openPicker(
+                  'endTime',
+                )
+              }
+            />
+
+            <Text
+              style={
+                styles.fieldLabel
+              }
+            >
+              Excluded dates
+            </Text>
+
+            <TouchableOpacity
+              style={
+                styles.secondaryButton
+              }
+              onPress={() =>
+                openPicker(
+                  'excludeDate',
+                )
+              }
+            >
+              <Text
+                style={
+                  styles.secondaryButtonText
+                }
+              >
+                Add excluded date
+              </Text>
+            </TouchableOpacity>
+
+            {excludedDates.length >
+            0 ? (
+              <View
+                style={
+                  styles.excludedList
+                }
+              >
+                {excludedDates.map(
+                  date => (
+                    <View
+                      key={date}
+                      style={
+                        styles.excludedRow
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.excludedText
+                        }
+                      >
+                        {date}
+                      </Text>
+
+                      <TouchableOpacity
+                        onPress={() =>
+                          setExcludedDates(
+                            current =>
+                              current.filter(
+                                item =>
+                                  item !==
+                                  date,
+                              ),
+                          )
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.removeText
+                          }
+                        >
+                          Remove
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ),
+                )}
+              </View>
+            ) : (
+              <Text
+                style={
+                  styles.noExcludedText
+                }
+              >
+                No dates excluded
+              </Text>
+            )}
+          </Section>
         ) : null}
 
-        <View style={styles.summary}>
-          <Text style={styles.summaryTitle}>
+        <View
+          style={styles.summary}
+        >
+          <Text
+            style={
+              styles.summaryTitle
+            }
+          >
             Booking summary
           </Text>
 
@@ -203,28 +679,90 @@ export default function BookingScreen({
           <SummaryRow
             label="Booking type"
             value={
-              bookingType.charAt(0).toUpperCase() +
+              bookingType
+                .charAt(0)
+                .toUpperCase() +
               bookingType.slice(1)
             }
           />
 
           <SummaryRow
             label="Time"
-            value={durationLabel}
+            value={
+              durationLabel
+            }
           />
+
+          {bookingType !==
+          'instant' ? (
+            <>
+              <SummaryRow
+                label="Start"
+                value={
+                  formatDate(
+                    startDate,
+                  )
+                }
+              />
+
+              <SummaryRow
+                label="End"
+                value={
+                  formatDate(
+                    endDate,
+                  )
+                }
+              />
+            </>
+          ) : null}
+
+          {bookingType ===
+          'recurring' ? (
+            <>
+              <SummaryRow
+                label="Weekdays"
+                value={
+                  selectedWeekdays.length >
+                  0
+                    ? selectedWeekdays.join(
+                        ', ',
+                      )
+                    : 'None selected'
+                }
+              />
+
+              <SummaryRow
+                label="Excluded dates"
+                value={
+                  excludedDates.length >
+                  0
+                    ? excludedDates.join(
+                        ', ',
+                      )
+                    : 'None'
+                }
+              />
+            </>
+          ) : null}
 
           <SummaryRow
             label="Hourly price"
             value={
-              service.hourlyPrice === null
+              service.hourlyPrice ===
+              null
                 ? 'Pricing unavailable'
                 : `${service.currency ?? ''} ${service.hourlyPrice}/hour`
             }
           />
 
-          <Text style={styles.backendNote}>
-            Final availability and pricing will be
-            validated against the backend before
+          <Text
+            style={
+              styles.backendNote
+            }
+          >
+            Final availability and
+            pricing will be validated
+            against the backend before
             payment.
           </Text>
         </View>
@@ -232,237 +770,195 @@ export default function BookingScreen({
         <TouchableOpacity
           style={[
             styles.continueButton,
-            service.hourlyPrice === null &&
+            service.hourlyPrice ===
+              null &&
               styles.disabledButton,
           ]}
-          disabled={service.hourlyPrice === null}
-          onPress={onContinue}
+          disabled={
+            service.hourlyPrice ===
+            null
+          }
+          onPress={
+            onContinue
+          }
         >
-          <Text style={styles.continueText}>
+          <Text
+            style={
+              styles.continueText
+            }
+          >
             Continue
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {pickerMode ? (
+        <PickerModal
+          mode={pickerMode}
+          startDate={startDate}
+          endDate={endDate}
+          startTime={startTime}
+          endTime={endTime}
+          excludeDateValue={
+            excludeDateValue
+          }
+          today={today}
+          onChange={
+            handlePickerChange
+          }
+          onClose={
+            closePicker
+          }
+        />
+      ) : null}
     </ScreenContainer>
   )
 }
 
-function InstantSection({
-  startTime,
-  endTime,
-  onStartTimeChange,
-  onEndTimeChange,
-}: {
-  startTime: string
-  endTime: string
-  onStartTimeChange: (value: string) => void
-  onEndTimeChange: (value: string) => void
-}) {
-  return (
-    <Section title="Instant booking">
-      <Text style={styles.helperText}>
-        Select the time range you need. Worker
-        availability will be checked before the
-        booking is confirmed.
-      </Text>
-
-      <TimeRange
-        startTime={startTime}
-        endTime={endTime}
-        onStartTimeChange={onStartTimeChange}
-        onEndTimeChange={onEndTimeChange}
-      />
-    </Section>
-  )
-}
-
-function ScheduledSection({
+function PickerModal({
+  mode,
   startDate,
   endDate,
   startTime,
   endTime,
-  onStartDateChange,
-  onEndDateChange,
-  onStartTimeChange,
-  onEndTimeChange,
+  excludeDateValue,
+  today,
+  onChange,
+  onClose,
 }: {
-  startDate: string
-  endDate: string
-  startTime: string
-  endTime: string
-  onStartDateChange: (value: string) => void
-  onEndDateChange: (value: string) => void
-  onStartTimeChange: (value: string) => void
-  onEndTimeChange: (value: string) => void
+  mode: PickerMode
+  startDate: Date | null
+  endDate: Date | null
+  startTime: Date
+  endTime: Date
+  excludeDateValue: Date
+  today: Date
+  onChange: (
+    event: DateTimePickerEvent,
+    date?: Date,
+  ) => void
+  onClose: () => void
 }) {
+  const isDate =
+    mode === 'startDate' ||
+    mode === 'endDate' ||
+    mode === 'excludeDate'
+
+  const value =
+    mode === 'startDate'
+      ? startDate ?? today
+      : mode === 'endDate'
+        ? endDate ??
+          startDate ??
+          today
+        : mode === 'startTime'
+          ? startTime
+          : mode === 'endTime'
+            ? endTime
+            : excludeDateValue
+
+  const minimumDate =
+    mode === 'startDate' ||
+    mode === 'excludeDate'
+      ? today
+      : mode === 'endDate'
+        ? startDate ??
+          today
+        : undefined
+
   return (
-    <Section title="Scheduled booking">
-      <Text style={styles.helperText}>
-        Select the requested date range and time
-        range. Availability will be checked against
-        the selected dates.
-      </Text>
+    <Modal
+      visible
+      transparent
+      animationType="slide"
+      onRequestClose={
+        onClose
+      }
+    >
+      <View
+        style={
+          styles.modalOverlay
+        }
+      >
+        <View
+          style={
+            styles.pickerContainer
+          }
+        >
+          <View
+            style={
+              styles.modalHeader
+            }
+          >
+            <Text
+              style={
+                styles.modalTitle
+              }
+            >
+              {isDate
+                ? 'Select date'
+                : 'Select time'}
+            </Text>
 
-      <Field
-        label="Start date"
-        value={startDate}
-        placeholder="YYYY-MM-DD"
-        onChangeText={onStartDateChange}
-      />
-
-      <Field
-        label="End date"
-        value={endDate}
-        placeholder="YYYY-MM-DD"
-        onChangeText={onEndDateChange}
-      />
-
-      <TimeRange
-        startTime={startTime}
-        endTime={endTime}
-        onStartTimeChange={onStartTimeChange}
-        onEndTimeChange={onEndTimeChange}
-      />
-    </Section>
-  )
-}
-
-function RecurringSection({
-  startDate,
-  endDate,
-  startTime,
-  endTime,
-  selectedWeekdays,
-  excludedDates,
-  onStartDateChange,
-  onEndDateChange,
-  onStartTimeChange,
-  onEndTimeChange,
-  onToggleWeekday,
-}: {
-  startDate: string
-  endDate: string
-  startTime: string
-  endTime: string
-  selectedWeekdays: string[]
-  excludedDates: string[]
-  onStartDateChange: (value: string) => void
-  onEndDateChange: (value: string) => void
-  onStartTimeChange: (value: string) => void
-  onEndTimeChange: (value: string) => void
-  onToggleWeekday: (day: string) => void
-}) {
-  return (
-    <Section title="Recurring booking">
-      <Text style={styles.helperText}>
-        Select the recurring period, weekdays and
-        time range. Individual dates can be excluded
-        before availability is validated.
-      </Text>
-
-      <Field
-        label="Period start"
-        value={startDate}
-        placeholder="YYYY-MM-DD"
-        onChangeText={onStartDateChange}
-      />
-
-      <Field
-        label="Period end"
-        value={endDate}
-        placeholder="YYYY-MM-DD"
-        onChangeText={onEndDateChange}
-      />
-
-      <Text style={styles.fieldLabel}>
-        Weekdays
-      </Text>
-
-      <View style={styles.weekdayGrid}>
-        {WEEKDAYS.map(day => {
-          const selected =
-            selectedWeekdays.includes(day)
-
-          return (
             <TouchableOpacity
-              key={day}
-              style={[
-                styles.weekday,
-                selected && styles.weekdaySelected,
-              ]}
-              onPress={() =>
-                onToggleWeekday(day)
+              onPress={
+                onClose
               }
             >
               <Text
-                style={[
-                  styles.weekdayText,
-                  selected &&
-                    styles.weekdayTextSelected,
-                ]}
+                style={
+                  styles.closeText
+                }
               >
-                {day.slice(0, 3)}
+                Close
               </Text>
             </TouchableOpacity>
-          )
-        })}
+          </View>
+
+          <DateTimePicker
+            value={value}
+            mode={
+              isDate
+                ? 'date'
+                : 'time'
+            }
+            display={
+              Platform.OS ===
+              'ios'
+                ? 'spinner'
+                : 'default'
+            }
+            minimumDate={
+              minimumDate
+            }
+            is24Hour
+            onChange={
+              onChange
+            }
+          />
+
+          {Platform.OS ===
+          'ios' ? (
+            <TouchableOpacity
+              style={
+                styles.doneButton
+              }
+              onPress={
+                onClose
+              }
+            >
+              <Text
+                style={
+                  styles.doneButtonText
+                }
+              >
+                Done
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
-
-      <TimeRange
-        startTime={startTime}
-        endTime={endTime}
-        onStartTimeChange={onStartTimeChange}
-        onEndTimeChange={onEndTimeChange}
-      />
-
-      <Text style={styles.fieldLabel}>
-        Excluded dates
-      </Text>
-
-      <Text style={styles.excludedText}>
-        {excludedDates.length === 0
-          ? 'No dates excluded'
-          : excludedDates.join(', ')}
-      </Text>
-    </Section>
-  )
-}
-
-function TimeRange({
-  startTime,
-  endTime,
-  onStartTimeChange,
-  onEndTimeChange,
-}: {
-  startTime: string
-  endTime: string
-  onStartTimeChange: (value: string) => void
-  onEndTimeChange: (value: string) => void
-}) {
-  return (
-    <View>
-      <Text style={styles.fieldLabel}>
-        Time range
-      </Text>
-
-      <View style={styles.row}>
-        <Field
-          label="Start"
-          value={startTime}
-          placeholder="10:00"
-          onChangeText={onStartTimeChange}
-        />
-
-        <View style={styles.rowSpacer} />
-
-        <Field
-          label="End"
-          value={endTime}
-          placeholder="18:00"
-          onChangeText={onEndTimeChange}
-        />
-      </View>
-    </View>
+    </Modal>
   )
 }
 
@@ -474,8 +970,14 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>
+    <View
+      style={styles.section}
+    >
+      <Text
+        style={
+          styles.sectionTitle
+        }
+      >
         {title}
       </Text>
 
@@ -484,34 +986,72 @@ function Section({
   )
 }
 
-function Field({
+function DateButton({
   label,
   value,
-  placeholder,
-  onChangeText,
+  onPress,
 }: {
   label: string
   value: string
-  placeholder: string
-  onChangeText: (value: string) => void
+  onPress: () => void
 }) {
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>
+      <Text
+        style={
+          styles.fieldLabel
+        }
+      >
         {label}
       </Text>
 
-      <View style={styles.input}>
+      <TouchableOpacity
+        style={styles.input}
+        onPress={onPress}
+      >
         <Text
-          style={[
-            styles.inputText,
-            !value && styles.placeholder,
-          ]}
-          onPress={() => onChangeText(value)}
+          style={
+            styles.inputText
+          }
         >
-          {value || placeholder}
+          {value}
         </Text>
-      </View>
+      </TouchableOpacity>
+    </View>
+  )
+}
+
+function TimeButton({
+  label,
+  value,
+  onPress,
+}: {
+  label: string
+  value: string
+  onPress: () => void
+}) {
+  return (
+    <View style={styles.field}>
+      <Text
+        style={
+          styles.fieldLabel
+        }
+      >
+        {label}
+      </Text>
+
+      <TouchableOpacity
+        style={styles.input}
+        onPress={onPress}
+      >
+        <Text
+          style={
+            styles.inputText
+          }
+        >
+          {value}
+        </Text>
+      </TouchableOpacity>
     </View>
   )
 }
@@ -524,12 +1064,24 @@ function SummaryRow({
   value: string
 }) {
   return (
-    <View style={styles.summaryRow}>
-      <Text style={styles.summaryLabel}>
+    <View
+      style={
+        styles.summaryRow
+      }
+    >
+      <Text
+        style={
+          styles.summaryLabel
+        }
+      >
         {label}
       </Text>
 
-      <Text style={styles.summaryValue}>
+      <Text
+        style={
+          styles.summaryValue
+        }
+      >
         {value}
       </Text>
     </View>
@@ -611,7 +1163,6 @@ const styles = StyleSheet.create({
   },
 
   field: {
-    flex: 1,
     marginTop: 16,
   },
 
@@ -623,30 +1174,18 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    minHeight: 48,
+    minHeight: 50,
     borderWidth: 1,
     borderColor: '#D1D5DB',
     borderRadius: 10,
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     backgroundColor: '#FFFFFF',
   },
 
   inputText: {
     fontSize: 15,
     color: '#111827',
-  },
-
-  placeholder: {
-    color: '#9CA3AF',
-  },
-
-  row: {
-    flexDirection: 'row',
-  },
-
-  rowSpacer: {
-    width: 12,
   },
 
   weekdayGrid: {
@@ -678,7 +1217,46 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
+  secondaryButton: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+
+  secondaryButtonText: {
+    fontWeight: '700',
+    color: '#111827',
+  },
+
+  excludedList: {
+    marginTop: 10,
+    gap: 8,
+  },
+
+  excludedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+  },
+
   excludedText: {
+    color: '#374151',
+  },
+
+  removeText: {
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+
+  noExcludedText: {
+    marginTop: 10,
     color: '#6B7280',
   },
 
@@ -736,6 +1314,55 @@ const styles = StyleSheet.create({
   },
 
   continueText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor:
+      'rgba(0, 0, 0, 0.35)',
+  },
+
+  pickerContainer: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    paddingBottom: 32,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+  },
+
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+
+  closeText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#007AFF',
+  },
+
+  doneButton: {
+    marginTop: 18,
+    minHeight: 50,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#111827',
+  },
+
+  doneButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
