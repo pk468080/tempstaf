@@ -38,7 +38,7 @@ export default function PaymentScreen({
 
         <View style={styles.card}>
           <Text style={styles.label}>
-            Booking amount
+            Amount payable
           </Text>
 
           <Text style={styles.amount}>
@@ -48,18 +48,16 @@ export default function PaymentScreen({
             )}
           </Text>
 
-          <View
-            style={styles.divider}
-          />
+          <View style={styles.divider} />
 
           <Row
             label="Occurrences"
-            value={`${occurrenceCount}`}
+            value={String(occurrenceCount)}
           />
 
           <Row
             label="Working hours"
-            value={`${totalWorkingHours}`}
+            value={String(totalWorkingHours)}
           />
 
           <Row
@@ -68,26 +66,31 @@ export default function PaymentScreen({
           />
         </View>
 
-        <View
-          style={styles.backendCard}
-        >
-          <Text
-            style={
-              styles.backendTitle
-            }
-          >
+        <View style={styles.statusCard}>
+          <ActivityIndicator size="small" />
+
+          <Text style={styles.statusTitle}>
+            Payment integration pending
+          </Text>
+
+          <Text style={styles.statusText}>
+            The booking has been created and
+            the final amount was calculated by
+            the backend. Payment processing
+            will be connected separately.
+          </Text>
+        </View>
+
+        <View style={styles.backendCard}>
+          <Text style={styles.backendTitle}>
             Backend-calculated amount
           </Text>
 
-          <Text
-            style={
-              styles.backendText
-            }
-          >
-            This amount was calculated by
-            the backend booking engine. The
-            customer app does not calculate
-            the booking price.
+          <Text style={styles.backendText}>
+            The customer app does not calculate
+            the booking price. The amount shown
+            above comes directly from the backend
+            booking result.
           </Text>
         </View>
       </View>
@@ -168,6 +171,28 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontWeight: '600',
     color: '#111827',
+  },
+
+  statusCard: {
+    marginTop: 16,
+    padding: 18,
+    borderRadius: 16,
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+  },
+
+  statusTitle: {
+    marginTop: 10,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+  },
+
+  statusText: {
+    marginTop: 8,
+    lineHeight: 20,
+    textAlign: 'center',
+    color: '#6B7280',
   },
 
   backendCard: {
