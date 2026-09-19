@@ -2,6 +2,6 @@ export type HomeService = {
   id: string
   name: string
   description: string | null
-  hourlyPrice: number
-  currency: string
+  hourlyPrice: number | null
+  currency: string | null
 }

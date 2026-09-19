@@ -56,26 +56,27 @@ export async function getHomeServices(): Promise<HomeService[]> {
 
   const rows = (data ?? []) as unknown as ServiceRow[]
 
-  return rows
-    .map((service) => {
-      const variant = service.service_variants?.[0]
-      const price = variant?.service_variant_prices?.[0]
+  const services: HomeService[] = []
 
-      if (!variant || !price) {
-        return null
-      }
+  for (const service of rows) {
+    const variant = service.service_variants?.[0]
 
-      return {
-        id: service.id,
-        name: service.name,
-        description: service.description,
-        hourlyPrice: Number(price.price),
-        currency: price.currency,
-      }
+    if (!variant) {
+      continue
+    }
+
+    const price = variant.service_variant_prices?.[0]
+
+    services.push({
+      id: service.id,
+      name: service.name,
+      description: service.description,
+      hourlyPrice: price
+        ? Number(price.price)
+        : null,
+      currency: price?.currency ?? null,
     })
-    .filter(
-      (service): service is HomeService =>
-        service !== null &&
-        Number.isFinite(service.hourlyPrice),
-    )
+  }
+
+  return services
 }
