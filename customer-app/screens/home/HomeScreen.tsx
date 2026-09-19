@@ -15,7 +15,9 @@ import * as Location from 'expo-location'
 
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
 import { getHomeServices } from '../../services/services/services.service'
-import { getAvailableServiceIds } from '../../services/availability/availability.service'
+import {
+  getAvailableServiceIds,
+} from '../../services/availability/availability.service'
 import type { HomeService } from '../../types/service'
 
 type HomeLocation = {
@@ -31,7 +33,9 @@ type HomeScreenProps = {
     longitude: number,
     address: string,
   ) => void
-  onServicePress?: (service: HomeService) => void
+  onServicePress?: (
+    service: HomeService,
+  ) => void
 }
 
 export default function HomeScreen({
@@ -56,8 +60,9 @@ export default function HomeScreen({
 
   const [areaUnavailable, setAreaUnavailable] =
     useState(false)
-    const [pricingUnavailable, setPricingUnavailable] =
-  useState(false)
+
+  const [pricingUnavailable, setPricingUnavailable] =
+    useState(false)
 
   const [
     locationPickerVisible,
@@ -67,16 +72,13 @@ export default function HomeScreen({
   const [locationQuery, setLocationQuery] =
     useState('')
 
-  const [
-    locationSearching,
-    setLocationSearching,
-  ] = useState(false)
+  const [locationSearching, setLocationSearching] =
+    useState(false)
 
   const [locationError, setLocationError] =
     useState('')
 
   async function loadServices() {
-  try {
     setError('')
     setAreaUnavailable(false)
     setPricingUnavailable(false)
@@ -89,8 +91,6 @@ export default function HomeScreen({
       return
     }
 
-    // Backend has active services/variants,
-    // but no current customer-visible hourly prices.
     if (pricedServices.length === 0) {
       setServices([])
       setPricingUnavailable(true)
@@ -104,33 +104,19 @@ export default function HomeScreen({
       )
 
     const availableServices =
-      pricedServices.filter((service) =>
+      pricedServices.filter(service =>
         availableServiceIds.has(service.id),
       )
 
     setServices(availableServices)
-
     setAreaUnavailable(
       availableServices.length === 0,
     )
-  } catch (err) {
-    console.error(
-      'Home services error:',
-      err,
-    )
-
-    setServices([])
-    setAreaUnavailable(false)
-    setPricingUnavailable(false)
-
-    setError(
-      'Unable to load services. Please try again.',
-    )
   }
-}
 
   async function loadAddress() {
     if (!location) {
+      setAddress('Current location')
       return
     }
 
@@ -169,23 +155,48 @@ export default function HomeScreen({
   async function loadHome() {
     setLoading(true)
 
-    await Promise.all([
-      loadServices(),
-      loadAddress(),
-    ])
+    try {
+      await Promise.all([
+        loadServices(),
+        loadAddress(),
+      ])
+    } catch (err) {
+      console.error(
+        'Home loading error:',
+        err,
+      )
 
-    setLoading(false)
+      setServices([])
+      setAreaUnavailable(false)
+      setPricingUnavailable(false)
+      setError(
+        'Unable to load services. Please try again.',
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function refreshHome() {
     setRefreshing(true)
 
-    await Promise.all([
-      loadServices(),
-      loadAddress(),
-    ])
+    try {
+      await Promise.all([
+        loadServices(),
+        loadAddress(),
+      ])
+    } catch (err) {
+      console.error(
+        'Home refresh error:',
+        err,
+      )
 
-    setRefreshing(false)
+      setError(
+        'Unable to refresh services. Please try again.',
+      )
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   async function handleSearchLocation() {
@@ -203,16 +214,6 @@ export default function HomeScreen({
     setLocationSearching(true)
 
     try {
-      const permission =
-        await Location.requestForegroundPermissionsAsync()
-
-      if (permission.status !== 'granted') {
-        setLocationError(
-          'Location permission is required to search for a location on this device.',
-        )
-        return
-      }
-
       const results =
         await Location.geocodeAsync(query)
 
@@ -327,6 +328,15 @@ export default function HomeScreen({
     location?.address,
   ])
 
+  const showAreaUnavailable =
+    !error &&
+    !pricingUnavailable &&
+    areaUnavailable
+
+  const showPricingUnavailable =
+    !error &&
+    pricingUnavailable
+
   if (loading) {
     return (
       <ScreenContainer>
@@ -341,17 +351,12 @@ export default function HomeScreen({
     )
   }
 
- const showAreaUnavailable =
-  !error &&
-  !pricingUnavailable &&
-  areaUnavailable
-  const showPricingUnavailable =
-  !error && pricingUnavailable
-
   return (
     <ScreenContainer>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={
+          styles.content
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -361,14 +366,22 @@ export default function HomeScreen({
         showsVerticalScrollIndicator={false}
       >
         <TouchableOpacity
-          style={styles.locationSection}
+          style={
+            styles.locationSection
+          }
           activeOpacity={0.7}
           onPress={() =>
-            setLocationPickerVisible(true)
+            setLocationPickerVisible(
+              true,
+            )
           }
         >
-          <Text style={styles.locationLabel}>
-            Selected location
+          <Text
+            style={
+              styles.locationLabel
+            }
+          >
+            Current location
           </Text>
 
           <Text
@@ -378,76 +391,116 @@ export default function HomeScreen({
             {address}
           </Text>
 
-          <Text style={styles.changeLocation}>
+          <Text
+            style={
+              styles.changeLocation
+            }
+          >
             Change location
           </Text>
         </TouchableOpacity>
 
-       <View style={styles.banner}>
-  <Text style={styles.bannerTitle}>
-    {showPricingUnavailable
-      ? 'Services are not currently available'
-      : showAreaUnavailable
-        ? 'Services will be available soon in your area'
-        : 'Services available in your area'}
-  </Text>
-
-  <Text style={styles.bannerText}>
-    {showPricingUnavailable
-      ? 'There are currently no active hourly prices configured for customer bookings.'
-      : showAreaUnavailable
-        ? 'We do not currently have an active service area for this location.'
-        : 'Choose a service to continue with your booking.'}
-  </Text>
-</View>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            Services
+        <View style={styles.banner}>
+          <Text
+            style={styles.bannerTitle}
+          >
+            {showPricingUnavailable
+              ? 'Services are not currently available'
+              : showAreaUnavailable
+                ? 'No services available in this area'
+                : 'Services available in your area'}
           </Text>
 
-          <Text style={styles.sectionSubtitle}>
-            1-hour pricing
+          <Text
+            style={styles.bannerText}
+          >
+            {showPricingUnavailable
+              ? 'Customer hourly prices are not currently configured.'
+              : showAreaUnavailable
+                ? 'There is currently no active service area for this location.'
+                : 'Choose a service to start your booking.'}
           </Text>
+        </View>
+
+        <View
+          style={styles.sectionHeader}
+        >
+          <View>
+            <Text
+              style={styles.sectionTitle}
+            >
+              Services
+            </Text>
+
+            <Text
+              style={
+                styles.sectionSubtitle
+              }
+            >
+              Customer hourly pricing
+            </Text>
+          </View>
         </View>
 
         {error ? (
           <View style={styles.errorBox}>
-            <Text style={styles.errorText}>
+            <Text
+              style={styles.errorText}
+            >
               {error}
             </Text>
           </View>
         ) : showAreaUnavailable ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>
+            <Text
+              style={styles.emptyTitle}
+            >
               No services in this area
             </Text>
 
-            <Text style={styles.emptyText}>
-              Services will become available here
-              when an active service area is
+            <Text
+              style={styles.emptyText}
+            >
+              Services will appear here when
+              an active service area is
               configured.
             </Text>
           </View>
-        ) : services.length === 0 ? (
-  <View style={styles.empty}>
-    <Text style={styles.emptyTitle}>
-      {showPricingUnavailable
-        ? 'No hourly services priced'
-        : 'No services available'}
-    </Text>
+        ) : showPricingUnavailable ? (
+          <View style={styles.empty}>
+            <Text
+              style={styles.emptyTitle}
+            >
+              No hourly services priced
+            </Text>
 
-    <Text style={styles.emptyText}>
-      {showPricingUnavailable
-        ? 'Hourly services will appear here when customer pricing is configured.'
-        : 'There are currently no services available at this location.'}
-    </Text>
-  </View>
-) : (
+            <Text
+              style={styles.emptyText}
+            >
+              Hourly services will appear here
+              when customer pricing is configured.
+            </Text>
+          </View>
+        ) : services.length === 0 ? (
+          <View style={styles.empty}>
+            <Text
+              style={styles.emptyTitle}
+            >
+              No services available
+            </Text>
+
+            <Text
+              style={styles.emptyText}
+            >
+              There are currently no services
+              available at this location.
+            </Text>
+          </View>
+        ) : (
           <FlatList
             data={services}
             scrollEnabled={false}
-            keyExtractor={(item) => item.id}
+            keyExtractor={item => item.id}
             renderItem={({ item }) => (
               <ServiceCard
                 service={item}
@@ -465,35 +518,52 @@ export default function HomeScreen({
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() =>
-          setLocationPickerVisible(false)
+          setLocationPickerVisible(
+            false,
+          )
         }
       >
         <ScreenContainer>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
+          <View
+            style={styles.modalContainer}
+          >
+            <View
+              style={styles.modalHeader}
+            >
+              <Text
+                style={styles.modalTitle}
+              >
                 Change location
               </Text>
 
               <TouchableOpacity
                 onPress={() =>
-                  setLocationPickerVisible(false)
+                  setLocationPickerVisible(
+                    false,
+                  )
                 }
               >
-                <Text style={styles.closeButton}>
+                <Text
+                  style={styles.closeButton}
+                >
                   Close
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalDescription}>
-              Search for the address or area where
-              you want to receive the service.
+            <Text
+              style={
+                styles.modalDescription
+              }
+            >
+              Search for the address or area
+              where you want to receive the
+              service.
             </Text>
 
             <TextInput
               value={locationQuery}
-              onChangeText={(value) => {
+              onChangeText={value => {
                 setLocationQuery(value)
                 setLocationError('')
               }}
@@ -508,7 +578,11 @@ export default function HomeScreen({
             />
 
             {locationError ? (
-              <Text style={styles.locationError}>
+              <Text
+                style={
+                  styles.locationError
+                }
+              >
                 {locationError}
               </Text>
             ) : null}
@@ -527,14 +601,20 @@ export default function HomeScreen({
               {locationSearching ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.primaryButtonText}>
+                <Text
+                  style={
+                    styles.primaryButtonText
+                  }
+                >
                   Search location
                 </Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.currentLocationButton}
+              style={
+                styles.currentLocationButton
+              }
               disabled={locationSearching}
               onPress={() =>
                 void handleUseCurrentLocation()
@@ -563,9 +643,15 @@ function ServiceCard({
   onPress: () => void
 }) {
   return (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.8}
+      onPress={onPress}
+    >
       <View style={styles.cardContent}>
-        <Text style={styles.serviceName}>
+        <Text
+          style={styles.serviceName}
+        >
           {service.name}
         </Text>
 
@@ -579,19 +665,16 @@ function ServiceCard({
         ) : null}
 
         <Text style={styles.price}>
-  {service.hourlyPrice === null
-    ? 'Pricing unavailable'
-    : `${service.currency ?? ''} ${service.hourlyPrice}/hour`}
-</Text>
+          {service.hourlyPrice === null
+            ? 'Pricing unavailable'
+            : `${service.currency ?? ''} ${service.hourlyPrice}/hour`}
+        </Text>
       </View>
 
-      <Text
-        style={styles.book}
-        onPress={onPress}
-      >
+      <Text style={styles.book}>
         Book
       </Text>
-    </View>
+    </TouchableOpacity>
   )
 }
 
@@ -632,7 +715,7 @@ function formatAddress(
 const styles = StyleSheet.create({
   content: {
     padding: 20,
-    paddingBottom: 32,
+    paddingBottom: 100,
   },
 
   locationSection: {
@@ -772,12 +855,14 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#111827',
+    textAlign: 'center',
   },
 
   emptyText: {
     marginTop: 6,
     color: '#6B7280',
     textAlign: 'center',
+    lineHeight: 21,
   },
 
   modalContainer: {
