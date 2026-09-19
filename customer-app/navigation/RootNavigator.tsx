@@ -51,31 +51,18 @@ export default function RootNavigator() {
       ) => void
     },
   ) {
-    /*
-     * No Supabase session:
-     * customer has not authenticated yet.
-     */
+    setPhone(authState.phone)
+
     if (!authState.authenticated) {
       navigation.replace('Login')
       return
     }
 
-    /*
-     * Authenticated account exists but the
-     * customer profile is incomplete.
-     */
     if (authState.needsRegistration) {
       navigation.replace('Registration')
       return
     }
 
-    /*
-     * Existing registered customer:
-     * go directly to the customer app/Home.
-     *
-     * Do NOT send returning customers through
-     * the registration or location screen.
-     */
     navigation.replace('Customer')
   }
 
@@ -135,10 +122,6 @@ export default function RootNavigator() {
                   return
                 }
 
-                /*
-                 * Existing customer after OTP:
-                 * go directly into the app.
-                 */
                 navigation.replace(
                   'Customer',
                 )
@@ -163,18 +146,15 @@ export default function RootNavigator() {
                   )
 
                 if (!result.success) {
-                  console.error(
-                    'Registration failed:',
+                  throw new Error(
                     result.error,
                   )
-                  return
                 }
 
-                /*
-                 * Registration is complete.
-                 * New customer now proceeds to
-                 * location permission/fetching.
-                 */
+                setPhone(
+                  result.profile.phone ?? phone,
+                )
+
                 navigation.replace(
                   'Location',
                 )

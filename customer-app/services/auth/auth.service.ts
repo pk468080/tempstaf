@@ -2,19 +2,34 @@ import { supabase } from '../../lib/supabase'
 
 export const TEMP_OTP = '123456'
 
+const MAX_NAME_LENGTH = 100
+const MAX_COMPANY_NAME_LENGTH = 150
+
 export type CustomerAuthState =
   | {
       authenticated: false
       needsRegistration: true
+      phone: string
     }
   | {
       authenticated: true
       needsRegistration: true
+      phone: string
     }
   | {
       authenticated: true
       needsRegistration: false
+      phone: string
     }
+
+type CustomerProfile = {
+  id: string
+  full_name: string | null
+  phone: string | null
+  role: string
+  is_active: boolean
+  company_name: string | null
+}
 
 type VerifyOtpSuccess = {
   success: true
@@ -36,16 +51,39 @@ type VerifyOtpResult =
   | VerifyOtpSuccess
   | VerifyOtpFailure
 
-export async function sendOtp(phone: string) {
-  console.log('Development OTP:', TEMP_OTP)
-  console.log('OTP requested for:', phone)
-
-  return {
-    success: true,
-  }
+type CreateCustomerProfileSuccess = {
+  success: true
+  profile: CustomerProfile
 }
 
-async function getCustomerProfile(userId: string) {
+type CreateCustomerProfileFailure = {
+  success: false
+  error: string
+}
+
+type CreateCustomerProfileResult =
+  | CreateCustomerProfileSuccess
+  | CreateCustomerProfileFailure
+
+function normalizePhone(phone: string) {
+  return phone.replace(/\D/g, '')
+}
+
+function getUserMetadataPhone(
+  user: {
+    user_metadata?: Record<string, unknown>
+  } | null,
+) {
+  const value = user?.user_metadata?.phone
+
+  return typeof value === 'string'
+    ? normalizePhone(value)
+    : ''
+}
+
+async function getCustomerProfile(
+  userId: string,
+): Promise<CustomerProfile | null> {
   const {
     data: profile,
     error,
@@ -65,12 +103,7 @@ async function getCustomerProfile(userId: string) {
 }
 
 function profileNeedsRegistration(
-  profile: {
-    role: string
-    is_active: boolean
-    full_name: string | null
-    company_name: string | null
-  } | null,
+  profile: CustomerProfile | null,
 ) {
   if (!profile) {
     return true
@@ -93,6 +126,33 @@ function profileNeedsRegistration(
   )
 }
 
+export async function sendOtp(phone: string) {
+  const normalizedPhone = normalizePhone(phone)
+
+  if (
+    normalizedPhone.length < 10 ||
+    normalizedPhone.length > 15
+  ) {
+    throw new Error(
+      'Please enter a valid mobile number.',
+    )
+  }
+
+  console.log(
+    'Development OTP:',
+    TEMP_OTP,
+  )
+
+  console.log(
+    'OTP requested for:',
+    normalizedPhone,
+  )
+
+  return {
+    success: true,
+  }
+}
+
 export async function getCustomerAuthState(): Promise<CustomerAuthState> {
   const {
     data: sessionData,
@@ -103,21 +163,36 @@ export async function getCustomerAuthState(): Promise<CustomerAuthState> {
     throw sessionError
   }
 
-  if (!sessionData.session) {
+  const session = sessionData.session
+
+  if (!session) {
     return {
       authenticated: false,
       needsRegistration: true,
+      phone: '',
     }
   }
 
   const profile = await getCustomerProfile(
-    sessionData.session.user.id,
+    session.user.id,
   )
+
+  const needsRegistration =
+    profileNeedsRegistration(profile)
+
+  const profilePhone = profile?.phone
+    ? normalizePhone(profile.phone)
+    : ''
+
+  const metadataPhone =
+    getUserMetadataPhone(session.user)
 
   return {
     authenticated: true,
-    needsRegistration:
-      profileNeedsRegistration(profile),
+    needsRegistration,
+    phone:
+      profilePhone ||
+      metadataPhone,
   }
 }
 
@@ -125,10 +200,22 @@ export async function verifyOtp(
   phone: string,
   otp: string,
 ): Promise<VerifyOtpResult> {
+  const normalizedPhone = normalizePhone(phone)
+
   if (otp !== TEMP_OTP) {
     return {
       success: false,
       error: 'Invalid OTP',
+    }
+  }
+
+  if (
+    normalizedPhone.length < 10 ||
+    normalizedPhone.length > 15
+  ) {
+    return {
+      success: false,
+      error: 'Invalid mobile number.',
     }
   }
 
@@ -148,25 +235,41 @@ export async function verifyOtp(
           existingSessionData.session.user.id,
         )
 
+      const needsRegistration =
+        profileNeedsRegistration(profile)
+
+      const profilePhone = profile?.phone
+        ? normalizePhone(profile.phone)
+        : ''
+
+      const metadataPhone =
+        getUserMetadataPhone(
+          existingSessionData.session.user,
+        )
+
       return {
         success: true,
-        phone,
-        session: existingSessionData.session,
-        needsRegistration:
-          profileNeedsRegistration(profile),
+        phone:
+          profilePhone ||
+          metadataPhone ||
+          normalizedPhone,
+        session:
+          existingSessionData.session,
+        needsRegistration,
       }
     }
 
     const {
       data: anonymousData,
       error: anonymousError,
-    } = await supabase.auth.signInAnonymously({
-      options: {
-        data: {
-          phone,
+    } =
+      await supabase.auth.signInAnonymously({
+        options: {
+          data: {
+            phone: normalizedPhone,
+          },
         },
-      },
-    })
+      })
 
     if (anonymousError) {
       throw anonymousError
@@ -195,7 +298,7 @@ export async function verifyOtp(
 
     return {
       success: true,
-      phone,
+      phone: normalizedPhone,
       session: anonymousData.session,
       needsRegistration: true,
     }
@@ -219,7 +322,7 @@ export async function createCustomerProfile(
   phone: string,
   name: string,
   companyName: string,
-) {
+): Promise<CreateCustomerProfileResult> {
   const trimmedName = name.trim()
   const trimmedCompanyName =
     companyName.trim()
@@ -231,10 +334,30 @@ export async function createCustomerProfile(
     }
   }
 
+  if (
+    trimmedName.length >
+    MAX_NAME_LENGTH
+  ) {
+    return {
+      success: false,
+      error: `Name must be ${MAX_NAME_LENGTH} characters or fewer.`,
+    }
+  }
+
   if (!trimmedCompanyName) {
     return {
       success: false,
       error: 'Company name is required.',
+    }
+  }
+
+  if (
+    trimmedCompanyName.length >
+    MAX_COMPANY_NAME_LENGTH
+  ) {
+    return {
+      success: false,
+      error: `Company name must be ${MAX_COMPANY_NAME_LENGTH} characters or fewer.`,
     }
   }
 
@@ -248,14 +371,15 @@ export async function createCustomerProfile(
       throw sessionError
     }
 
-    const userId =
-      sessionData.session?.user.id
+    const session = sessionData.session
 
-    if (!userId) {
+    if (!session) {
       throw new Error(
         'A customer authentication session is required.',
       )
     }
+
+    const userId = session.user.id
 
     const existingProfile =
       await getCustomerProfile(userId)
@@ -270,6 +394,30 @@ export async function createCustomerProfile(
         )
       }
 
+      const existingPhone =
+        existingProfile.phone
+          ? normalizePhone(
+              existingProfile.phone,
+            )
+          : ''
+
+      const metadataPhone =
+        getUserMetadataPhone(session.user)
+
+      const normalizedPhone =
+        normalizePhone(phone) ||
+        existingPhone ||
+        metadataPhone
+
+      if (
+        normalizedPhone.length < 10 ||
+        normalizedPhone.length > 15
+      ) {
+        throw new Error(
+          'A valid customer mobile number is required.',
+        )
+      }
+
       const {
         data: updatedProfile,
         error: updateError,
@@ -277,8 +425,9 @@ export async function createCustomerProfile(
         .from('profiles')
         .update({
           full_name: trimmedName,
-          phone,
-          company_name: trimmedCompanyName,
+          phone: normalizedPhone,
+          company_name:
+            trimmedCompanyName,
         })
         .eq('id', userId)
         .select(
@@ -302,6 +451,22 @@ export async function createCustomerProfile(
       }
     }
 
+    const metadataPhone =
+      getUserMetadataPhone(session.user)
+
+    const normalizedPhone =
+      normalizePhone(phone) ||
+      metadataPhone
+
+    if (
+      normalizedPhone.length < 10 ||
+      normalizedPhone.length > 15
+    ) {
+      throw new Error(
+        'A valid customer mobile number is required.',
+      )
+    }
+
     const {
       data: createdProfile,
       error: createError,
@@ -310,8 +475,9 @@ export async function createCustomerProfile(
       .insert({
         id: userId,
         full_name: trimmedName,
-        phone,
-        company_name: trimmedCompanyName,
+        phone: normalizedPhone,
+        company_name:
+          trimmedCompanyName,
       })
       .select(
         'id, full_name, phone, role, is_active, company_name',

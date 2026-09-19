@@ -19,19 +19,34 @@ type RegistrationScreenProps = {
   ) => Promise<void>
 }
 
+const MAX_NAME_LENGTH = 100
+const MAX_COMPANY_NAME_LENGTH = 150
+
 export default function RegistrationScreen({
   phone,
   onContinue,
 }: RegistrationScreenProps) {
   const [name, setName] = useState('')
-  const [companyName, setCompanyName] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [companyName, setCompanyName] =
+    useState('')
 
-  const [error, setError] = useState('')
+  const [loading, setLoading] =
+    useState(false)
+
+  const [error, setError] =
+    useState('')
+
+  const normalizedName = name.trim()
+  const normalizedCompanyName =
+    companyName.trim()
 
   const isValid =
-    name.trim().length > 0 &&
-    companyName.trim().length > 0
+    normalizedName.length > 0 &&
+    normalizedName.length <=
+      MAX_NAME_LENGTH &&
+    normalizedCompanyName.length > 0 &&
+    normalizedCompanyName.length <=
+      MAX_COMPANY_NAME_LENGTH
 
   async function handleContinue() {
     if (!isValid || loading) {
@@ -43,8 +58,8 @@ export default function RegistrationScreen({
 
     try {
       await onContinue(
-        name.trim(),
-        companyName.trim(),
+        normalizedName,
+        normalizedCompanyName,
       )
     } catch (error) {
       console.error(
@@ -99,6 +114,9 @@ export default function RegistrationScreen({
                 autoCapitalize="words"
                 autoCorrect={false}
                 editable={!loading}
+                maxLength={
+                  MAX_NAME_LENGTH
+                }
                 style={styles.input}
               />
             </View>
@@ -118,6 +136,9 @@ export default function RegistrationScreen({
                 autoCapitalize="words"
                 autoCorrect={false}
                 editable={!loading}
+                maxLength={
+                  MAX_COMPANY_NAME_LENGTH
+                }
                 style={styles.input}
               />
             </View>
@@ -140,7 +161,7 @@ export default function RegistrationScreen({
           </View>
 
           <Text style={styles.phone}>
-            Mobile: {phone}
+            Mobile: {phone || 'Not available'}
           </Text>
         </View>
       </KeyboardAvoidingView>
