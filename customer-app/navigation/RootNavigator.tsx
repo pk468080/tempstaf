@@ -37,7 +37,8 @@ type CustomerLocation = {
 }
 
 export default function RootNavigator() {
-  const [phone, setPhone] = useState('')
+  const [phone, setPhone] =
+    useState('')
 
   const [customerLocation, setCustomerLocation] =
     useState<CustomerLocation | null>(null)
@@ -50,17 +51,32 @@ export default function RootNavigator() {
       ) => void
     },
   ) {
+    /*
+     * No Supabase session:
+     * customer has not authenticated yet.
+     */
     if (!authState.authenticated) {
       navigation.replace('Login')
       return
     }
 
+    /*
+     * Authenticated account exists but the
+     * customer profile is incomplete.
+     */
     if (authState.needsRegistration) {
       navigation.replace('Registration')
       return
     }
 
-    navigation.replace('Location')
+    /*
+     * Existing registered customer:
+     * go directly to the customer app/Home.
+     *
+     * Do NOT send returning customers through
+     * the registration or location screen.
+     */
+    navigation.replace('Customer')
   }
 
   return (
@@ -106,16 +122,26 @@ export default function RootNavigator() {
                 verifiedPhone,
                 needsRegistration,
               ) => {
-                setPhone(verifiedPhone)
+                setPhone(
+                  verifiedPhone,
+                )
 
-                if (needsRegistration) {
+                if (
+                  needsRegistration
+                ) {
                   navigation.replace(
                     'Registration',
                   )
                   return
                 }
 
-                navigation.replace('Location')
+                /*
+                 * Existing customer after OTP:
+                 * go directly into the app.
+                 */
+                navigation.replace(
+                  'Customer',
+                )
               }}
             />
           )}
@@ -144,7 +170,14 @@ export default function RootNavigator() {
                   return
                 }
 
-                navigation.replace('Location')
+                /*
+                 * Registration is complete.
+                 * New customer now proceeds to
+                 * location permission/fetching.
+                 */
+                navigation.replace(
+                  'Location',
+                )
               }}
             />
           )}
@@ -163,7 +196,9 @@ export default function RootNavigator() {
                   address: '',
                 })
 
-                navigation.replace('Customer')
+                navigation.replace(
+                  'Customer',
+                )
               }}
             />
           )}
@@ -172,7 +207,9 @@ export default function RootNavigator() {
         <Stack.Screen name="Customer">
           {() => (
             <CustomerNavigator
-              location={customerLocation}
+              location={
+                customerLocation
+              }
               onLocationChange={(
                 latitude,
                 longitude,

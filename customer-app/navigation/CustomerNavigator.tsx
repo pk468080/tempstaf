@@ -71,10 +71,7 @@ const Tab =
 
 const Stack =
   createNativeStackNavigator<CustomerStackParamList>()
-
-function toDateOnly(
-  value: string,
-) {
+function toDateOnly(value: string) {
   const date = new Date(value)
 
   const year = date.getFullYear()
@@ -87,8 +84,6 @@ function toDateOnly(
 
   return `${year}-${month}-${day}`
 }
-
-
 function toTimeOnly(
   value: string,
 ) {
