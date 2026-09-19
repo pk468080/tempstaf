@@ -14,16 +14,24 @@ type LocationFetchingScreenProps = {
   onLocationFetched: (
     latitude: number,
     longitude: number,
-  ) => void
+    address: string,
+  ) => Promise<void> | void
 }
 
 export default function LocationFetchingScreen({
   onLocationFetched,
 }: LocationFetchingScreenProps) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [loading, setLoading] =
+    useState(false)
+
+  const [error, setError] =
+    useState('')
 
   async function handleFetchLocation() {
+    if (loading) {
+      return
+    }
+
     setError('')
     setLoading(true)
 
@@ -31,27 +39,71 @@ export default function LocationFetchingScreen({
       const permission =
         await Location.requestForegroundPermissionsAsync()
 
-      if (permission.status !== 'granted') {
-        setError(
+      if (
+        permission.status !==
+        'granted'
+      ) {
+        throw new Error(
           'Location permission is required to continue.',
         )
-        return
       }
 
       const location =
-        await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        })
+        await Location.getCurrentPositionAsync(
+          {
+            accuracy:
+              Location.Accuracy.Balanced,
+          },
+        )
 
-      const { latitude, longitude } =
-        location.coords
+      const {
+        latitude,
+        longitude,
+      } = location.coords
 
-      onLocationFetched(latitude, longitude)
+      let address = ''
+
+      try {
+        const results =
+          await Location.reverseGeocodeAsync(
+            {
+              latitude,
+              longitude,
+            },
+          )
+
+        const first = results[0]
+
+        if (first) {
+          address =
+            formatAddress(first)
+        }
+      } catch (reverseGeocodeError) {
+        /*
+         * GPS coordinates are still valid even
+         * when reverse geocoding temporarily fails.
+         */
+        console.error(
+          'Initial reverse geocoding error:',
+          reverseGeocodeError,
+        )
+      }
+
+      await onLocationFetched(
+        latitude,
+        longitude,
+        address,
+      )
     } catch (err) {
-      console.error('Location error:', err)
+      console.error(
+        'Location error:',
+        err,
+      )
 
       setError(
-        'Unable to fetch your location. Please try again.',
+        err instanceof Error
+          ? err.message
+          : 'Unable to fetch your location. Please try again.',
       )
     } finally {
       setLoading(false)
@@ -63,7 +115,9 @@ export default function LocationFetchingScreen({
       <View style={styles.container}>
         <View style={styles.content}>
           <View style={styles.icon}>
-            <Text style={styles.iconText}>⌖</Text>
+            <Text style={styles.iconText}>
+              ⌖
+            </Text>
           </View>
 
           <Text style={styles.title}>
@@ -83,7 +137,9 @@ export default function LocationFetchingScreen({
           ) : null}
 
           {error ? (
-            <Text style={styles.error}>{error}</Text>
+            <Text style={styles.error}>
+              {error}
+            </Text>
           ) : null}
         </View>
 
@@ -94,11 +150,28 @@ export default function LocationFetchingScreen({
               : 'Allow location'
           }
           disabled={loading}
-          onPress={handleFetchLocation}
+          onPress={() =>
+            void handleFetchLocation()
+          }
         />
       </View>
     </ScreenContainer>
   )
+}
+
+function formatAddress(
+  address: Location.LocationGeocodedAddress,
+) {
+  const parts = [
+    address.name,
+    address.street,
+    address.district,
+    address.city,
+    address.region,
+    address.postalCode,
+  ].filter(Boolean)
+
+  return parts.join(', ')
 }
 
 const styles = StyleSheet.create({
@@ -109,9 +182,11 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     justifyContent: 'space-between',
   },
+
   content: {
     alignItems: 'center',
   },
+
   icon: {
     width: 80,
     height: 80,
@@ -121,16 +196,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 28,
   },
+
   iconText: {
     fontSize: 42,
     color: '#111827',
   },
+
   title: {
     fontSize: 30,
     fontWeight: '700',
     color: '#111827',
     textAlign: 'center',
   },
+
   subtitle: {
     marginTop: 12,
     fontSize: 16,
@@ -138,9 +216,11 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
   },
+
   loader: {
     marginTop: 28,
   },
+
   error: {
     marginTop: 20,
     fontSize: 14,

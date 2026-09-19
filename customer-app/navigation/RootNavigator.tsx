@@ -20,6 +20,10 @@ import {
 } from '../services/auth/auth.service'
 
 import {
+  getOrCreateCustomerAddress,
+} from '../services/addresses/customerAddress.service'
+
+import {
   CustomerAuthState,
 } from '../services/auth/auth.service'
 
@@ -40,8 +44,13 @@ export default function RootNavigator() {
   const [phone, setPhone] =
     useState('')
 
-  const [customerLocation, setCustomerLocation] =
-    useState<CustomerLocation | null>(null)
+  const [
+    customerLocation,
+    setCustomerLocation,
+  ] =
+    useState<CustomerLocation | null>(
+      null,
+    )
 
   function handleSplashFinished(
     authState: CustomerAuthState,
@@ -63,7 +72,78 @@ export default function RootNavigator() {
       return
     }
 
+    /*
+     * Returning customers go directly to Home.
+     *
+     * Home will refresh the current GPS location
+     * without displaying the onboarding Location screen.
+     */
     navigation.replace('Customer')
+  }
+
+  async function handleLocationFetched(
+    latitude: number,
+    longitude: number,
+    address: string,
+  ) {
+    const locationAddress =
+      address.trim() ||
+      'Current location'
+
+    /*
+     * Save the customer's first/current service
+     * location in Supabase.
+     */
+    await getOrCreateCustomerAddress({
+      latitude,
+      longitude,
+      address: locationAddress,
+      label: 'Current',
+    })
+
+    setCustomerLocation({
+      latitude,
+      longitude,
+      address: locationAddress,
+    })
+  }
+
+  async function handleLocationChange(
+    latitude: number,
+    longitude: number,
+    address: string,
+  ) {
+    const locationAddress =
+      address.trim() ||
+      'Current location'
+
+    /*
+     * Every location selected from Home is also
+     * persisted so it can be reused later.
+     */
+    try {
+      await getOrCreateCustomerAddress({
+        latitude,
+        longitude,
+        address: locationAddress,
+        label: 'Saved location',
+      })
+    } catch (error) {
+      /*
+       * Do not block the customer from using the
+       * newly selected location if persistence fails.
+       */
+      console.error(
+        'Unable to save customer location:',
+        error,
+      )
+    }
+
+    setCustomerLocation({
+      latitude,
+      longitude,
+      address: locationAddress,
+    })
   }
 
   return (
@@ -152,7 +232,8 @@ export default function RootNavigator() {
                 }
 
                 setPhone(
-                  result.profile.phone ?? phone,
+                  result.profile.phone ??
+                    phone,
                 )
 
                 navigation.replace(
@@ -166,15 +247,16 @@ export default function RootNavigator() {
         <Stack.Screen name="Location">
           {({ navigation }) => (
             <LocationFetchingScreen
-              onLocationFetched={(
+              onLocationFetched={async (
                 latitude,
                 longitude,
+                address,
               ) => {
-                setCustomerLocation({
+                await handleLocationFetched(
                   latitude,
                   longitude,
-                  address: '',
-                })
+                  address,
+                )
 
                 navigation.replace(
                   'Customer',
@@ -190,17 +272,9 @@ export default function RootNavigator() {
               location={
                 customerLocation
               }
-              onLocationChange={(
-                latitude,
-                longitude,
-                address,
-              ) => {
-                setCustomerLocation({
-                  latitude,
-                  longitude,
-                  address,
-                })
-              }}
+              onLocationChange={
+                handleLocationChange
+              }
             />
           )}
         </Stack.Screen>

@@ -4,11 +4,18 @@ export type CustomerAddressInput = {
   latitude: number
   longitude: number
   address: string
+  label?: string
 }
 
-export async function getOrCreateCustomerAddress(
-  input: CustomerAddressInput,
-): Promise<string> {
+export type CustomerSavedAddress = {
+  id: string
+  label: string | null
+  addressLine: string
+  latitude: number
+  longitude: number
+}
+
+async function getAuthenticatedUserId() {
   const {
     data: sessionData,
     error: sessionError,
@@ -27,16 +34,66 @@ export async function getOrCreateCustomerAddress(
     )
   }
 
-  const { data: existingAddress, error: lookupError } =
-    await supabase
-      .from('addresses')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('address_line', input.address)
-      .eq('latitude', input.latitude)
-      .eq('longitude', input.longitude)
-      .limit(1)
-      .maybeSingle()
+  return userId
+}
+
+function validateCoordinates(
+  latitude: number,
+  longitude: number,
+) {
+  if (
+    !Number.isFinite(latitude) ||
+    latitude < -90 ||
+    latitude > 90
+  ) {
+    throw new Error(
+      'Invalid latitude.',
+    )
+  }
+
+  if (
+    !Number.isFinite(longitude) ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    throw new Error(
+      'Invalid longitude.',
+    )
+  }
+}
+
+export async function getOrCreateCustomerAddress(
+  input: CustomerAddressInput,
+): Promise<string> {
+  const userId =
+    await getAuthenticatedUserId()
+
+  const address =
+    input.address.trim()
+
+  if (!address) {
+    throw new Error(
+      'A customer address is required.',
+    )
+  }
+
+  validateCoordinates(
+    input.latitude,
+    input.longitude,
+  )
+
+  const {
+    data: existingAddress,
+    error: lookupError,
+  } = await supabase
+    .from('addresses')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('address_line', address)
+    .eq('latitude', input.latitude)
+    .eq('longitude', input.longitude)
+    .limit(1)
+    .maybeSingle()
 
   if (lookupError) {
     throw lookupError
@@ -46,17 +103,21 @@ export async function getOrCreateCustomerAddress(
     return existingAddress.id
   }
 
-  const { data: createdAddress, error: createError } =
-    await supabase
-      .from('addresses')
-      .insert({
-        user_id: userId,
-        address_line: input.address,
-        latitude: input.latitude,
-        longitude: input.longitude,
-      })
-      .select('id')
-      .single()
+  const {
+    data: createdAddress,
+    error: createError,
+  } = await supabase
+    .from('addresses')
+    .insert({
+      user_id: userId,
+      label:
+        input.label?.trim() || null,
+      address_line: address,
+      latitude: input.latitude,
+      longitude: input.longitude,
+    })
+    .select('id')
+    .single()
 
   if (createError) {
     throw createError
@@ -69,4 +130,42 @@ export async function getOrCreateCustomerAddress(
   }
 
   return createdAddress.id
+}
+
+export async function getLatestCustomerAddress(): Promise<
+  CustomerSavedAddress | null
+> {
+  const userId =
+    await getAuthenticatedUserId()
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from('addresses')
+    .select(
+      'id, label, address_line, latitude, longitude',
+    )
+    .eq('user_id', userId)
+    .order('created_at', {
+      ascending: false,
+    })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  if (!data) {
+    return null
+  }
+
+  return {
+    id: data.id,
+    label: data.label,
+    addressLine: data.address_line,
+    latitude: data.latitude,
+    longitude: data.longitude,
+  }
 }
