@@ -23,6 +23,10 @@ import {
   createCustomerScheduledBooking,
 } from '../services/booking/scheduledBooking.service'
 
+import {
+  createCustomerRecurringBooking,
+} from '../services/booking/recurringBooking.service'
+
 import type { BookingDraft } from '../types/booking'
 import type { HomeService } from '../types/service'
 
@@ -68,6 +72,59 @@ const Tab =
 const Stack =
   createNativeStackNavigator<CustomerStackParamList>()
 
+function toDateOnly(
+  value: string,
+) {
+  return value.slice(0, 10)
+}
+
+function toTimeOnly(
+  value: string,
+) {
+  const date = new Date(value)
+
+  const hours = String(
+    date.getHours(),
+  ).padStart(2, '0')
+
+  const minutes = String(
+    date.getMinutes(),
+  ).padStart(2, '0')
+
+  const seconds = String(
+    date.getSeconds(),
+  ).padStart(2, '0')
+
+  return `${hours}:${minutes}:${seconds}`
+}
+
+const WEEKDAY_INDEX: Record<
+  string,
+  number
+> = {
+  Sunday: 0,
+  Monday: 1,
+  Tuesday: 2,
+  Wednesday: 3,
+  Thursday: 4,
+  Friday: 5,
+  Saturday: 6,
+}
+
+function convertWeekdays(
+  weekdays: string[],
+) {
+  return weekdays
+    .map(
+      weekday =>
+        WEEKDAY_INDEX[weekday],
+    )
+    .filter(
+      value =>
+        value !== undefined,
+    )
+}
+
 export default function CustomerNavigator({
   location,
   onLocationChange,
@@ -83,7 +140,8 @@ export default function CustomerNavigator({
           <Tab.Navigator
             screenOptions={{
               headerShown: false,
-              tabBarStyle: styles.tabBar,
+              tabBarStyle:
+                styles.tabBar,
               tabBarLabelStyle:
                 styles.tabBarLabel,
             }}
@@ -129,7 +187,9 @@ export default function CustomerNavigator({
       <Stack.Screen name="Booking">
         {({ route, navigation }) => (
           <BookingScreen
-            service={route.params.service}
+            service={
+              route.params.service
+            }
             location={location}
             onContinue={draft => {
               navigation.navigate(
@@ -137,7 +197,8 @@ export default function CustomerNavigator({
                 {
                   draft,
                   service:
-                    route.params.service,
+                    route.params
+                      .service,
                 },
               )
             }}
@@ -154,10 +215,12 @@ export default function CustomerNavigator({
 
           async function handleContinue() {
             if (
-              draft.bookingType !==
-              'scheduled'
+              draft.bookingType ===
+              'instant'
             ) {
-              return
+              throw new Error(
+                'Instant booking is not currently available.',
+              )
             }
 
             if (
@@ -169,13 +232,93 @@ export default function CustomerNavigator({
               )
             }
 
+            if (!draft.location) {
+              throw new Error(
+                'A booking location is required.',
+              )
+            }
+
             const addressId =
               await getOrCreateCustomerAddress(
                 draft.location,
               )
 
+            if (
+              draft.bookingType ===
+              'scheduled'
+            ) {
+              const result =
+                await createCustomerScheduledBooking(
+                  {
+                    serviceVariantId:
+                      service.serviceVariantId,
+
+                    addressId,
+
+                    startDate:
+                      toDateOnly(
+                        draft.startDate,
+                      ),
+
+                    endDate:
+                      toDateOnly(
+                        draft.endDate,
+                      ),
+
+                    startTime:
+                      toTimeOnly(
+                        draft.startTime,
+                      ),
+
+                    endTime:
+                      toTimeOnly(
+                        draft.endTime,
+                      ),
+
+                    excludedDates:
+                      draft.excludedDates,
+                  },
+                )
+
+              navigation.navigate(
+                'Payment',
+                {
+                  bookingId:
+                    result.booking_id,
+
+                  finalAmount:
+                    result.final_amount,
+
+                  currency:
+                    result.currency,
+
+                  occurrenceCount:
+                    result.occurrence_count,
+
+                  totalWorkingHours:
+                    result.total_working_hours,
+                },
+              )
+
+              return
+            }
+
+            const weekdayIndexes =
+              convertWeekdays(
+                draft.selectedWeekdays,
+              )
+
+            if (
+              weekdayIndexes.length ===
+              0
+            ) {
+              throw new Error(
+                'At least one recurring weekday is required.',
+              )
+            }
+
             const result =
-              await createCustomerScheduledBooking(
+              await createCustomerRecurringBooking(
                 {
                   serviceVariantId:
                     service.serviceVariantId,
@@ -183,36 +326,27 @@ export default function CustomerNavigator({
                   addressId,
 
                   startDate:
-                    draft.startDate.slice(
-                      0,
-                      10,
+                    toDateOnly(
+                      draft.startDate,
                     ),
 
                   endDate:
-                    draft.endDate.slice(
-                      0,
-                      10,
+                    toDateOnly(
+                      draft.endDate,
                     ),
 
                   startTime:
-                    new Date(
+                    toTimeOnly(
                       draft.startTime,
-                    )
-                      .toTimeString()
-                      .slice(
-                        0,
-                        8,
-                      ),
+                    ),
 
                   endTime:
-                    new Date(
+                    toTimeOnly(
                       draft.endTime,
-                    )
-                      .toTimeString()
-                      .slice(
-                        0,
-                        8,
-                      ),
+                    ),
+
+                  selectedWeekdays:
+                    weekdayIndexes,
 
                   excludedDates:
                     draft.excludedDates,
