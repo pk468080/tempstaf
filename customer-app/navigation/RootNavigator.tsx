@@ -20,6 +20,10 @@ import {
 } from '../services/auth/auth.service'
 
 import {
+  CustomerAuthState,
+} from '../services/auth/auth.service'
+
+import {
   RootStackParamList,
 } from '../types/navigation'
 
@@ -38,6 +42,27 @@ export default function RootNavigator() {
   const [customerLocation, setCustomerLocation] =
     useState<CustomerLocation | null>(null)
 
+  function handleSplashFinished(
+    authState: CustomerAuthState,
+    navigation: {
+      replace: (
+        screen: keyof RootStackParamList,
+      ) => void
+    },
+  ) {
+    if (!authState.authenticated) {
+      navigation.replace('Login')
+      return
+    }
+
+    if (authState.needsRegistration) {
+      navigation.replace('Registration')
+      return
+    }
+
+    navigation.replace('Location')
+  }
+
   return (
     <NavigationContainer>
       <Stack.Navigator
@@ -49,8 +74,11 @@ export default function RootNavigator() {
         <Stack.Screen name="Splash">
           {({ navigation }) => (
             <SplashScreen
-              onFinished={() => {
-                navigation.replace('Login')
+              onFinished={authState => {
+                handleSplashFinished(
+                  authState,
+                  navigation,
+                )
               }}
             />
           )}
@@ -116,9 +144,7 @@ export default function RootNavigator() {
                   return
                 }
 
-                navigation.replace(
-                  'Location',
-                )
+                navigation.replace('Location')
               }}
             />
           )}
@@ -137,9 +163,7 @@ export default function RootNavigator() {
                   address: '',
                 })
 
-                navigation.replace(
-                  'Customer',
-                )
+                navigation.replace('Customer')
               }}
             />
           )}
