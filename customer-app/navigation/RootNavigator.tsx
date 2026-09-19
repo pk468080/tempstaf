@@ -16,6 +16,12 @@ import { RootStackParamList } from '../types/navigation'
 const Stack =
   createNativeStackNavigator<RootStackParamList>()
 
+type CustomerLocation = {
+  latitude: number
+  longitude: number
+  address: string
+}
+
 export default function RootNavigator() {
   const [phone, setPhone] = useState('')
 
@@ -26,10 +32,7 @@ export default function RootNavigator() {
     })
 
   const [customerLocation, setCustomerLocation] =
-    useState<{
-      latitude: number
-      longitude: number
-    } | null>(null)
+    useState<CustomerLocation | null>(null)
 
   return (
     <NavigationContainer>
@@ -80,7 +83,10 @@ export default function RootNavigator() {
           {({ navigation }) => (
             <RegistrationScreen
               phone={phone}
-              onContinue={(name, companyName) => {
+              onContinue={(
+                name,
+                companyName,
+              ) => {
                 setRegistrationData({
                   name,
                   companyName,
@@ -102,6 +108,7 @@ export default function RootNavigator() {
                 setCustomerLocation({
                   latitude,
                   longitude,
+                  address: '',
                 })
 
                 navigation.replace('Customer')
@@ -114,6 +121,17 @@ export default function RootNavigator() {
           {() => (
             <CustomerNavigator
               location={customerLocation}
+              onLocationChange={(
+                latitude,
+                longitude,
+                address,
+              ) => {
+                setCustomerLocation({
+                  latitude,
+                  longitude,
+                  address,
+                })
+              }}
             />
           )}
         </Stack.Screen>
