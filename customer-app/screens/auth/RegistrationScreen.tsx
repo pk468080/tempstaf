@@ -13,7 +13,10 @@ import { ScreenContainer } from '../../components/layout/ScreenContainer'
 
 type RegistrationScreenProps = {
   phone: string
-  onContinue: (name: string, companyName: string) => void
+  onContinue: (
+    name: string,
+    companyName: string,
+  ) => Promise<void>
 }
 
 export default function RegistrationScreen({
@@ -22,20 +25,58 @@ export default function RegistrationScreen({
 }: RegistrationScreenProps) {
   const [name, setName] = useState('')
   const [companyName, setCompanyName] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const [error, setError] = useState('')
 
   const isValid =
     name.trim().length > 0 &&
     companyName.trim().length > 0
 
+  async function handleContinue() {
+    if (!isValid || loading) {
+      return
+    }
+
+    setError('')
+    setLoading(true)
+
+    try {
+      await onContinue(
+        name.trim(),
+        companyName.trim(),
+      )
+    } catch (error) {
+      console.error(
+        'Registration screen error:',
+        error,
+      )
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to create the customer account.',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <ScreenContainer>
       <KeyboardAvoidingView
         style={styles.keyboard}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={
+          Platform.OS === 'ios'
+            ? 'padding'
+            : undefined
+        }
       >
         <View style={styles.container}>
           <View>
-            <Text style={styles.title}>Create your account</Text>
+            <Text style={styles.title}>
+              Create your account
+            </Text>
 
             <Text style={styles.subtitle}>
               Complete your details to continue.
@@ -44,38 +85,57 @@ export default function RegistrationScreen({
 
           <View style={styles.form}>
             <View style={styles.field}>
-              <Text style={styles.label}>Name</Text>
+              <Text style={styles.label}>
+                Name
+              </Text>
 
               <TextInput
                 value={name}
-                onChangeText={setName}
+                onChangeText={value => {
+                  setName(value)
+                  setError('')
+                }}
                 placeholder="Enter your name"
                 autoCapitalize="words"
+                autoCorrect={false}
+                editable={!loading}
                 style={styles.input}
               />
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Company name</Text>
+              <Text style={styles.label}>
+                Company name
+              </Text>
 
               <TextInput
                 value={companyName}
-                onChangeText={setCompanyName}
+                onChangeText={value => {
+                  setCompanyName(value)
+                  setError('')
+                }}
                 placeholder="Enter company name"
                 autoCapitalize="words"
+                autoCorrect={false}
+                editable={!loading}
                 style={styles.input}
               />
             </View>
 
+            {error.length > 0 && (
+              <Text style={styles.error}>
+                {error}
+              </Text>
+            )}
+
             <AppButton
-              title="Continue"
-              disabled={!isValid}
-              onPress={() =>
-                onContinue(
-                  name.trim(),
-                  companyName.trim(),
-                )
+              title={
+                loading
+                  ? 'Creating account...'
+                  : 'Continue'
               }
+              disabled={!isValid || loading}
+              onPress={handleContinue}
             />
           </View>
 
@@ -129,6 +189,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
     color: '#111827',
+  },
+  error: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#DC2626',
   },
   phone: {
     marginTop: 'auto',
