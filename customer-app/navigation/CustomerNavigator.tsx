@@ -6,7 +6,11 @@ import {
   Text,
   View,
 } from 'react-native'
+import {
+  createNativeStackNavigator,
+} from '@react-navigation/native-stack'
 
+import BookingScreen from '../screens/bookings/BookingScreen'
 import HomeScreen from '../screens/home/HomeScreen'
 import type { HomeService } from '../types/service'
 
@@ -25,50 +29,91 @@ type CustomerNavigatorProps = {
   ) => void
 }
 
+type CustomerStackParamList = {
+  Tabs: undefined
+  Booking: {
+    service: HomeService
+  }
+}
+
 const Tab =
   createBottomTabNavigator()
+
+const Stack =
+  createNativeStackNavigator<CustomerStackParamList>()
 
 export default function CustomerNavigator({
   location,
   onLocationChange,
 }: CustomerNavigatorProps) {
   return (
-    <Tab.Navigator
+    <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
       }}
     >
-      <Tab.Screen name="Home">
-        {() => (
-          <HomeScreen
+      <Stack.Screen name="Tabs">
+        {({ navigation }) => (
+          <Tab.Navigator
+            screenOptions={{
+              headerShown: false,
+              tabBarStyle: styles.tabBar,
+              tabBarLabelStyle: styles.tabBarLabel,
+            }}
+          >
+            <Tab.Screen name="Home">
+              {() => (
+                <HomeScreen
+                  location={location}
+                  onLocationChange={
+                    onLocationChange
+                  }
+                  onServicePress={(service) => {
+                    navigation.navigate(
+                      'Booking',
+                      {
+                        service,
+                      },
+                    )
+                  }}
+                />
+              )}
+            </Tab.Screen>
+
+            <Tab.Screen name="My Bookings">
+              {() => (
+                <Placeholder
+                  title="My Bookings"
+                />
+              )}
+            </Tab.Screen>
+
+            <Tab.Screen name="My Profile">
+              {() => (
+                <Placeholder
+                  title="My Profile"
+                />
+              )}
+            </Tab.Screen>
+          </Tab.Navigator>
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="Booking">
+        {({ route }) => (
+          <BookingScreen
+            service={route.params.service}
             location={location}
-            onLocationChange={
-              onLocationChange
-            }
-            onServicePress={(service) => {
+            onContinue={() => {
               console.log(
-                'Selected service:',
-                service.id,
+                'Booking configuration:',
+                route.params.service.id,
               )
             }}
           />
         )}
-      </Tab.Screen>
-
-      <Tab.Screen name="My Bookings">
-        {() => (
-          <Placeholder title="My Bookings" />
-        )}
-      </Tab.Screen>
-
-      <Tab.Screen name="My Profile">
-        {() => (
-          <Placeholder title="My Profile" />
-        )}
-      </Tab.Screen>
-    </Tab.Navigator>
+      </Stack.Screen>
+    </Stack.Navigator>
   )
 }
 
