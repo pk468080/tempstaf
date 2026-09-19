@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
@@ -55,7 +55,13 @@ export default function HomeScreen({
   const [refreshing, setRefreshing] =
     useState(false)
 
+  const [locationLoading, setLocationLoading] =
+    useState(false)
+
   const [error, setError] =
+    useState('')
+
+  const [locationError, setLocationError] =
     useState('')
 
   const [areaUnavailable, setAreaUnavailable] =
@@ -75,10 +81,16 @@ export default function HomeScreen({
   const [locationSearching, setLocationSearching] =
     useState(false)
 
-  const [locationError, setLocationError] =
-    useState('')
+  /*
+   * Prevent multiple automatic GPS requests while
+   * the returning-customer location is being resolved.
+   */
+  const automaticLocationRequestStarted =
+    useRef(false)
 
-  async function loadServices() {
+  async function loadServices(
+    currentLocation: HomeLocation | null,
+  ) {
     setError('')
     setAreaUnavailable(false)
     setPricingUnavailable(false)
@@ -86,7 +98,7 @@ export default function HomeScreen({
     const pricedServices =
       await getHomeServices()
 
-    if (!location) {
+    if (!currentLocation) {
       setServices([])
       return
     }
@@ -99,37 +111,46 @@ export default function HomeScreen({
 
     const availableServiceIds =
       await getAvailableServiceIds(
-        location.latitude,
-        location.longitude,
+        currentLocation.latitude,
+        currentLocation.longitude,
       )
 
     const availableServices =
       pricedServices.filter(service =>
-        availableServiceIds.has(service.id),
+        availableServiceIds.has(
+          service.id,
+        ),
       )
 
     setServices(availableServices)
+
     setAreaUnavailable(
       availableServices.length === 0,
     )
   }
 
-  async function loadAddress() {
-    if (!location) {
+  async function loadAddress(
+    currentLocation: HomeLocation | null,
+  ) {
+    if (!currentLocation) {
       setAddress('Current location')
       return
     }
 
-    if (location.address) {
-      setAddress(location.address)
+    if (currentLocation.address) {
+      setAddress(
+        currentLocation.address,
+      )
       return
     }
 
     try {
       const results =
         await Location.reverseGeocodeAsync({
-          latitude: location.latitude,
-          longitude: location.longitude,
+          latitude:
+            currentLocation.latitude,
+          longitude:
+            currentLocation.longitude,
         })
 
       const first = results[0]
@@ -152,13 +173,15 @@ export default function HomeScreen({
     }
   }
 
-  async function loadHome() {
+  async function loadHome(
+    currentLocation: HomeLocation | null,
+  ) {
     setLoading(true)
 
     try {
       await Promise.all([
-        loadServices(),
-        loadAddress(),
+        loadServices(currentLocation),
+        loadAddress(currentLocation),
       ])
     } catch (err) {
       console.error(
@@ -169,6 +192,7 @@ export default function HomeScreen({
       setServices([])
       setAreaUnavailable(false)
       setPricingUnavailable(false)
+
       setError(
         'Unable to load services. Please try again.',
       )
@@ -182,8 +206,8 @@ export default function HomeScreen({
 
     try {
       await Promise.all([
-        loadServices(),
-        loadAddress(),
+        loadServices(location),
+        loadAddress(location),
       ])
     } catch (err) {
       console.error(
@@ -196,6 +220,106 @@ export default function HomeScreen({
       )
     } finally {
       setRefreshing(false)
+    }
+  }
+
+  async function fetchCurrentLocation(
+    automatic = false,
+  ) {
+    if (locationLoading) {
+      return
+    }
+
+    setLocationError('')
+
+    if (automatic) {
+      setLocationLoading(true)
+    } else {
+      setLocationSearching(true)
+    }
+
+    try {
+      const permission =
+        await Location.requestForegroundPermissionsAsync()
+
+      if (
+        permission.status !==
+        'granted'
+      ) {
+        throw new Error(
+          'Location permission is required to use services in your area.',
+        )
+      }
+
+      const currentLocation =
+        await Location.getCurrentPositionAsync(
+          {
+            accuracy:
+              Location.Accuracy.Balanced,
+          },
+        )
+
+      const {
+        latitude,
+        longitude,
+      } = currentLocation.coords
+
+      let selectedAddress =
+        'Current location'
+
+      try {
+        const formatted =
+          await reverseGeocode(
+            latitude,
+            longitude,
+          )
+
+        if (formatted) {
+          selectedAddress = formatted
+        }
+      } catch (reverseError) {
+        console.error(
+          'Current location reverse geocoding error:',
+          reverseError,
+        )
+      }
+
+      setAddress(selectedAddress)
+
+      onLocationChange(
+        latitude,
+        longitude,
+        selectedAddress,
+      )
+
+      setLocationQuery('')
+      setLocationError('')
+
+      if (!automatic) {
+        setLocationPickerVisible(
+          false,
+        )
+      }
+    } catch (err) {
+      console.error(
+        automatic
+          ? 'Automatic location error:'
+          : 'Current location error:',
+        err,
+      )
+
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Unable to fetch your current location. Please try again.'
+
+      setLocationError(message)
+    } finally {
+      if (automatic) {
+        setLocationLoading(false)
+      } else {
+        setLocationSearching(false)
+      }
     }
   }
 
@@ -215,7 +339,9 @@ export default function HomeScreen({
 
     try {
       const results =
-        await Location.geocodeAsync(query)
+        await Location.geocodeAsync(
+          query,
+        )
 
       const first = results[0]
 
@@ -235,7 +361,9 @@ export default function HomeScreen({
       const selectedAddress =
         formatted || query
 
-      setAddress(selectedAddress)
+      setAddress(
+        selectedAddress,
+      )
 
       onLocationChange(
         first.latitude,
@@ -245,7 +373,9 @@ export default function HomeScreen({
 
       setLocationQuery('')
       setLocationError('')
-      setLocationPickerVisible(false)
+      setLocationPickerVisible(
+        false,
+      )
     } catch (err) {
       console.error(
         'Manual location search error:',
@@ -260,68 +390,34 @@ export default function HomeScreen({
     }
   }
 
-  async function handleUseCurrentLocation() {
-    setLocationError('')
-    setLocationSearching(true)
-
-    try {
-      const permission =
-        await Location.requestForegroundPermissionsAsync()
-
-      if (permission.status !== 'granted') {
-        setLocationError(
-          'Location permission is required to use your current location.',
-        )
-        return
-      }
-
-      const currentLocation =
-        await Location.getCurrentPositionAsync({
-          accuracy:
-            Location.Accuracy.Balanced,
-        })
-
-      const {
-        latitude,
-        longitude,
-      } = currentLocation.coords
-
-      const formatted =
-        await reverseGeocode(
-          latitude,
-          longitude,
-        )
-
-      const selectedAddress =
-        formatted || 'Current location'
-
-      setAddress(selectedAddress)
-
-      onLocationChange(
-        latitude,
-        longitude,
-        selectedAddress,
-      )
-
-      setLocationQuery('')
-      setLocationError('')
-      setLocationPickerVisible(false)
-    } catch (err) {
-      console.error(
-        'Current location error:',
-        err,
-      )
-
-      setLocationError(
-        'Unable to fetch your current location. Please try again.',
-      )
-    } finally {
-      setLocationSearching(false)
-    }
-  }
-
+  /*
+   * Returning customers skip the Location screen.
+   *
+   * If Home receives no location, obtain the current
+   * GPS position automatically. New customers already
+   * have a location from the onboarding flow, so they
+   * do not trigger this request again.
+   */
   useEffect(() => {
-    void loadHome()
+    if (
+      location ||
+      automaticLocationRequestStarted.current
+    ) {
+      return
+    }
+
+    automaticLocationRequestStarted.current =
+      true
+
+    void fetchCurrentLocation(true)
+  }, [location])
+
+  /*
+   * Reload services whenever the customer's location
+   * changes.
+   */
+  useEffect(() => {
+    void loadHome(location)
   }, [
     location?.latitude,
     location?.longitude,
@@ -337,15 +433,64 @@ export default function HomeScreen({
     !error &&
     pricingUnavailable
 
-  if (loading) {
+  if (
+    loading ||
+    locationLoading
+  ) {
     return (
       <ScreenContainer>
         <View style={styles.loading}>
-          <ActivityIndicator size="large" />
+          <ActivityIndicator
+            size="large"
+          />
 
-          <Text style={styles.loadingText}>
-            Loading services...
+          <Text
+            style={
+              styles.loadingText
+            }
+          >
+            {locationLoading
+              ? 'Finding your location...'
+              : 'Loading services...'}
           </Text>
+
+          {locationError ? (
+            <View
+              style={
+                styles.loadingErrorContainer
+              }
+            >
+              <Text
+                style={
+                  styles.loadingError
+                }
+              >
+                {locationError}
+              </Text>
+
+              <TouchableOpacity
+                style={
+                  styles.retryLocationButton
+                }
+                onPress={() => {
+                  automaticLocationRequestStarted.current =
+                    false
+
+                  void fetchCurrentLocation(
+                    true,
+                  )
+                }}
+              >
+                <Text
+                  style={
+                    styles.retryLocationButtonText
+                  }
+                >
+                  Try again
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
       </ScreenContainer>
     )
@@ -360,10 +505,14 @@ export default function HomeScreen({
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={refreshHome}
+            onRefresh={
+              refreshHome
+            }
           />
         }
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
       >
         <TouchableOpacity
           style={
@@ -400,9 +549,48 @@ export default function HomeScreen({
           </Text>
         </TouchableOpacity>
 
-        <View style={styles.banner}>
+        {locationError ? (
+          <View
+            style={
+              styles.locationWarning
+            }
+          >
+            <Text
+              style={
+                styles.locationWarningText
+              }
+            >
+              {locationError}
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => {
+                automaticLocationRequestStarted.current =
+                  false
+
+                void fetchCurrentLocation(
+                  true,
+                )
+              }}
+            >
+              <Text
+                style={
+                  styles.locationRetryText
+                }
+              >
+                Retry
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        <View
+          style={styles.banner}
+        >
           <Text
-            style={styles.bannerTitle}
+            style={
+              styles.bannerTitle
+            }
           >
             {showPricingUnavailable
               ? 'Services are not currently available'
@@ -412,7 +600,9 @@ export default function HomeScreen({
           </Text>
 
           <Text
-            style={styles.bannerText}
+            style={
+              styles.bannerText
+            }
           >
             {showPricingUnavailable
               ? 'Customer hourly prices are not currently configured.'
@@ -423,11 +613,15 @@ export default function HomeScreen({
         </View>
 
         <View
-          style={styles.sectionHeader}
+          style={
+            styles.sectionHeader
+          }
         >
           <View>
             <Text
-              style={styles.sectionTitle}
+              style={
+                styles.sectionTitle
+              }
             >
               Services
             </Text>
@@ -443,69 +637,101 @@ export default function HomeScreen({
         </View>
 
         {error ? (
-          <View style={styles.errorBox}>
+          <View
+            style={
+              styles.errorBox
+            }
+          >
             <Text
-              style={styles.errorText}
+              style={
+                styles.errorText
+              }
             >
               {error}
             </Text>
           </View>
         ) : showAreaUnavailable ? (
-          <View style={styles.empty}>
+          <View
+            style={styles.empty}
+          >
             <Text
-              style={styles.emptyTitle}
+              style={
+                styles.emptyTitle
+              }
             >
               No services in this area
             </Text>
 
             <Text
-              style={styles.emptyText}
+              style={
+                styles.emptyText
+              }
             >
-              Services will appear here when
-              an active service area is
-              configured.
+              Services will appear here
+              when an active service
+              area is configured.
             </Text>
           </View>
         ) : showPricingUnavailable ? (
-          <View style={styles.empty}>
+          <View
+            style={styles.empty}
+          >
             <Text
-              style={styles.emptyTitle}
+              style={
+                styles.emptyTitle
+              }
             >
               No hourly services priced
             </Text>
 
             <Text
-              style={styles.emptyText}
+              style={
+                styles.emptyText
+              }
             >
-              Hourly services will appear here
-              when customer pricing is configured.
+              Hourly services will appear
+              here when customer pricing
+              is configured.
             </Text>
           </View>
         ) : services.length === 0 ? (
-          <View style={styles.empty}>
+          <View
+            style={styles.empty}
+          >
             <Text
-              style={styles.emptyTitle}
+              style={
+                styles.emptyTitle
+              }
             >
               No services available
             </Text>
 
             <Text
-              style={styles.emptyText}
+              style={
+                styles.emptyText
+              }
             >
-              There are currently no services
-              available at this location.
+              There are currently no
+              services available at this
+              location.
             </Text>
           </View>
         ) : (
           <FlatList
             data={services}
             scrollEnabled={false}
-            keyExtractor={item => item.id}
-            renderItem={({ item }) => (
+            keyExtractor={item =>
+              item.id
+            }
+            renderItem={({
+              item,
+            }) => (
               <ServiceCard
                 service={item}
                 onPress={() =>
-                  onServicePress?.(item)
+                  onServicePress?.(
+                    item,
+                  )
                 }
               />
             )}
@@ -514,7 +740,9 @@ export default function HomeScreen({
       </ScrollView>
 
       <Modal
-        visible={locationPickerVisible}
+        visible={
+          locationPickerVisible
+        }
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() =>
@@ -525,13 +753,19 @@ export default function HomeScreen({
       >
         <ScreenContainer>
           <View
-            style={styles.modalContainer}
+            style={
+              styles.modalContainer
+            }
           >
             <View
-              style={styles.modalHeader}
+              style={
+                styles.modalHeader
+              }
             >
               <Text
-                style={styles.modalTitle}
+                style={
+                  styles.modalTitle
+                }
               >
                 Change location
               </Text>
@@ -544,7 +778,9 @@ export default function HomeScreen({
                 }
               >
                 <Text
-                  style={styles.closeButton}
+                  style={
+                    styles.closeButton
+                  }
                 >
                   Close
                 </Text>
@@ -556,20 +792,24 @@ export default function HomeScreen({
                 styles.modalDescription
               }
             >
-              Search for the address or area
-              where you want to receive the
-              service.
+              Search for the address or
+              area where you want to
+              receive the service.
             </Text>
 
             <TextInput
               value={locationQuery}
               onChangeText={value => {
-                setLocationQuery(value)
+                setLocationQuery(
+                  value,
+                )
                 setLocationError('')
               }}
               placeholder="Enter address or area"
               placeholderTextColor="#9CA3AF"
-              style={styles.locationInput}
+              style={
+                styles.locationInput
+              }
               autoCorrect={false}
               returnKeyType="search"
               onSubmitEditing={() =>
@@ -593,13 +833,17 @@ export default function HomeScreen({
                 locationSearching &&
                   styles.disabledButton,
               ]}
-              disabled={locationSearching}
+              disabled={
+                locationSearching
+              }
               onPress={() =>
                 void handleSearchLocation()
               }
             >
               {locationSearching ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator
+                  color="#FFFFFF"
+                />
               ) : (
                 <Text
                   style={
@@ -615,9 +859,13 @@ export default function HomeScreen({
               style={
                 styles.currentLocationButton
               }
-              disabled={locationSearching}
+              disabled={
+                locationSearching
+              }
               onPress={() =>
-                void handleUseCurrentLocation()
+                void fetchCurrentLocation(
+                  false,
+                )
               }
             >
               <Text
@@ -648,30 +896,43 @@ function ServiceCard({
       activeOpacity={0.8}
       onPress={onPress}
     >
-      <View style={styles.cardContent}>
+      <View
+        style={
+          styles.cardContent
+        }
+      >
         <Text
-          style={styles.serviceName}
+          style={
+            styles.serviceName
+          }
         >
           {service.name}
         </Text>
 
         {service.description ? (
           <Text
-            style={styles.description}
+            style={
+              styles.description
+            }
             numberOfLines={2}
           >
             {service.description}
           </Text>
         ) : null}
 
-        <Text style={styles.price}>
-          {service.hourlyPrice === null
+        <Text
+          style={styles.price}
+        >
+          {service.hourlyPrice ===
+          null
             ? 'Pricing unavailable'
             : `${service.currency ?? ''} ${service.hourlyPrice}/hour`}
         </Text>
       </View>
 
-      <Text style={styles.book}>
+      <Text
+        style={styles.book}
+      >
         Book
       </Text>
     </TouchableOpacity>
@@ -738,6 +999,26 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 14,
     fontWeight: '600',
+    color: '#007AFF',
+  },
+
+  locationWarning: {
+    marginBottom: 18,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
+  },
+
+  locationWarningText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#B91C1C',
+  },
+
+  locationRetryText: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: '700',
     color: '#007AFF',
   },
 
@@ -827,12 +1108,40 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 24,
   },
 
   loadingText: {
     marginTop: 12,
     fontSize: 14,
     color: '#6B7280',
+    textAlign: 'center',
+  },
+
+  loadingErrorContainer: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+
+  loadingError: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#B91C1C',
+    textAlign: 'center',
+  },
+
+  retryLocationButton: {
+    marginTop: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#007AFF',
+  },
+
+  retryLocationButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 
   errorBox: {
