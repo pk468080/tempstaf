@@ -32,7 +32,7 @@ type BookingDetailsScreenProps = {
   endTime: Date
   selectedWeekdays: string[]
   excludedDates: string[]
-  onContinue?: () => void
+  onContinue?: () => Promise<void> | void
 }
 
 const WEEKDAY_INDEX: Record<string, number> = {
@@ -132,6 +132,37 @@ export default function BookingDetailsScreen({
     pricingLoading,
     setPricingLoading,
   ] = useState(false)
+
+  const [
+    submitting,
+    setSubmitting,
+  ] = useState(false)
+
+  const [
+    submitError,
+    setSubmitError,
+  ] = useState<string | null>(null)
+
+  async function handleContinue() {
+    if (!onContinue || submitting) {
+      return
+    }
+
+    setSubmitError(null)
+    setSubmitting(true)
+
+    try {
+      await onContinue()
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to create the booking.',
+      )
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -470,10 +501,10 @@ export default function BookingDetailsScreen({
             >
               <Text
                 style={
-                  styles.errorTitle
+                  styles.scheduledPriceTitle
                 }
               >
-                Price calculation pending
+                Price calculated at booking
               </Text>
 
               <Text
@@ -481,9 +512,9 @@ export default function BookingDetailsScreen({
                   styles.errorText
                 }
               >
-                Scheduled date-range pricing
-                will be calculated by the
-                backend booking flow.
+                The backend will calculate the
+                final scheduled price when the
+                booking is created.
               </Text>
             </View>
           ) : (
@@ -498,29 +529,60 @@ export default function BookingDetailsScreen({
           )}
         </Section>
 
+        {submitError ? (
+          <View
+            style={
+              styles.submitErrorContainer
+            }
+          >
+            <Text
+              style={
+                styles.submitErrorTitle
+              }
+            >
+              Booking could not be created
+            </Text>
+
+            <Text
+              style={
+                styles.submitErrorText
+              }
+            >
+              {submitError}
+            </Text>
+          </View>
+        ) : null}
+
         <TouchableOpacity
           style={[
             styles.continueButton,
-            pricingLoading &&
-              styles.disabledButton,
-            pricingError &&
+            (pricingLoading ||
+              Boolean(pricingError) ||
+              submitting) &&
               styles.disabledButton,
           ]}
           disabled={
             pricingLoading ||
-            Boolean(pricingError)
+            Boolean(pricingError) ||
+            submitting
           }
           onPress={
-            onContinue
+            handleContinue
           }
         >
-          <Text
-            style={
-              styles.continueText
-            }
-          >
-            Continue to Payment
-          </Text>
+          {submitting ? (
+            <ActivityIndicator
+              color="#FFFFFF"
+            />
+          ) : (
+            <Text
+              style={
+                styles.continueText
+              }
+            >
+              Continue to Payment
+            </Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </ScreenContainer>
@@ -645,6 +707,12 @@ const styles = StyleSheet.create({
     color: '#B91C1C',
   },
 
+  scheduledPriceTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+
   errorText: {
     marginTop: 6,
     color: '#6B7280',
@@ -677,6 +745,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: '#6B7280',
+  },
+
+  submitErrorContainer: {
+    marginBottom: 16,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+
+  submitErrorTitle: {
+    fontWeight: '700',
+    color: '#991B1B',
+  },
+
+  submitErrorText: {
+    marginTop: 5,
+    lineHeight: 20,
+    color: '#B91C1C',
   },
 
   continueButton: {
