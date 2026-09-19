@@ -35,10 +35,10 @@ export async function createCustomerScheduledBooking(
         p_address_id:
           input.addressId,
 
-        p_schedule_start_date:
+        p_start_date:
           input.startDate,
 
-        p_schedule_end_date:
+        p_end_date:
           input.endDate,
 
         p_daily_start_time:
@@ -57,6 +57,12 @@ export async function createCustomerScheduledBooking(
 
   if (error) {
     throw error
+  }
+
+  if (!data) {
+    throw new Error(
+      'The backend did not return a booking result.',
+    )
   }
 
   return data as ScheduledBookingResult

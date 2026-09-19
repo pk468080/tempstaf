@@ -13,6 +13,16 @@ import {
 import BookingDetailsScreen from '../screens/bookings/BookingDetailsScreen'
 import BookingScreen from '../screens/bookings/BookingScreen'
 import HomeScreen from '../screens/home/HomeScreen'
+import PaymentScreen from '../screens/payment/PaymentScreen'
+
+import {
+  getOrCreateCustomerAddress,
+} from '../services/addresses/customerAddress.service'
+
+import {
+  createCustomerScheduledBooking,
+} from '../services/booking/scheduledBooking.service'
+
 import type { BookingDraft } from '../types/booking'
 import type { HomeService } from '../types/service'
 
@@ -39,9 +49,17 @@ type CustomerStackParamList = {
   }
 
   BookingDetails: {
-  draft: BookingDraft
-  service: HomeService
-}
+    draft: BookingDraft
+    service: HomeService
+  }
+
+  Payment: {
+    bookingId: string
+    finalAmount: number
+    currency: string
+    occurrenceCount: number
+    totalWorkingHours: number
+  }
 }
 
 const Tab =
@@ -115,68 +133,183 @@ export default function CustomerNavigator({
             location={location}
             onContinue={draft => {
               navigation.navigate(
-  'BookingDetails',
-  {
-    draft,
-    service: route.params.service,
-  },
-)
+                'BookingDetails',
+                {
+                  draft,
+                  service:
+                    route.params.service,
+                },
+              )
             }}
           />
         )}
       </Stack.Screen>
 
       <Stack.Screen name="BookingDetails">
-  {({ route }) => {
-    const { draft, service } = route.params
+        {({ route, navigation }) => {
+          const {
+            draft,
+            service,
+          } = route.params
 
-    return (
-      <BookingDetailsScreen
-        service={service}
-        bookingType={
-          draft.bookingType
-        }
-        location={draft.location}
-        startDate={
-          draft.startDate
-            ? new Date(
-                draft.startDate,
+          async function handleContinue() {
+            if (
+              draft.bookingType !==
+              'scheduled'
+            ) {
+              return
+            }
+
+            if (
+              !draft.startDate ||
+              !draft.endDate
+            ) {
+              throw new Error(
+                'Booking dates are required.',
               )
-            : null
-        }
-        endDate={
-          draft.endDate
-            ? new Date(
-                draft.endDate,
+            }
+
+            const addressId =
+              await getOrCreateCustomerAddress(
+                draft.location,
               )
-            : null
-        }
-        startTime={
-          new Date(
-            draft.startTime,
-          )
-        }
-        endTime={
-          new Date(
-            draft.endTime,
-          )
-        }
-        selectedWeekdays={
-          draft.selectedWeekdays
-        }
-        excludedDates={
-          draft.excludedDates
-        }
-        onContinue={() => {
-          console.log(
-            'Proceed to payment:',
-            draft.serviceId,
+
+            const result =
+              await createCustomerScheduledBooking(
+                {
+                  serviceVariantId:
+                    service.serviceVariantId,
+
+                  addressId,
+
+                  startDate:
+                    draft.startDate.slice(
+                      0,
+                      10,
+                    ),
+
+                  endDate:
+                    draft.endDate.slice(
+                      0,
+                      10,
+                    ),
+
+                  startTime:
+                    new Date(
+                      draft.startTime,
+                    )
+                      .toTimeString()
+                      .slice(
+                        0,
+                        8,
+                      ),
+
+                  endTime:
+                    new Date(
+                      draft.endTime,
+                    )
+                      .toTimeString()
+                      .slice(
+                        0,
+                        8,
+                      ),
+
+                  excludedDates:
+                    draft.excludedDates,
+                },
+              )
+
+            navigation.navigate(
+              'Payment',
+              {
+                bookingId:
+                  result.booking_id,
+
+                finalAmount:
+                  result.final_amount,
+
+                currency:
+                  result.currency,
+
+                occurrenceCount:
+                  result.occurrence_count,
+
+                totalWorkingHours:
+                  result.total_working_hours,
+              },
+            )
+          }
+
+          return (
+            <BookingDetailsScreen
+              service={service}
+              bookingType={
+                draft.bookingType
+              }
+              location={
+                draft.location
+              }
+              startDate={
+                draft.startDate
+                  ? new Date(
+                      draft.startDate,
+                    )
+                  : null
+              }
+              endDate={
+                draft.endDate
+                  ? new Date(
+                      draft.endDate,
+                    )
+                  : null
+              }
+              startTime={
+                new Date(
+                  draft.startTime,
+                )
+              }
+              endTime={
+                new Date(
+                  draft.endTime,
+                )
+              }
+              selectedWeekdays={
+                draft.selectedWeekdays
+              }
+              excludedDates={
+                draft.excludedDates
+              }
+              onContinue={
+                handleContinue
+              }
+            />
           )
         }}
-      />
-    )
-  }}
-</Stack.Screen>
+      </Stack.Screen>
+
+      <Stack.Screen name="Payment">
+        {({ route }) => (
+          <PaymentScreen
+            bookingId={
+              route.params.bookingId
+            }
+            finalAmount={
+              route.params.finalAmount
+            }
+            currency={
+              route.params.currency
+            }
+            occurrenceCount={
+              route.params
+                .occurrenceCount
+            }
+            totalWorkingHours={
+              route.params
+                .totalWorkingHours
+            }
+          />
+        )}
+      </Stack.Screen>
     </Stack.Navigator>
   )
 }
