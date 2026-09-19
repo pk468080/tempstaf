@@ -35,14 +35,29 @@ export async function calculateMultiOccurrenceBookingPrice(
   const { data, error } = await supabase.rpc(
     'calculate_multi_occurrence_booking_price',
     {
-      p_service_variant_id: input.serviceVariantId,
-      p_schedule_start_date: input.startDate,
-      p_schedule_end_date: input.endDate,
-      p_daily_start_time: input.startTime,
-      p_daily_end_time: input.endTime,
-      p_selected_weekdays: input.selectedWeekdays,
-      p_off_dates: input.excludedDates,
-      p_booking_type: input.bookingType,
+      p_service_variant_id:
+        input.serviceVariantId,
+
+      p_schedule_start_date:
+        input.startDate,
+
+      p_schedule_end_date:
+        input.endDate,
+
+      p_daily_start_time:
+        input.startTime,
+
+      p_daily_end_time:
+        input.endTime,
+
+      p_selected_weekdays:
+        input.selectedWeekdays,
+
+      p_off_dates:
+        input.excludedDates,
+
+      p_booking_type:
+        input.bookingType,
     },
   )
 
@@ -51,4 +66,27 @@ export async function calculateMultiOccurrenceBookingPrice(
   }
 
   return data as BookingPriceResult
+}
+
+export async function calculateScheduledBookingPrice(
+  input: Omit<
+    CalculateMultiOccurrencePricingInput,
+    'selectedWeekdays' | 'bookingType'
+  >,
+): Promise<BookingPriceResult> {
+  return calculateMultiOccurrenceBookingPrice({
+    ...input,
+
+    selectedWeekdays: [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+    ],
+
+    bookingType: 'scheduled',
+  })
 }
