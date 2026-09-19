@@ -69,6 +69,7 @@ export async function getHomeServices(): Promise<HomeService[]> {
 
     services.push({
       id: service.id,
+      serviceVariantId: variant.id,
       name: service.name,
       description: service.description,
       hourlyPrice: price
