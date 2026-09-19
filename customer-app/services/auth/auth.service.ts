@@ -14,6 +14,115 @@ export async function sendOtp(phone: string) {
   }
 }
 
+async function ensureCustomerProfile(
+  userId: string,
+  phone: string,
+) {
+  const {
+    data: existingProfile,
+    error: lookupError,
+  } = await supabase
+    .from('profiles')
+    .select('id, role, is_active')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (lookupError) {
+    throw lookupError
+  }
+
+  if (existingProfile) {
+    if (
+      existingProfile.role !== 'customer' ||
+      existingProfile.is_active !== true
+    ) {
+      throw new Error(
+        'The authenticated account is not an active customer account.',
+      )
+    }
+
+    return existingProfile
+  }
+
+  const {
+    data: createdProfile,
+    error: createError,
+  } = await supabase
+    .from('profiles')
+    .insert({
+      id: userId,
+      phone,
+    })
+    .select('id, role, is_active')
+    .single()
+
+  if (createError) {
+    throw createError
+  }
+
+  if (
+    !createdProfile ||
+    createdProfile.role !== 'customer' ||
+    createdProfile.is_active !== true
+  ) {
+    throw new Error(
+      'The customer profile was not created correctly.',
+    )
+  }
+
+  return createdProfile
+}
+
+async function getAuthenticatedCustomer(
+  phone: string,
+) {
+  const {
+    data: sessionData,
+    error: sessionError,
+  } = await supabase.auth.getSession()
+
+  if (sessionError) {
+    throw sessionError
+  }
+
+  if (!sessionData.session) {
+    const {
+      data: anonymousData,
+      error: anonymousError,
+    } = await supabase.auth.signInAnonymously({
+      options: {
+        data: {
+          phone,
+        },
+      },
+    })
+
+    if (anonymousError) {
+      throw anonymousError
+    }
+
+    if (!anonymousData.session) {
+      throw new Error(
+        'Supabase did not create an authentication session.',
+      )
+    }
+
+    await ensureCustomerProfile(
+      anonymousData.user.id,
+      phone,
+    )
+
+    return anonymousData.session
+  }
+
+  await ensureCustomerProfile(
+    sessionData.session.user.id,
+    phone,
+  )
+
+  return sessionData.session
+}
+
 export async function verifyOtp(
   phone: string,
   otp: string,
@@ -25,74 +134,37 @@ export async function verifyOtp(
     }
   }
 
-  /*
-   * Development authentication bridge:
-   *
-   * The fixed OTP proves the test user entered the
-   * expected development code. We then obtain a real
-   * Supabase Auth session so all database requests run
-   * as an authenticated user.
-   *
-   * Later, only this OTP/session implementation needs
-   * to be replaced by the real phone OTP flow.
-   */
-  const {
-    data: existingSessionData,
-    error: existingSessionError,
-  } = await supabase.auth.getSession()
+  try {
+    const session =
+      await getAuthenticatedCustomer(phone)
 
-  if (existingSessionError) {
-    return {
-      success: false,
-      error: existingSessionError.message,
-    }
-  }
+    console.log(
+      'Supabase session: present',
+    )
 
-  if (existingSessionData.session) {
-    console.log('Supabase session: present')
+    console.log(
+      'Supabase customer:',
+      session.user.id,
+    )
 
     return {
       success: true,
       phone,
-      session: existingSessionData.session,
+      session,
     }
-  }
+  } catch (error) {
+    console.error(
+      'Customer authentication setup failed:',
+      error,
+    )
 
-  const {
-    data: anonymousData,
-    error: anonymousError,
-  } = await supabase.auth.signInAnonymously({
-    options: {
-      data: {
-        phone,
-      },
-    },
-  })
-
-  if (anonymousError) {
     return {
       success: false,
-      error: anonymousError.message,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Unable to create the customer account.',
     }
-  }
-
-  if (!anonymousData.session) {
-    return {
-      success: false,
-      error: 'Supabase did not create an authentication session',
-    }
-  }
-
-  console.log('Supabase session: present')
-  console.log(
-    'Supabase user:',
-    anonymousData.user?.id ?? 'unknown',
-  )
-
-  return {
-    success: true,
-    phone,
-    session: anonymousData.session,
   }
 }
 
