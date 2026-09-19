@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native'
 import * as Location from 'expo-location'
-
+import HomePromotionSlider from '../../components/home/HomePromotionSlider'
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
 import { getHomeServices } from '../../services/services/services.service'
 import {
@@ -548,6 +548,7 @@ export default function HomeScreen({
             Change location
           </Text>
         </TouchableOpacity>
+         <HomePromotionSlider />
 
         {locationError ? (
           <View
