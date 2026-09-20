@@ -6,6 +6,11 @@ import {
   Text,
   View,
 } from 'react-native'
+import MapView, {
+  Marker,
+  PROVIDER_GOOGLE,
+  type Region,
+} from 'react-native-maps'
 
 import {
   ScreenContainer,
@@ -220,6 +225,17 @@ function getTrackingLabel(
   }
 }
 
+function toMapRegion(
+  location: WorkerLocation,
+): Region {
+  return {
+    latitude: location.latitude,
+    longitude: location.longitude,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
+  }
+}
+
 export default function ActiveBookingScreen({
   bookingId,
 }: ActiveBookingScreenProps) {
@@ -243,6 +259,9 @@ export default function ActiveBookingScreen({
 
   const [timer, setTimer] =
     useState('00:00:00')
+
+  const [mapRegion, setMapRegion] =
+    useState<Region | null>(null)
 
   const locationFreshness =
     useMemo(
@@ -280,8 +299,20 @@ export default function ActiveBookingScreen({
           )
 
         setLocation(nextLocation)
+
+        if (
+          nextLocation &&
+          getWorkerLocationFreshness(
+            nextLocation,
+          ) === 'fresh'
+        ) {
+          setMapRegion(
+            toMapRegion(nextLocation),
+          )
+        }
       } else {
         setLocation(null)
+        setMapRegion(null)
       }
 
       setLocationNow(Date.now())
@@ -336,10 +367,25 @@ export default function ActiveBookingScreen({
             filter: `booking_id=eq.${bookingId}`,
           },
           payload => {
+            const nextLocation =
+              payload.new as WorkerLocation
+
             setLocation(
-              payload.new as WorkerLocation,
+              nextLocation,
             )
             setLocationNow(Date.now())
+
+            if (
+              getWorkerLocationFreshness(
+                nextLocation,
+              ) === 'fresh'
+            ) {
+              setMapRegion(
+                toMapRegion(
+                  nextLocation,
+                ),
+              )
+            }
           },
         )
         .subscribe()
@@ -472,6 +518,11 @@ export default function ActiveBookingScreen({
       booking.status,
     )
 
+  const showLiveMap =
+    tracking &&
+    locationFreshness === 'fresh' &&
+    location !== null
+
   return (
     <ScreenContainer>
       <View style={styles.container}>
@@ -512,6 +563,112 @@ export default function ActiveBookingScreen({
           <Text style={styles.error}>
             {error}
           </Text>
+        ) : null}
+
+        {tracking &&
+        workerAssigned ? (
+          <View style={styles.mapCard}>
+            <View
+              style={styles.mapHeader}
+            >
+              <Text
+                style={
+                  styles.mapTitle
+                }
+              >
+                Worker location
+              </Text>
+
+              <Text
+                style={[
+                  styles.freshness,
+                  locationFreshness ===
+                    'fresh' &&
+                    styles.freshText,
+                  locationFreshness ===
+                    'stale' &&
+                    styles.staleText,
+                ]}
+              >
+                {getTrackingLabel(
+                  locationFreshness,
+                )}
+              </Text>
+            </View>
+
+            {showLiveMap ? (
+              <MapView
+                provider={PROVIDER_GOOGLE}
+                style={styles.map}
+                region={
+                  mapRegion ??
+                  toMapRegion(
+                    location,
+                  )
+                }
+                showsUserLocation={false}
+                showsMyLocationButton={false}
+                showsCompass
+                toolbarEnabled={false}
+                scrollEnabled
+                zoomEnabled
+                rotateEnabled={false}
+                pitchEnabled={false}
+              >
+                <Marker
+                  coordinate={{
+                    latitude:
+                      location.latitude,
+                    longitude:
+                      location.longitude,
+                  }}
+                  title="Worker"
+                  description="Current worker location"
+                />
+              </MapView>
+            ) : (
+              <View
+                style={
+                  styles.mapUnavailable
+                }
+              >
+                <Text
+                  style={
+                    styles.mapUnavailableTitle
+                  }
+                >
+                  {locationFreshness ===
+                  'stale'
+                    ? 'Live location unavailable'
+                    : 'Waiting for worker location'}
+                </Text>
+
+                <Text
+                  style={
+                    styles.mapUnavailableMessage
+                  }
+                >
+                  {locationFreshness ===
+                  'stale'
+                    ? 'The last location update is too old to display as the worker’s current position.'
+                    : 'The worker has not sent a location update yet.'}
+                </Text>
+              </View>
+            )}
+
+            {showLiveMap ? (
+              <Text
+                style={
+                  styles.locationAge
+                }
+              >
+                Updated{' '}
+                {locationAgeSeconds ??
+                  0}{' '}
+                seconds ago
+              </Text>
+            ) : null}
+          </View>
         ) : null}
 
         <View style={styles.card}>
@@ -605,7 +762,7 @@ export default function ActiveBookingScreen({
                         styles.trackingTitle
                       }
                     >
-                      Worker tracking
+                      Tracking status
                     </Text>
 
                     <Text
@@ -633,7 +790,7 @@ export default function ActiveBookingScreen({
                             styles.location
                           }
                         >
-                          Last location:{' '}
+                          Current position:{' '}
                           {location.latitude.toFixed(
                             5,
                           )}
@@ -661,11 +818,10 @@ export default function ActiveBookingScreen({
                           styles.staleMessage
                         }
                       >
-                        The last known worker
-                        location is too old to
-                        be presented as live.
-                        We will continue checking
-                        for a fresh update.
+                        The last known location is
+                        too old to be presented as
+                        live. We will continue
+                        checking for a fresh update.
                       </Text>
                     ) : (
                       <Text
@@ -838,6 +994,52 @@ const styles =
       marginTop: 8,
       lineHeight: 21,
       color: '#374151',
+    },
+
+    mapCard: {
+      marginBottom: 16,
+      borderRadius: 16,
+      overflow: 'hidden',
+      backgroundColor: '#F9FAFB',
+    },
+
+    mapHeader: {
+      paddingHorizontal: 18,
+      paddingTop: 18,
+      paddingBottom: 12,
+    },
+
+    mapTitle: {
+      fontSize: 17,
+      fontWeight: '800',
+      color: '#111827',
+    },
+
+    map: {
+      width: '100%',
+      height: 280,
+    },
+
+    mapUnavailable: {
+      height: 280,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+      backgroundColor: '#F3F4F6',
+    },
+
+    mapUnavailableTitle: {
+      fontSize: 17,
+      fontWeight: '800',
+      color: '#111827',
+      textAlign: 'center',
+    },
+
+    mapUnavailableMessage: {
+      marginTop: 8,
+      color: '#6B7280',
+      lineHeight: 20,
+      textAlign: 'center',
     },
 
     card: {
