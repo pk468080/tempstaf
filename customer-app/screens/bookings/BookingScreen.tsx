@@ -360,8 +360,11 @@ const hasRequiredDates =
   )
 
 const areaCheckPassed =
-  availabilityStatus === 'available' &&
-  availabilityResult?.serviceAreaAvailable === true
+  availabilityResult?.serviceAreaAvailable === true &&
+  (
+    availabilityStatus === 'available' ||
+    availabilityStatus === 'fallback'
+  )
 
 const hasInstantAvailability =
   areaCheckPassed &&
@@ -397,7 +400,7 @@ const canContinue = Boolean(
         {/* Service Area Status */}
         <ServiceAreaStatusCard
           address={location?.address || 'No location selected'}
-          available={!!location && !serviceAreaUnavailable}
+          available={availabilityResult?.serviceAreaAvailable === true}
           loading={availabilityStatus === 'checking'}
           error={availabilityStatus === 'error' ? availabilityError : null}
         />
