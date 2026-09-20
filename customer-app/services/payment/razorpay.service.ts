@@ -470,8 +470,62 @@ export async function verifyRazorpayPayment(
     },
   )
 
+  /*
+   * Supabase functions.invoke() can return a generic
+   * FunctionsHttpError for a non-2xx response.
+   *
+   * Try to read the actual JSON response from the
+   * Edge Function so the customer app can show the
+   * real verification/finalization error.
+   */
   if (error) {
-    throw error
+    let serverMessage: string | null = null
+
+    try {
+      const context = (
+        error as {
+          context?: {
+            json?: () => Promise<unknown>
+          }
+        }
+      ).context
+
+      if (
+        context &&
+        typeof context.json === 'function'
+      ) {
+        const responseBody =
+          await context.json()
+
+        if (
+          responseBody &&
+          typeof responseBody === 'object' &&
+          'error' in responseBody &&
+          typeof (
+            responseBody as {
+              error?: unknown
+            }
+          ).error === 'string'
+        ) {
+          serverMessage = (
+            responseBody as {
+              error: string
+            }
+          ).error
+        }
+      }
+    } catch (readError) {
+      console.error(
+        'Unable to read payment verification error:',
+        readError,
+      )
+    }
+
+    throw new Error(
+      serverMessage ??
+        error.message ??
+        'Payment verification failed.',
+    )
   }
 
   const result =
@@ -489,8 +543,15 @@ export async function verifyRazorpayPayment(
     typeof result.status !==
       'string'
   ) {
+    const serverError =
+      typeof result?.error ===
+      'string'
+        ? result.error
+        : null
+
     throw new Error(
-      'Payment verification failed.',
+      serverError ??
+        'Payment verification failed.',
     )
   }
 
