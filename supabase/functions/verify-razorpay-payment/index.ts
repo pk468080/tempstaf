@@ -730,21 +730,35 @@ Deno.serve(async (req: Request) => {
       finalization:
         finalizationResult,
     });
-  } catch (error) {
+     } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unexpected server error.";
+
     console.error(
       "[TempStaff] verify-razorpay-payment error:",
-      error
+      message,
+      error,
     );
 
+    /*
+     * Return a structured application response so the
+     * customer app receives the actual server error
+     * instead of only:
+     *
+     * "Edge Function returned a non-2xx status code"
+     *
+     * This does NOT mean the payment is accepted.
+     * success remains false until every server-side
+     * verification step succeeds.
+     */
     return jsonResponse(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unexpected server error.",
+        error: message,
       },
-      500
+      200,
     );
   }
 });
