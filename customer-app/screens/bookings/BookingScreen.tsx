@@ -50,11 +50,17 @@ type BookingScreenProps = {
   onContinue?: (draft: BookingDraft) => void
 }
 
-export default function BookingScreen({ service, location, onContinue }: BookingScreenProps) {
+export default function BookingScreen({
+  service,
+  location,
+  onContinue,
+}: BookingScreenProps) {
   const today = useMemo(() => startOfToday(), [])
 
   // Booking type selection
-  const [bookingType, setBookingType] = useState<'instant' | 'scheduled' | 'recurring'>('instant')
+  const [bookingType, setBookingType] = useState<
+    'instant' | 'scheduled' | 'recurring'
+  >('instant')
 
   // Time range
   const [startTime, setStartTime] = useState(() => {
@@ -78,14 +84,27 @@ export default function BookingScreen({ service, location, onContinue }: Booking
   const [selectedWeekdays, setSelectedWeekdays] = useState<string[]>([])
 
   // Availability checking
-  const { status: availabilityStatus, result: availabilityResult, error: availabilityError, checkInstant } = useAvailability()
+  const {
+    status: availabilityStatus,
+    result: availabilityResult,
+    error: availabilityError,
+    checkInstant,
+  } = useAvailability()
 
   // Scheduled availability slots
-  const [scheduledSlots, setScheduledSlots] = useState<ScheduledAvailabilitySlot[]>([])
-  const [scheduledAvailabilityLoading, setScheduledAvailabilityLoading] = useState(false)
-  const [scheduledAvailabilityError, setScheduledAvailabilityError] = useState<string | null>(null)
-  const [scheduledServiceAreaAvailable, setScheduledServiceAreaAvailable] = useState<boolean | null>(null)
-  const [selectedScheduledSlotKey, setSelectedScheduledSlotKey] = useState<string | null>(null)
+  const [scheduledSlots, setScheduledSlots] = useState<
+    ScheduledAvailabilitySlot[]
+  >([])
+  const [scheduledAvailabilityLoading, setScheduledAvailabilityLoading] =
+    useState(false)
+  const [scheduledAvailabilityError, setScheduledAvailabilityError] = useState<
+    string | null
+  >(null)
+  const [scheduledServiceAreaAvailable, setScheduledServiceAreaAvailable] =
+    useState<boolean | null>(null)
+  const [selectedScheduledSlotKey, setSelectedScheduledSlotKey] = useState<
+    string | null
+  >(null)
   const [currentTime, setCurrentTime] = useState(() => new Date())
 
   // Pricing
@@ -97,35 +116,64 @@ export default function BookingScreen({ service, location, onContinue }: Booking
   const durationHours = getDurationHours(startTime, endTime)
   const timeRangeValid = isValidTimeRange(startTime, endTime)
   const isNearTerm = startDate && isNearTermDate(startDate, today)
-  const canSelectScheduledSlots = bookingType === 'scheduled' && isNearTerm
-  const isTodaySelected = !!startDate && startOfDay(startDate).getTime() === today.getTime()
+  const canSelectScheduledSlots =
+    bookingType === 'scheduled' && isNearTerm
+  const isTodaySelected =
+    !!startDate && startOfDay(startDate).getTime() === today.getTime()
+
   const visibleScheduledSlots = useMemo(() => {
     if (!isTodaySelected) return scheduledSlots
 
-    return scheduledSlots.filter(slot => new Date(slot.start).getTime() >= currentTime.getTime())
+    return scheduledSlots.filter(
+      slot => new Date(slot.start).getTime() >= currentTime.getTime(),
+    )
   }, [currentTime, isTodaySelected, scheduledSlots])
+
   const selectedSlotIsAvailable = visibleScheduledSlots.some(
-    slot => `${slot.start}-${slot.end}` === selectedScheduledSlotKey && slot.available_worker_count > 0,
+    slot =>
+      `${slot.start}-${slot.end}` === selectedScheduledSlotKey &&
+      slot.available_worker_count > 0,
   )
-  const serviceAreaUnavailable =
-    availabilityResult?.serviceAreaAvailable === false || scheduledServiceAreaAvailable === false
 
   const recurringOccurrences = useMemo(() => {
     if (bookingType !== 'recurring' || !startDate || !endDate) return []
-    const weekdayIndexes = selectedWeekdays.map(w => getWeekdayIndex(w)).filter(i => i >= 0)
-    return generateRecurringOccurrences(startDate, endDate, weekdayIndexes, excludedDates)
-  }, [bookingType, startDate, endDate, selectedWeekdays, excludedDates])
+
+    const weekdayIndexes = selectedWeekdays
+      .map(w => getWeekdayIndex(w))
+      .filter(i => i >= 0)
+
+    return generateRecurringOccurrences(
+      startDate,
+      endDate,
+      weekdayIndexes,
+      excludedDates,
+    )
+  }, [
+    bookingType,
+    startDate,
+    endDate,
+    selectedWeekdays,
+    excludedDates,
+  ])
 
   // Check instant availability when location changes
   useEffect(() => {
     if (!location) return
 
-    void checkInstant(service.id, location.latitude, location.longitude)
+    void checkInstant(
+      service.id,
+      location.latitude,
+      location.longitude,
+    )
   }, [checkInstant, location, service.id])
 
   // Auto-switch from instant to scheduled if no workers
   useEffect(() => {
-    if (availabilityResult && !availabilityResult.instantAvailable && bookingType === 'instant') {
+    if (
+      availabilityResult &&
+      !availabilityResult.instantAvailable &&
+      bookingType === 'instant'
+    ) {
       setBookingType('scheduled')
     }
   }, [availabilityResult, bookingType])
@@ -144,7 +192,9 @@ export default function BookingScreen({ service, location, onContinue }: Booking
       }
 
       if (!timeRangeValid) {
-        setScheduledAvailabilityError('Select a time range of at least 1 hour.')
+        setScheduledAvailabilityError(
+          'Select a time range of at least 1 hour.',
+        )
         return
       }
 
@@ -152,16 +202,18 @@ export default function BookingScreen({ service, location, onContinue }: Booking
 
       try {
         const addressId = await getOrCreateCustomerAddress(location)
-        const startOfDay = new Date(startDate)
-        startOfDay.setHours(0, 0, 0, 0)
-        const endOfDay = new Date(startOfDay)
-        endOfDay.setHours(23, 59, 59, 999)
+
+        const startOfSelectedDay = new Date(startDate)
+        startOfSelectedDay.setHours(0, 0, 0, 0)
+
+        const endOfSelectedDay = new Date(startOfSelectedDay)
+        endOfSelectedDay.setHours(23, 59, 59, 999)
 
         const result = await getScheduledAvailabilitySlots(
           service.serviceVariantId,
           addressId,
-          startOfDay.toISOString(),
-          endOfDay.toISOString(),
+          startOfSelectedDay.toISOString(),
+          endOfSelectedDay.toISOString(),
           durationHours,
         )
 
@@ -169,7 +221,9 @@ export default function BookingScreen({ service, location, onContinue }: Booking
 
         if (!result.service_area_available) {
           setScheduledServiceAreaAvailable(false)
-          setScheduledAvailabilityError('Service not available in this area for the selected date.')
+          setScheduledAvailabilityError(
+            'Service not available in this area for the selected date.',
+          )
           return
         }
 
@@ -177,7 +231,12 @@ export default function BookingScreen({ service, location, onContinue }: Booking
         setScheduledSlots(result.slots)
       } catch (error) {
         if (cancelled) return
-        setScheduledAvailabilityError(error instanceof Error ? error.message : 'Unable to load availability.')
+
+        setScheduledAvailabilityError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load availability.',
+        )
       } finally {
         if (!cancelled) {
           setScheduledAvailabilityLoading(false)
@@ -186,23 +245,50 @@ export default function BookingScreen({ service, location, onContinue }: Booking
     }
 
     void loadScheduledSlots()
+
     return () => {
       cancelled = true
     }
-  }, [canSelectScheduledSlots, startDate, location, service.serviceVariantId, durationHours, timeRangeValid])
+  }, [
+    canSelectScheduledSlots,
+    startDate,
+    location,
+    service.serviceVariantId,
+    durationHours,
+    timeRangeValid,
+  ])
 
+  // Keep current time fresh for both instant bookings and today's
+  // near-term scheduled availability.
   useEffect(() => {
-    if (!isTodaySelected || !canSelectScheduledSlots) return
+    if (
+      bookingType !== 'instant' &&
+      (!isTodaySelected || !canSelectScheduledSlots)
+    ) {
+      return
+    }
 
-    const interval = setInterval(() => setCurrentTime(new Date()), 30_000)
+    const interval = setInterval(
+      () => setCurrentTime(new Date()),
+      30_000,
+    )
+
     return () => clearInterval(interval)
-  }, [canSelectScheduledSlots, isTodaySelected])
+  }, [bookingType, canSelectScheduledSlots, isTodaySelected])
 
   useEffect(() => {
     if (selectedScheduledSlotKey && !selectedSlotIsAvailable) {
       setSelectedScheduledSlotKey(null)
     }
   }, [selectedScheduledSlotKey, selectedSlotIsAvailable])
+
+  // Instant bookings must start today and strictly in the future.
+  const instantStartTimeValid =
+    bookingType !== 'instant' ||
+    (
+      startOfDay(startTime).getTime() === today.getTime() &&
+      startTime.getTime() > currentTime.getTime()
+    )
 
   // Load pricing for scheduled/recurring bookings
   useEffect(() => {
@@ -234,6 +320,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
           const year = d.getFullYear()
           const month = String(d.getMonth() + 1).padStart(2, '0')
           const day = String(d.getDate()).padStart(2, '0')
+
           return `${year}-${month}-${day}`
         }
 
@@ -241,13 +328,16 @@ export default function BookingScreen({ service, location, onContinue }: Booking
           const hours = String(d.getHours()).padStart(2, '0')
           const minutes = String(d.getMinutes()).padStart(2, '0')
           const seconds = String(d.getSeconds()).padStart(2, '0')
+
           return `${hours}:${minutes}:${seconds}`
         }
 
         const weekdayIndexes =
           bookingType === 'scheduled'
-            ? [0, 1, 2, 3, 4, 5, 6] // All days for scheduled
-            : selectedWeekdays.map(w => getWeekdayIndex(w)).filter(i => i >= 0)
+            ? [0, 1, 2, 3, 4, 5, 6]
+            : selectedWeekdays
+                .map(w => getWeekdayIndex(w))
+                .filter(i => i >= 0)
 
         const result = await calculateMultiOccurrenceBookingPrice({
           serviceVariantId: service.serviceVariantId,
@@ -265,7 +355,12 @@ export default function BookingScreen({ service, location, onContinue }: Booking
         setPricing(result)
       } catch (error) {
         if (cancelled) return
-        setPricingError(error instanceof Error ? error.message : 'Unable to calculate price.')
+
+        setPricingError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to calculate price.',
+        )
       } finally {
         if (!cancelled) {
           setPricingLoading(false)
@@ -274,13 +369,25 @@ export default function BookingScreen({ service, location, onContinue }: Booking
     }
 
     void loadPricing()
+
     return () => {
       cancelled = true
     }
-  }, [bookingType, startDate, endDate, startTime, endTime, selectedWeekdays, excludedDates, service.serviceVariantId])
+  }, [
+    bookingType,
+    startDate,
+    endDate,
+    startTime,
+    endTime,
+    selectedWeekdays,
+    excludedDates,
+    service.serviceVariantId,
+  ])
 
   // Handle scheduling slot selection
-  function handleSelectScheduledSlot(slot: ScheduledAvailabilitySlot) {
+  function handleSelectScheduledSlot(
+    slot: ScheduledAvailabilitySlot,
+  ) {
     if (slot.available_worker_count <= 0) return
 
     const slotStart = new Date(slot.start)
@@ -314,7 +421,9 @@ export default function BookingScreen({ service, location, onContinue }: Booking
   // Handle toggling excluded dates
   function handleToggleExcludedDate(dateKey: string) {
     setExcludedDates(current =>
-      current.includes(dateKey) ? current.filter(d => d !== dateKey) : [...current, dateKey].sort(),
+      current.includes(dateKey)
+        ? current.filter(d => d !== dateKey)
+        : [...current, dateKey].sort(),
     )
   }
 
@@ -340,54 +449,54 @@ export default function BookingScreen({ service, location, onContinue }: Booking
   }
 
   // Validation
- // Validation
-const scheduledOccurrences =
-  startDate && endDate
-    ? generateScheduledOccurrences(
-        startDate,
-        endDate,
-        excludedDates,
-      )
-    : []
-
-const hasRequiredDates =
-  !!startDate &&
-  !!endDate &&
-  (
-    bookingType === 'recurring'
-      ? recurringOccurrences.length > 0
-      : scheduledOccurrences.length > 0
-  )
-
-const areaCheckPassed =
-  availabilityResult?.serviceAreaAvailable === true &&
-  (
-    availabilityStatus === 'available' ||
-    availabilityStatus === 'fallback'
-  )
-
-const hasInstantAvailability =
-  areaCheckPassed &&
-  availabilityResult?.instantAvailable === true
-
-const canContinue = Boolean(
-  location &&
-  areaCheckPassed &&
-  timeRangeValid &&
-  (
-    bookingType === 'instant'
-      ? hasInstantAvailability
-      : hasRequiredDates &&
-        (
-          bookingType === 'scheduled'
-            ? (
-                !canSelectScheduledSlots ||
-                selectedSlotIsAvailable
-              )
-            : selectedWeekdays.length > 0
+  const scheduledOccurrences =
+    startDate && endDate
+      ? generateScheduledOccurrences(
+          startDate,
+          endDate,
+          excludedDates,
         )
-  ),
-)
+      : []
+
+  const hasRequiredDates =
+    !!startDate &&
+    !!endDate &&
+    (
+      bookingType === 'recurring'
+        ? recurringOccurrences.length > 0
+        : scheduledOccurrences.length > 0
+    )
+
+  const areaCheckPassed =
+    availabilityResult?.serviceAreaAvailable === true &&
+    (
+      availabilityStatus === 'available' ||
+      availabilityStatus === 'fallback'
+    )
+
+  const hasInstantAvailability =
+    areaCheckPassed &&
+    availabilityResult?.instantAvailable === true
+
+  const canContinue = Boolean(
+    location &&
+    areaCheckPassed &&
+    timeRangeValid &&
+    instantStartTimeValid &&
+    (
+      bookingType === 'instant'
+        ? hasInstantAvailability
+        : hasRequiredDates &&
+          (
+            bookingType === 'scheduled'
+              ? (
+                  !canSelectScheduledSlots ||
+                  selectedSlotIsAvailable
+                )
+              : selectedWeekdays.length > 0
+          )
+    ),
+  )
 
   return (
     <ScreenContainer>
@@ -402,7 +511,11 @@ const canContinue = Boolean(
           address={location?.address || 'No location selected'}
           available={availabilityResult?.serviceAreaAvailable === true}
           loading={availabilityStatus === 'checking'}
-          error={availabilityStatus === 'error' ? availabilityError : null}
+          error={
+            availabilityStatus === 'error'
+              ? availabilityError
+              : null
+          }
         />
 
         {/* Booking Method Selection */}
@@ -410,7 +523,10 @@ const canContinue = Boolean(
           <BookingMethodCard
             type="instant"
             selected={bookingType === 'instant'}
-            disabled={availabilityResult !== null && !availabilityResult.instantAvailable}
+            disabled={
+              availabilityResult !== null &&
+              !availabilityResult.instantAvailable
+            }
             onPress={() => setBookingType('instant')}
           />
 
@@ -430,7 +546,9 @@ const canContinue = Boolean(
         {/* Instant Booking */}
         {bookingType === 'instant' && (
           <BookingSection title="Select time">
-            <Text style={styles.helperText}>Choose when you need the service to start and end.</Text>
+            <Text style={styles.helperText}>
+              Choose when you need the service to start and end.
+            </Text>
 
             <TimeRangePicker
               startTime={startTime}
@@ -441,7 +559,9 @@ const canContinue = Boolean(
 
             <View style={styles.durationInfo}>
               <Text style={styles.durationLabel}>Duration</Text>
-              <Text style={styles.durationValue}>{durationHours} hour{durationHours === 1 ? '' : 's'}</Text>
+              <Text style={styles.durationValue}>
+                {durationHours} hour{durationHours === 1 ? '' : 's'}
+              </Text>
             </View>
           </BookingSection>
         )}
@@ -449,7 +569,9 @@ const canContinue = Boolean(
         {/* Scheduled Booking */}
         {bookingType === 'scheduled' && (
           <BookingSection title="Select dates and times">
-            <Text style={styles.helperText}>Choose when you need the service.</Text>
+            <Text style={styles.helperText}>
+              Choose when you need the service.
+            </Text>
 
             <DateRangePicker
               startDate={startDate}
@@ -471,21 +593,31 @@ const canContinue = Boolean(
             {/* Near-term availability slots */}
             {canSelectScheduledSlots && (
               <View style={styles.slotsSection}>
-                <Text style={styles.slotsTitle}>Available slots for {formatDateDisplay(startDate)}</Text>
+                <Text style={styles.slotsTitle}>
+                  Available slots for {formatDateDisplay(startDate)}
+                </Text>
 
-                {scheduledAvailabilityLoading && <BookingLoadingState />}
-
-                {scheduledAvailabilityError && <BookingErrorState message={scheduledAvailabilityError} />}
-
-                {!scheduledAvailabilityLoading && !scheduledAvailabilityError && visibleScheduledSlots.length === 0 && (
-                  <View style={styles.emptySlots}>
-                    <Text style={styles.emptySlotsText}>
-                      {isTodaySelected
-                        ? 'No future availability remains today for this time duration.'
-                        : 'No availability for this time duration on the selected date.'}
-                    </Text>
-                  </View>
+                {scheduledAvailabilityLoading && (
+                  <BookingLoadingState />
                 )}
+
+                {scheduledAvailabilityError && (
+                  <BookingErrorState
+                    message={scheduledAvailabilityError}
+                  />
+                )}
+
+                {!scheduledAvailabilityLoading &&
+                  !scheduledAvailabilityError &&
+                  visibleScheduledSlots.length === 0 && (
+                    <View style={styles.emptySlots}>
+                      <Text style={styles.emptySlotsText}>
+                        {isTodaySelected
+                          ? 'No future availability remains today for this time duration.'
+                          : 'No availability for this time duration on the selected date.'}
+                      </Text>
+                    </View>
+                  )}
 
                 {!scheduledAvailabilityLoading &&
                   !scheduledAvailabilityError &&
@@ -494,26 +626,41 @@ const canContinue = Boolean(
                       key={`${slot.start}-${slot.end}-${index}`}
                       start={slot.start}
                       end={slot.end}
-                      availableWorkerCount={slot.available_worker_count}
-                      selected={selectedScheduledSlotKey === `${slot.start}-${slot.end}`}
-                      onPress={() => handleSelectScheduledSlot(slot)}
+                      availableWorkerCount={
+                        slot.available_worker_count
+                      }
+                      selected={
+                        selectedScheduledSlotKey ===
+                        `${slot.start}-${slot.end}`
+                      }
+                      onPress={() =>
+                        handleSelectScheduledSlot(slot)
+                      }
                     />
                   ))}
               </View>
             )}
 
-            {!canSelectScheduledSlots && startDate && endDate && (
-              <View style={styles.futureInfo}>
-                <Text style={styles.futureInfoText}>Direct scheduling available for this date. Workers will be matched upon confirmation.</Text>
-              </View>
-            )}
+            {!canSelectScheduledSlots &&
+              startDate &&
+              endDate && (
+                <View style={styles.futureInfo}>
+                  <Text style={styles.futureInfoText}>
+                    Direct scheduling available for this date. Workers
+                    will be matched upon confirmation.
+                  </Text>
+                </View>
+              )}
           </BookingSection>
         )}
 
         {/* Recurring Booking */}
         {bookingType === 'recurring' && (
           <BookingSection title="Set up recurring booking">
-            <Text style={styles.helperText}>Choose the period, weekdays, and times for your recurring service.</Text>
+            <Text style={styles.helperText}>
+              Choose the period, weekdays, and times for your recurring
+              service.
+            </Text>
 
             <DateRangePicker
               startDate={startDate}
@@ -529,7 +676,9 @@ const canContinue = Boolean(
               selectedWeekdays={selectedWeekdays}
               onToggleWeekday={day => {
                 setSelectedWeekdays(current =>
-                  current.includes(day) ? current.filter(d => d !== day) : [...current, day],
+                  current.includes(day)
+                    ? current.filter(d => d !== day)
+                    : [...current, day],
                 )
               }}
             />
@@ -552,7 +701,8 @@ const canContinue = Boolean(
         )}
 
         {/* Pricing Summary */}
-        {(bookingType === 'scheduled' || bookingType === 'recurring') && (
+        {(bookingType === 'scheduled' ||
+          bookingType === 'recurring') && (
           <BookingSection title="Price breakdown">
             <BookingPriceSummary
               baseAmount={pricing?.gross_amount}
@@ -575,11 +725,16 @@ const canContinue = Boolean(
       {/* Sticky Continue Button */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.continueButton, !canContinue && styles.continueButtonDisabled]}
+          style={[
+            styles.continueButton,
+            !canContinue && styles.continueButtonDisabled,
+          ]}
           onPress={handleContinue}
           disabled={!canContinue}
         >
-          <Text style={styles.continueButtonText}>Continue to Details</Text>
+          <Text style={styles.continueButtonText}>
+            Continue to Details
+          </Text>
         </TouchableOpacity>
       </View>
     </ScreenContainer>
