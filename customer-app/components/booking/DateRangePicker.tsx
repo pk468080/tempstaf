@@ -1,17 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import {
-  ActivityIndicator,
   Modal,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native'
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from '@react-native-community/datetimepicker'
 
-import { formatDateDisplay, startOfDay, toDateKey } from '../../lib/bookingUtils'
+import {
+  formatDateDisplay,
+  startOfDay,
+  toDateKey,
+} from '../../lib/bookingUtils'
 
 interface DateRangePickerProps {
   startDate: Date | null
@@ -45,8 +49,10 @@ export default function DateRangePicker({
     if (pickerMode === 'start') {
       onStartDateChange(normalizedDate)
 
-      // Auto-adjust end date if needed
-     minimumDate={startDate ?? minDate}
+      // Keep the range valid when the start date moves past the current end date.
+      if (endDate && normalizedDate > endDate) {
+        onEndDateChange(normalizedDate)
+      }
     } else if (pickerMode === 'end') {
       onEndDateChange(normalizedDate)
     }
@@ -54,7 +60,10 @@ export default function DateRangePicker({
     setPickerMode(null)
   }
 
-  function handlePickerChange(event: DateTimePickerEvent, selectedDate?: Date) {
+  function handlePickerChange(
+    event: DateTimePickerEvent,
+    selectedDate?: Date,
+  ) {
     if (event.type === 'dismissed' || !selectedDate) {
       if (Platform.OS === 'android') {
         setPickerMode(null)
@@ -69,17 +78,35 @@ export default function DateRangePicker({
     }
   }
 
-  function generateCalendarDays(): Array<{ date: Date; isInRange: boolean; isExcluded: boolean; isStartEnd: boolean }> {
+  function generateCalendarDays(): Array<{
+    date: Date
+    isInRange: boolean
+    isExcluded: boolean
+    isStartEnd: boolean
+  }> {
     if (!startDate || !endDate) return []
 
-    const days: Array<{ date: Date; isInRange: boolean; isExcluded: boolean; isStartEnd: boolean }> = []
+    const days: Array<{
+      date: Date
+      isInRange: boolean
+      isExcluded: boolean
+      isStartEnd: boolean
+    }> = []
+
     const cursor = new Date(startDate)
 
     while (cursor <= endDate) {
       const dateKey = toDateKey(cursor)
-      const isInRange = cursor >= startDate && cursor <= endDate
+
+      const isInRange =
+        cursor >= startDate &&
+        cursor <= endDate
+
       const isExcluded = excludedDates.includes(dateKey)
-      const isStartEnd = toDateKey(cursor) === toDateKey(startDate) || toDateKey(cursor) === toDateKey(endDate)
+
+      const isStartEnd =
+        toDateKey(cursor) === toDateKey(startDate) ||
+        toDateKey(cursor) === toDateKey(endDate)
 
       days.push({
         date: new Date(cursor),
@@ -96,10 +123,16 @@ export default function DateRangePicker({
 
   const calendarDays = generateCalendarDays()
 
+  // The end date can never be earlier than the selected start date.
+  const effectiveEndMinDate = startDate ?? minDate
+
   return (
     <View style={styles.container}>
       <TouchableOpacity
-        style={[styles.dateButton, disabled && styles.dateButtonDisabled]}
+        style={[
+          styles.dateButton,
+          disabled && styles.dateButtonDisabled,
+        ]}
         onPress={() => {
           if (!disabled) {
             setPickerDate(startDate || new Date())
@@ -108,27 +141,47 @@ export default function DateRangePicker({
         }}
         disabled={disabled}
       >
-        <Text style={styles.dateButtonLabel}>Start date</Text>
-        <Text style={styles.dateButtonValue}>{formatDateDisplay(startDate)}</Text>
+        <Text style={styles.dateButtonLabel}>
+          Start date
+        </Text>
+
+        <Text style={styles.dateButtonValue}>
+          {formatDateDisplay(startDate)}
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.dateButton, disabled && styles.dateButtonDisabled]}
+        style={[
+          styles.dateButton,
+          disabled && styles.dateButtonDisabled,
+        ]}
         onPress={() => {
           if (!disabled) {
-            setPickerDate(endDate || new Date())
+            const nextPickerDate =
+              endDate && endDate >= effectiveEndMinDate
+                ? endDate
+                : effectiveEndMinDate
+
+            setPickerDate(nextPickerDate)
             setPickerMode('end')
           }
         }}
         disabled={disabled}
       >
-        <Text style={styles.dateButtonLabel}>End date</Text>
-        <Text style={styles.dateButtonValue}>{formatDateDisplay(endDate)}</Text>
+        <Text style={styles.dateButtonLabel}>
+          End date
+        </Text>
+
+        <Text style={styles.dateButtonValue}>
+          {formatDateDisplay(endDate)}
+        </Text>
       </TouchableOpacity>
 
       {startDate && endDate && (
         <View style={styles.calendarSection}>
-          <Text style={styles.calendarTitle}>Select dates to exclude:</Text>
+          <Text style={styles.calendarTitle}>
+            Select dates to exclude:
+          </Text>
 
           <View style={styles.calendar}>
             {calendarDays.map((day, index) => {
@@ -140,18 +193,26 @@ export default function DateRangePicker({
                   key={`${dateKey}-${index}`}
                   style={[
                     styles.calendarDay,
-                    day.isInRange && !day.isStartEnd && styles.calendarDayInRange,
-                    day.isStartEnd && styles.calendarDayStartEnd,
-                    day.isExcluded && styles.calendarDayExcluded,
+                    day.isInRange &&
+                      !day.isStartEnd &&
+                      styles.calendarDayInRange,
+                    day.isStartEnd &&
+                      styles.calendarDayStartEnd,
+                    day.isExcluded &&
+                      styles.calendarDayExcluded,
                   ]}
-                  onPress={() => onExcludedDateToggle(dateKey)}
+                  onPress={() =>
+                    onExcludedDateToggle(dateKey)
+                  }
                   disabled={disabled}
                 >
                   <Text
                     style={[
                       styles.calendarDayText,
-                      (day.isInRange || day.isStartEnd) && styles.calendarDayTextActive,
-                      day.isExcluded && styles.calendarDayTextExcluded,
+                      (day.isInRange || day.isStartEnd) &&
+                        styles.calendarDayTextActive,
+                      day.isExcluded &&
+                        styles.calendarDayTextExcluded,
                     ]}
                   >
                     {dayOfMonth}
@@ -164,17 +225,33 @@ export default function DateRangePicker({
       )}
 
       {pickerMode && Platform.OS !== 'android' && (
-        <Modal transparent visible={pickerMode !== null} animationType="slide">
+        <Modal
+          transparent
+          visible={pickerMode !== null}
+          animationType="slide"
+        >
           <View style={styles.pickerModal}>
             <View style={styles.pickerHeader}>
-              <TouchableOpacity onPress={() => setPickerMode(null)}>
-                <Text style={styles.pickerHeaderButton}>Cancel</Text>
+              <TouchableOpacity
+                onPress={() => setPickerMode(null)}
+              >
+                <Text style={styles.pickerHeaderButton}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
 
-              <Text style={styles.pickerHeaderTitle}>{pickerMode === 'start' ? 'Start date' : 'End date'}</Text>
+              <Text style={styles.pickerHeaderTitle}>
+                {pickerMode === 'start'
+                  ? 'Start date'
+                  : 'End date'}
+              </Text>
 
-              <TouchableOpacity onPress={() => handleDatePicked(pickerDate)}>
-                <Text style={styles.pickerHeaderButtonDone}>Done</Text>
+              <TouchableOpacity
+                onPress={() => handleDatePicked(pickerDate)}
+              >
+                <Text style={styles.pickerHeaderButtonDone}>
+                  Done
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -183,7 +260,11 @@ export default function DateRangePicker({
               mode="date"
               display="spinner"
               onChange={handlePickerChange}
-              minimumDate={minDate}
+              minimumDate={
+                pickerMode === 'end'
+                  ? effectiveEndMinDate
+                  : minDate
+              }
               maximumDate={maxDate}
             />
           </View>
@@ -196,7 +277,11 @@ export default function DateRangePicker({
           mode="date"
           display="default"
           onChange={handlePickerChange}
-          minimumDate={minDate}
+          minimumDate={
+            pickerMode === 'end'
+              ? effectiveEndMinDate
+              : minDate
+          }
           maximumDate={maxDate}
         />
       )}
