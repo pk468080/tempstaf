@@ -121,7 +121,9 @@ Deno.serve(async (req: Request) => {
     }
 
     const authorization =
-      req.headers.get("Authorization");
+      req.headers.get(
+        "Authorization"
+      );
 
     if (!authorization) {
       return jsonResponse(
@@ -135,7 +137,9 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabaseUrl =
-      Deno.env.get("SUPABASE_URL");
+      Deno.env.get(
+        "SUPABASE_URL"
+      );
 
     const serviceRoleKey =
       Deno.env.get(
@@ -143,10 +147,14 @@ Deno.serve(async (req: Request) => {
       );
 
     const razorpayKeyId =
-      Deno.env.get("RAZORPAY_KEY_ID");
+      Deno.env.get(
+        "RAZORPAY_KEY_ID"
+      );
 
     const razorpayKeySecret =
-      Deno.env.get("RAZORPAY_KEY_SECRET");
+      Deno.env.get(
+        "RAZORPAY_KEY_SECRET"
+      );
 
     if (
       !supabaseUrl ||
@@ -188,7 +196,10 @@ Deno.serve(async (req: Request) => {
     } =
       await userClient.auth.getUser();
 
-    if (userError || !user) {
+    if (
+      userError ||
+      !user
+    ) {
       return jsonResponse(
         {
           success: false,
@@ -215,7 +226,8 @@ Deno.serve(async (req: Request) => {
       body?.razorpaySignature;
 
     if (
-      typeof bookingId !== "string" ||
+      typeof bookingId !==
+        "string" ||
       !bookingId
     ) {
       return jsonResponse(
@@ -229,7 +241,8 @@ Deno.serve(async (req: Request) => {
     }
 
     if (
-      typeof razorpayOrderId !== "string" ||
+      typeof razorpayOrderId !==
+        "string" ||
       !razorpayOrderId
     ) {
       return jsonResponse(
@@ -243,7 +256,8 @@ Deno.serve(async (req: Request) => {
     }
 
     if (
-      typeof razorpayPaymentId !== "string" ||
+      typeof razorpayPaymentId !==
+        "string" ||
       !razorpayPaymentId
     ) {
       return jsonResponse(
@@ -257,7 +271,8 @@ Deno.serve(async (req: Request) => {
     }
 
     if (
-      typeof razorpaySignature !== "string" ||
+      typeof razorpaySignature !==
+        "string" ||
       !razorpaySignature
     ) {
       return jsonResponse(
@@ -292,8 +307,14 @@ Deno.serve(async (req: Request) => {
             pricing_snapshot
           `
         )
-        .eq("id", bookingId)
-        .eq("customer_id", user.id)
+        .eq(
+          "id",
+          bookingId
+        )
+        .eq(
+          "customer_id",
+          user.id
+        )
         .maybeSingle();
 
     if (bookingError) {
@@ -311,21 +332,30 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(
         {
           success: false,
-          error: "Booking not found.",
+          error:
+            "Booking not found.",
         },
         404
       );
     }
 
+    /*
+     * All booking types now share the same
+     * payment verification lifecycle.
+     */
     if (
-      booking.fulfillment_type !== "scheduled" &&
-      booking.fulfillment_type !== "instant"
+      booking.fulfillment_type !==
+        "instant" &&
+      booking.fulfillment_type !==
+        "scheduled" &&
+      booking.fulfillment_type !==
+        "recurring"
     ) {
       return jsonResponse(
         {
           success: false,
           error:
-            "This payment flow is only for instant or scheduled bookings.",
+            "This booking type is not supported for Razorpay payments.",
         },
         400
       );
@@ -349,8 +379,14 @@ Deno.serve(async (req: Request) => {
             status
           `
         )
-        .eq("booking_id", bookingId)
-        .eq("provider", "razorpay")
+        .eq(
+          "booking_id",
+          bookingId
+        )
+        .eq(
+          "provider",
+          "razorpay"
+        )
         .eq(
           "provider_order_id",
           razorpayOrderId
@@ -380,12 +416,11 @@ Deno.serve(async (req: Request) => {
     }
 
     /*
-     * Idempotency:
-     * If this exact payment has already
-     * been processed, return success.
+     * Idempotency.
      */
     if (
-      payment.status === "paid" &&
+      payment.status ===
+        "paid" &&
       payment.provider_payment_id ===
         razorpayPaymentId
     ) {
@@ -404,7 +439,9 @@ Deno.serve(async (req: Request) => {
       );
 
     const paymentAmount =
-      Number(payment.amount);
+      Number(
+        payment.amount
+      );
 
     if (
       !Number.isFinite(
@@ -481,7 +518,7 @@ Deno.serve(async (req: Request) => {
     }
 
     /*
-     * Verify Razorpay checkout signature.
+     * Verify the Razorpay checkout signature.
      */
     const expectedSignature =
       await createHmacSha256(
@@ -512,9 +549,8 @@ Deno.serve(async (req: Request) => {
     }
 
     /*
-     * Retrieve the payment directly from
-     * Razorpay so the server verifies the
-     * actual payment state.
+     * Verify the actual payment directly
+     * against Razorpay.
      */
     const razorpayAuth =
       btoa(
@@ -599,9 +635,7 @@ Deno.serve(async (req: Request) => {
     }
 
     /*
-     * Do not mark an authorized-only payment
-     * as paid. The booking transition represents
-     * completed payment.
+     * Only a captured payment is treated as paid.
      */
     if (
       razorpayPayment.status !==
@@ -618,81 +652,83 @@ Deno.serve(async (req: Request) => {
     }
 
     /*
- * Finalize the verified Razorpay payment through
- * the authoritative server-side payment RPC.
- *
- * This RPC:
- * - locks the payment and booking
- * - records the provider payment ID
- * - marks the payment paid
- * - marks the booking paid
- * - assigns/searches for a worker
- * - is idempotent for an already-paid payment
- */
-const {
-  data: finalizationResult,
-  error: finalizationError,
-} =
-  await adminClient.rpc(
-    "finalize_razorpay_payment",
-    {
-      p_payment_id: payment.id,
-      p_provider_payment_id:
-        razorpayPaymentId,
-      p_paid_at:
-        new Date().toISOString(),
+     * Finalize through the authoritative
+     * server-side payment RPC.
+     *
+     * The RPC locks the payment and booking,
+     * records the provider payment ID,
+     * marks the payment paid,
+     * transitions the booking to paid,
+     * and performs worker assignment/search.
+     */
+    const {
+      data:
+        finalizationResult,
+      error:
+        finalizationError,
+    } =
+      await adminClient.rpc(
+        "finalize_razorpay_payment",
+        {
+          p_payment_id:
+            payment.id,
+          p_provider_payment_id:
+            razorpayPaymentId,
+          p_paid_at:
+            typeof razorpayPayment.created_at ===
+            "number"
+              ? new Date(
+                  razorpayPayment.created_at *
+                    1000
+                ).toISOString()
+              : new Date().toISOString(),
+        }
+      );
+
+    if (
+      finalizationError
+    ) {
+      console.error(
+        "Razorpay payment finalization failed:",
+        finalizationError
+      );
+
+      throw new Error(
+        "Payment was verified, but could not be finalized."
+      );
     }
-  );
 
-if (finalizationError) {
-  console.error(
-    "Razorpay payment finalization failed:",
-    finalizationError
-  );
+    if (
+      !finalizationResult ||
+      finalizationResult.success !==
+        true
+    ) {
+      console.error(
+        "Unexpected Razorpay finalization result:",
+        finalizationResult
+      );
 
-  throw new Error(
-    "Payment was verified, but could not be finalized."
-  );
-}
-
-if (
-  !finalizationResult ||
-  finalizationResult.success !== true
-) {
-  console.error(
-    "Unexpected Razorpay finalization result:",
-    finalizationResult
-  );
-
-  throw new Error(
-    "Payment was verified, but could not be finalized."
-  );
-}
-
-return jsonResponse({
-  success: true,
-  bookingId,
-  paymentId:
-    razorpayPaymentId,
-  status:
-    finalizationResult.booking_status ??
-    "paid",
-  assigned:
-    finalizationResult.assigned ?? false,
-  workerId:
-    finalizationResult.worker_id ?? null,
-  finalization:
-    finalizationResult,
-});
+      throw new Error(
+        "Payment was verified, but could not be finalized."
+      );
+    }
 
     return jsonResponse({
       success: true,
       bookingId,
       paymentId:
         razorpayPaymentId,
-      status: "paid",
-      transition:
-        transitionResult ?? null,
+      status:
+        finalizationResult.booking_status ??
+        "paid",
+      assigned:
+        finalizationResult.assigned ??
+        false,
+      workerId:
+        finalizationResult.worker_id ??
+        null,
+      finalization:
+        finalizationResult,
     });
   } catch (error) {
     console.error(
