@@ -46,9 +46,7 @@ export default function DateRangePicker({
       onStartDateChange(normalizedDate)
 
       // Auto-adjust end date if needed
-      if (endDate && normalizedDate > endDate) {
-        onEndDateChange(normalizedDate)
-      }
+     minimumDate={startDate ?? minDate}
     } else if (pickerMode === 'end') {
       onEndDateChange(normalizedDate)
     }
