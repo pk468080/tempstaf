@@ -110,7 +110,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
 
   // Auto-switch from instant to scheduled if no workers
   useEffect(() => {
-    if (availabilityResult && !availabilityResult.instantAvailable && bookingType === 'instant') {
+    if (availabilityResult && \!availabilityResult.instantAvailable && bookingType === 'instant') {
       setBookingType('scheduled')
     }
   }, [availabilityResult, bookingType])
@@ -123,7 +123,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
       setScheduledSlots([])
       setScheduledAvailabilityError(null)
 
-      if (!canSelectScheduledSlots || !startDate || !location) {
+      if (\!canSelectScheduledSlots || \!startDate || \!location) {
         return
       }
 
@@ -146,7 +146,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
 
         if (cancelled) return
 
-        if (!result.service_area_available) {
+        if (\!result.service_area_available) {
           setScheduledAvailabilityError('Service not available in this area for the selected date.')
           return
         }
@@ -156,7 +156,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
         if (cancelled) return
         setScheduledAvailabilityError(error instanceof Error ? error.message : 'Unable to load availability.')
       } finally {
-        if (!cancelled) {
+        if (\!cancelled) {
           setScheduledAvailabilityLoading(false)
         }
       }
@@ -182,7 +182,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
       }
 
       // For scheduled/recurring, both need dates
-      if (!startDate || !endDate) {
+      if (\!startDate || \!endDate) {
         return
       }
 
@@ -231,7 +231,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
         if (cancelled) return
         setPricingError(error instanceof Error ? error.message : 'Unable to calculate price.')
       } finally {
-        if (!cancelled) {
+        if (\!cancelled) {
           setPricingLoading(false)
         }
       }
@@ -258,13 +258,13 @@ export default function BookingScreen({ service, location, onContinue }: Booking
   // Handle toggling excluded dates
   function handleToggleExcludedDate(dateKey: string) {
     setExcludedDates(current =>
-      current.includes(dateKey) ? current.filter(d => d !== dateKey) : [...current, dateKey].sort(),
+      current.includes(dateKey) ? current.filter(d => d \!== dateKey) : [...current, dateKey].sort(),
     )
   }
 
   // Handle booking continuation
   function handleContinue() {
-    if (!onContinue || !location) return
+    if (\!onContinue || \!location) return
 
     const draft: BookingDraft = {
       serviceId: service.id,
@@ -284,7 +284,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
   }
 
   // Validation
-  const canContinue = !!location && (bookingType === 'instant' || (startDate && endDate && (bookingType === 'scheduled' || selectedWeekdays.length > 0)))
+  const canContinue = \!\!location && (bookingType === 'instant' || (startDate && endDate && (bookingType === 'scheduled' || selectedWeekdays.length > 0)))
 
   return (
     <ScreenContainer>
@@ -297,7 +297,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
         {/* Service Area Status */}
         <ServiceAreaStatusCard
           address={location?.address || 'No location selected'}
-          available={!!location && availabilityResult?.serviceAreaAvailable !== false}
+          available={\!\!location && availabilityResult?.serviceAreaAvailable \!== false}
           loading={availabilityStatus === 'checking'}
           error={availabilityStatus === 'error' ? availabilityError : null}
         />
@@ -307,7 +307,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
           <BookingMethodCard
             type="instant"
             selected={bookingType === 'instant'}
-            disabled={availabilityResult !== null && !availabilityResult.instantAvailable}
+            disabled={availabilityResult \!== null && \!availabilityResult.instantAvailable}
             onPress={() => setBookingType('instant')}
           />
 
@@ -374,14 +374,14 @@ export default function BookingScreen({ service, location, onContinue }: Booking
 
                 {scheduledAvailabilityError && <BookingErrorState message={scheduledAvailabilityError} />}
 
-                {!scheduledAvailabilityLoading && !scheduledAvailabilityError && scheduledSlots.length === 0 && (
+                {\!scheduledAvailabilityLoading && \!scheduledAvailabilityError && scheduledSlots.length === 0 && (
                   <View style={styles.emptySlots}>
                     <Text style={styles.emptySlotsText}>No availability for this time duration on the selected date.</Text>
                   </View>
                 )}
 
-                {!scheduledAvailabilityLoading &&
-                  !scheduledAvailabilityError &&
+                {\!scheduledAvailabilityLoading &&
+                  \!scheduledAvailabilityError &&
                   scheduledSlots.map((slot, index) => (
                     <AvailabilitySlot
                       key={`${slot.start}-${slot.end}-${index}`}
@@ -395,7 +395,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
               </View>
             )}
 
-            {!canSelectScheduledSlots && startDate && endDate && (
+            {\!canSelectScheduledSlots && startDate && endDate && (
               <View style={styles.futureInfo}>
                 <Text style={styles.futureInfoText}>Direct scheduling available for this date. Workers will be matched upon confirmation.</Text>
               </View>
@@ -422,7 +422,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
               selectedWeekdays={selectedWeekdays}
               onToggleWeekday={day => {
                 setSelectedWeekdays(current =>
-                  current.includes(day) ? current.filter(d => d !== day) : [...current, day],
+                  current.includes(day) ? current.filter(d => d \!== day) : [...current, day],
                 )
               }}
             />
@@ -468,9 +468,9 @@ export default function BookingScreen({ service, location, onContinue }: Booking
       {/* Sticky Continue Button */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.continueButton, !canContinue && styles.continueButtonDisabled]}
+          style={[styles.continueButton, \!canContinue && styles.continueButtonDisabled]}
           onPress={handleContinue}
-          disabled={!canContinue}
+          disabled={\!canContinue}
         >
           <Text style={styles.continueButtonText}>Continue to Details</Text>
         </TouchableOpacity>

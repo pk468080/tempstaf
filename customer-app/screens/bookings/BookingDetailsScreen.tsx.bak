@@ -65,7 +65,7 @@ export default function BookingDetailsScreen({
     : []
 
   async function handleContinue() {
-    if (!onContinue || submitting) {
+    if (\!onContinue || submitting) {
       return
     }
 
@@ -93,7 +93,7 @@ export default function BookingDetailsScreen({
         return
       }
 
-      if (!startDate || !endDate) {
+      if (\!startDate || \!endDate) {
         return
       }
 
@@ -146,7 +146,7 @@ export default function BookingDetailsScreen({
 
         setPricingError(error instanceof Error ? error.message : 'Unable to calculate booking price.')
       } finally {
-        if (!cancelled) {
+        if (\!cancelled) {
           setPricingLoading(false)
         }
       }
@@ -186,7 +186,7 @@ export default function BookingDetailsScreen({
           <DetailRow label="End time" value={formatTimeDisplay(endTime)} />
           <DetailRow label="Duration" value={`${durationHours} hour${durationHours === 1 ? '' : 's'}`} />
 
-          {bookingType !== 'instant' && (
+          {bookingType \!== 'instant' && (
             <>
               <DetailRow label="Start date" value={formatDateDisplay(startDate)} />
               <DetailRow label="End date" value={formatDateDisplay(endDate)} />
@@ -209,7 +209,7 @@ export default function BookingDetailsScreen({
         )}
 
         {/* Pricing Section */}
-        {bookingType !== 'instant' && (
+        {bookingType \!== 'instant' && (
           <BookingSection title="Pricing">
             <BookingPriceSummary
               baseAmount={pricing?.gross_amount}
