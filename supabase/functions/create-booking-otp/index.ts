@@ -27,15 +27,34 @@ Deno.serve(async req => {
   }
 
   try {
+    const authorization = req.headers.get('Authorization')
+    if (!authorization) {
+      return new Response(JSON.stringify({ error: 'Authentication required.' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceRoleKey = Deno.env.get(
       'SUPABASE_SERVICE_ROLE_KEY'
     )!
 
-    const supabase = createClient(
+    const userClient = createClient(
       supabaseUrl,
-      serviceRoleKey
+      serviceRoleKey,
+      { global: { headers: { Authorization: authorization } } },
     )
+
+    const { data: { user }, error: userError } = await userClient.auth.getUser()
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: 'Authentication required.' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey)
 
     const { bookingId, otpType } = await req.json()
 
@@ -74,6 +93,7 @@ Deno.serve(async req => {
         .from('bookings')
         .select('id, customer_id, worker_id, status')
         .eq('id', bookingId)
+        .eq('customer_id', user.id)
         .single()
 
     if (bookingError || !booking) {

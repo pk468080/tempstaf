@@ -8,6 +8,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+type PaymentAction = "create_order" | "mark_payment_failed";
+
 function jsonResponse(
   body: Record<string, unknown>,
   status = 200
@@ -22,6 +24,9 @@ function jsonResponse(
 }
 
 Deno.serve(async (req: Request) => {
+  let failureBookingId: string | null = null;
+  let shouldMarkPaymentFailed = false;
+
   if (req.method === "OPTIONS") {
     return new Response("ok", {
       headers: corsHeaders,
@@ -110,6 +115,11 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json();
 
+    const action: PaymentAction =
+      body?.action === "mark_payment_failed"
+        ? "mark_payment_failed"
+        : "create_order";
+
     const bookingId =
       body?.bookingId;
 
@@ -171,23 +181,54 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    if (action === "mark_payment_failed") {
+      if (booking.status === "paid") {
+        return jsonResponse(
+          {
+            success: false,
+            error: "A paid booking cannot be marked as payment failed.",
+          },
+          409
+        );
+      }
+
+      if (booking.status === "pending_payment") {
+        const { error: statusError } = await adminClient
+          .from("bookings")
+          .update({ status: "payment_failed" })
+          .eq("id", bookingId)
+          .eq("customer_id", user.id)
+          .eq("status", "pending_payment");
+
+        if (statusError) {
+          throw new Error("Unable to mark the booking payment as failed.");
+        }
+      }
+
+      return jsonResponse({
+        success: true,
+        bookingId,
+        status: "payment_failed",
+      });
+    }
+
     if (
-      booking.fulfillment_type !==
-      "scheduled"
+      booking.fulfillment_type !== "scheduled" &&
+      booking.fulfillment_type !== "instant"
     ) {
       return jsonResponse(
         {
           success: false,
           error:
-            "This payment flow is only for scheduled bookings.",
+            "This payment flow is only for instant or scheduled bookings.",
         },
         400
       );
     }
 
     if (
-      booking.status !==
-      "pending_payment"
+      booking.status !== "pending_payment" &&
+      booking.status !== "payment_failed"
     ) {
       return jsonResponse(
         {
@@ -198,6 +239,22 @@ Deno.serve(async (req: Request) => {
         409
       );
     }
+
+    if (booking.status === "payment_failed") {
+      const { error: statusError } = await adminClient
+        .from("bookings")
+        .update({ status: "pending_payment" })
+        .eq("id", bookingId)
+        .eq("customer_id", user.id)
+        .eq("status", "payment_failed");
+
+      if (statusError) {
+        throw new Error("Unable to reopen the booking for payment.");
+      }
+    }
+
+    failureBookingId = bookingId;
+    shouldMarkPaymentFailed = true;
 
     const amount =
       Number(booking.total_amount);
@@ -395,6 +452,31 @@ Deno.serve(async (req: Request) => {
         razorpayData.receipt,
     });
   } catch (error) {
+    if (shouldMarkPaymentFailed && failureBookingId) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+      if (supabaseUrl && serviceRoleKey) {
+        const statusClient = createClient(
+          supabaseUrl,
+          serviceRoleKey
+        );
+
+        const { error: statusError } = await statusClient
+          .from("bookings")
+          .update({ status: "payment_failed" })
+          .eq("id", failureBookingId)
+          .eq("status", "pending_payment");
+
+        if (statusError) {
+          console.error(
+            "Unable to mark failed payment order:",
+            statusError
+          );
+        }
+      }
+    }
+
     console.error(
       "[TempStaff] create-razorpay-order error:",
       error

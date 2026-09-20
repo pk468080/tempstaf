@@ -6,6 +6,9 @@ export type ScheduledBookingResult = {
   total_working_hours: number
   gross_amount: number
   discount_amount: number
+  platform_fee?: number
+  tax_amount?: number
+  tax?: number
   final_amount: number
   currency: string
   timezone: string
@@ -18,6 +21,7 @@ type CreateScheduledBookingInput = {
   endDate: string
   startTime: string
   endTime: string
+  selectedWeekdays?: number[]
   excludedDates: string[]
   notes?: string | null
 }
@@ -108,7 +112,7 @@ export async function createCustomerScheduledBooking(
         p_daily_end_time:
           input.endTime,
 
-        p_selected_weekdays: [
+        p_selected_weekdays: input.selectedWeekdays ?? [
           0,
           1,
           2,

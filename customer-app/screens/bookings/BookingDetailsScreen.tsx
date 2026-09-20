@@ -171,9 +171,7 @@ export default function BookingDetailsScreen({
       setPricing(null)
       setPricingError(null)
 
-      if (
-        bookingType !== 'recurring'
-      ) {
+      if (bookingType === 'instant') {
         return
       }
 
@@ -184,9 +182,7 @@ export default function BookingDetailsScreen({
         return
       }
 
-      if (
-        selectedWeekdays.length === 0
-      ) {
+      if (bookingType === 'recurring' && selectedWeekdays.length === 0) {
         setPricingError(
           'Select at least one weekday.',
         )
@@ -197,15 +193,12 @@ export default function BookingDetailsScreen({
 
       try {
         const weekdayIndexes =
-          selectedWeekdays
-            .map(
-              day =>
-                WEEKDAY_INDEX[day],
-            )
-            .filter(
-              value =>
-                value !== undefined,
-            )
+          (bookingType === 'scheduled'
+            ? Object.values(WEEKDAY_INDEX)
+            : selectedWeekdays.map(
+                day => WEEKDAY_INDEX[day],
+              ))
+            .filter(value => value !== undefined)
 
         const result =
           await calculateMultiOccurrenceBookingPrice(
@@ -447,14 +440,27 @@ export default function BookingDetailsScreen({
                 )}
               />
 
-              {pricing.discount_amount !==
-              undefined ? (
+              {pricing.discount_amount !== undefined ? (
                 <Row
                   label="Discount"
                   value={formatMoney(
                     pricing.discount_amount,
                     pricing.currency,
                   )}
+                />
+              ) : null}
+
+              {pricing.platform_fee !== undefined ? (
+                <Row
+                  label="Platform fee"
+                  value={formatMoney(pricing.platform_fee, pricing.currency)}
+                />
+              ) : null}
+
+              {(pricing.tax_amount ?? pricing.tax) !== undefined ? (
+                <Row
+                  label="Tax"
+                  value={formatMoney(pricing.tax_amount ?? pricing.tax, pricing.currency)}
                 />
               ) : null}
 
@@ -492,31 +498,6 @@ export default function BookingDetailsScreen({
                 backend pricing engine.
               </Text>
             </>
-          ) : bookingType ===
-            'scheduled' ? (
-            <View
-              style={
-                styles.errorContainer
-              }
-            >
-              <Text
-                style={
-                  styles.scheduledPriceTitle
-                }
-              >
-                Price calculated at booking
-              </Text>
-
-              <Text
-                style={
-                  styles.errorText
-                }
-              >
-                The backend will calculate the
-                final scheduled price when the
-                booking is created.
-              </Text>
-            </View>
           ) : (
             <Text
               style={

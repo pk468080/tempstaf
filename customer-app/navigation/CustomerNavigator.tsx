@@ -14,6 +14,7 @@ import BookingDetailsScreen from '../screens/bookings/BookingDetailsScreen'
 import BookingScreen from '../screens/bookings/BookingScreen'
 import HomeScreen from '../screens/home/HomeScreen'
 import PaymentScreen from '../screens/payment/PaymentScreen'
+import ActiveBookingScreen from '../screens/bookings/ActiveBookingScreen'
 
 import {
   getOrCreateCustomerAddress,
@@ -26,6 +27,9 @@ import {
 import {
   createCustomerRecurringBooking,
 } from '../services/booking/recurringBooking.service'
+import {
+  createCustomerInstantBooking,
+} from '../services/booking/instantBooking.service'
 
 import type { BookingDraft } from '../types/booking'
 import type { HomeService } from '../types/service'
@@ -64,6 +68,7 @@ type CustomerStackParamList = {
     occurrenceCount: number
     totalWorkingHours: number
   }
+  ActiveBooking: { bookingId: string }
 }
 
 const Tab =
@@ -220,34 +225,43 @@ export default function CustomerNavigator({
           } = route.params
 
           async function handleContinue() {
-            if (
-              draft.bookingType ===
-              'instant'
-            ) {
-              throw new Error(
-                'Instant booking is not currently available.',
-              )
+            if (!draft.location) {
+              throw new Error('A booking location is required.')
             }
 
-            if (
-              !draft.startDate ||
-              !draft.endDate
-            ) {
+            if (draft.bookingType !== 'instant' && (!draft.startDate || !draft.endDate)) {
               throw new Error(
                 'Booking dates are required.',
               )
             }
 
-            if (!draft.location) {
-              throw new Error(
-                'A booking location is required.',
-              )
-            }
-
-            const addressId =
-              await getOrCreateCustomerAddress(
+            const addressId = await getOrCreateCustomerAddress(
                 draft.location,
               )
+
+            if (draft.bookingType === 'instant') {
+              const result = await createCustomerInstantBooking({
+                serviceVariantId: service.serviceVariantId,
+                addressId,
+                startTime: draft.startTime,
+                endTime: draft.endTime,
+              })
+              if (
+                result.instant_available === false ||
+                result.fallback_to_scheduled === true
+              ) {
+                navigation.navigate('Booking', { service })
+                return
+              }
+              navigation.navigate('Payment', {
+                bookingId: result.booking_id,
+                finalAmount: result.final_amount,
+                currency: result.currency,
+                occurrenceCount: result.occurrence_count,
+                totalWorkingHours: result.total_working_hours,
+              })
+              return
+            }
 
             if (
               draft.bookingType ===
@@ -263,12 +277,12 @@ export default function CustomerNavigator({
 
                     startDate:
                       toDateOnly(
-                        draft.startDate,
+                        draft.startDate!,
                       ),
 
                     endDate:
                       toDateOnly(
-                        draft.endDate,
+                        draft.endDate!,
                       ),
 
                     startTime:
@@ -280,6 +294,9 @@ export default function CustomerNavigator({
                       toTimeOnly(
                         draft.endTime,
                       ),
+
+                    selectedWeekdays:
+                      [new Date(draft.startDate!).getDay()],
 
                     excludedDates:
                       draft.excludedDates,
@@ -333,12 +350,12 @@ export default function CustomerNavigator({
 
                   startDate:
                     toDateOnly(
-                      draft.startDate,
+                      draft.startDate!,
                     ),
 
                   endDate:
                     toDateOnly(
-                      draft.endDate,
+                      draft.endDate!,
                     ),
 
                   startTime:
@@ -428,7 +445,7 @@ export default function CustomerNavigator({
       </Stack.Screen>
 
       <Stack.Screen name="Payment">
-        {({ route }) => (
+        {({ route, navigation }) => (
           <PaymentScreen
             bookingId={
               route.params.bookingId
@@ -447,8 +464,15 @@ export default function CustomerNavigator({
               route.params
                 .totalWorkingHours
             }
+            onPaid={() => navigation.replace('ActiveBooking', {
+              bookingId: route.params.bookingId,
+            })}
           />
         )}
+      </Stack.Screen>
+
+      <Stack.Screen name="ActiveBooking">
+        {({ route }) => <ActiveBookingScreen bookingId={route.params.bookingId} />}
       </Stack.Screen>
     </Stack.Navigator>
   )

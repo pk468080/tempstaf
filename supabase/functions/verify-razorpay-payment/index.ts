@@ -318,14 +318,14 @@ Deno.serve(async (req: Request) => {
     }
 
     if (
-      booking.fulfillment_type !==
-      "scheduled"
+      booking.fulfillment_type !== "scheduled" &&
+      booking.fulfillment_type !== "instant"
     ) {
       return jsonResponse(
         {
           success: false,
           error:
-            "This payment flow is only for scheduled bookings.",
+            "This payment flow is only for instant or scheduled bookings.",
         },
         400
       );

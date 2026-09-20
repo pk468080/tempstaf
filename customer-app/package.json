@@ -9,6 +9,7 @@
     "@react-navigation/native-stack": "^7.19.2",
     "@supabase/supabase-js": "^2.116.0",
     "expo": "~57.0.24",
+    "expo-dev-client": "~57.0.19",
     "expo-location": "~57.0.19",
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",

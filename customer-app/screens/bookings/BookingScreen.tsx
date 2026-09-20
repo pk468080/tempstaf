@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  ActivityIndicator,
   Modal,
   Platform,
   ScrollView,
@@ -14,6 +15,11 @@ import DateTimePicker, {
 
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
 import { useAvailability } from '../../hooks/useAvailability'
+import { getOrCreateCustomerAddress } from '../../services/addresses/customerAddress.service'
+import {
+  getScheduledAvailabilitySlots,
+  type ScheduledAvailabilitySlot,
+} from '../../services/availability/scheduledAvailability.service'
 import type { HomeService } from '../../types/service'
 import type { BookingDraft } from '../../types/booking'
 import {
@@ -114,6 +120,20 @@ function dateKey(date: Date) {
   return `${year}-${month}-${day}`
 }
 
+function startOfDate(date: Date) {
+  const result = new Date(date)
+  result.setHours(0, 0, 0, 0)
+  return result
+}
+
+function isNearTermDate(date: Date, today: Date) {
+  const daysFromToday = Math.round(
+    (startOfDate(date).getTime() - today.getTime()) /
+      (24 * 60 * 60 * 1000),
+  )
+  return daysFromToday >= 0 && daysFromToday <= 2
+}
+
 function formatTime(date: Date) {
   return date.toLocaleTimeString(
     undefined,
@@ -186,6 +206,108 @@ export default function BookingScreen({
   const [excludeDateValue, setExcludeDateValue] =
     useState<Date>(today)
 
+  const [scheduledSlots, setScheduledSlots] =
+    useState<ScheduledAvailabilitySlot[]>([])
+
+  const [scheduledAvailabilityState, setScheduledAvailabilityState] =
+    useState<'idle' | 'loading' | 'available' | 'empty' | 'service_area' | 'error'>('idle')
+
+  const [scheduledAvailabilityError, setScheduledAvailabilityError] =
+    useState<string | null>(null)
+
+  const [selectedScheduledSlotKey, setSelectedScheduledSlotKey] =
+    useState<string | null>(null)
+
+  const scheduledDurationHours = Math.max(
+    1,
+    Math.round((endTime.getTime() - startTime.getTime()) / (60 * 60 * 1000)),
+  )
+
+  const nearTermScheduledDate =
+    bookingType === 'scheduled' &&
+    startDate !== null &&
+    isNearTermDate(startDate, today)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadScheduledSlots() {
+      setScheduledSlots([])
+      setScheduledAvailabilityError(null)
+
+      if (!nearTermScheduledDate || !startDate) {
+        setScheduledAvailabilityState('idle')
+        return
+      }
+
+      if (!location) {
+        setScheduledAvailabilityState('error')
+        setScheduledAvailabilityError('A service location is required to check scheduled availability.')
+        return
+      }
+
+      setScheduledAvailabilityState('loading')
+
+      try {
+        const addressId = await getOrCreateCustomerAddress(location)
+        const selectedDay = startOfDate(startDate)
+        const queryEnd = new Date(selectedDay)
+        queryEnd.setHours(23, 59, 59, 999)
+        const result = await getScheduledAvailabilitySlots(
+          service.serviceVariantId,
+          addressId,
+          selectedDay.toISOString(),
+          queryEnd.toISOString(),
+          scheduledDurationHours,
+        )
+
+        if (cancelled) return
+
+        if (!result.service_area_available) {
+          setScheduledAvailabilityState('service_area')
+          return
+        }
+
+        setScheduledSlots(result.slots)
+        setScheduledAvailabilityState(
+          result.slots.some(slot => slot.available_worker_count > 0)
+            ? 'available'
+            : 'empty',
+        )
+      } catch (error) {
+        if (cancelled) return
+        setScheduledAvailabilityState('error')
+        setScheduledAvailabilityError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load scheduled availability.',
+        )
+      }
+    }
+
+    void loadScheduledSlots()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    location,
+    nearTermScheduledDate,
+    scheduledDurationHours,
+    service.serviceVariantId,
+    startDate,
+  ])
+
+  function selectScheduledSlot(slot: ScheduledAvailabilitySlot) {
+    if (slot.available_worker_count <= 0) return
+    const slotStart = new Date(slot.start)
+    const slotEnd = new Date(slot.end)
+    setSelectedScheduledSlotKey(`${slot.start}-${slot.end}`)
+    setStartDate(startOfDate(slotStart))
+    setEndDate(startOfDate(slotEnd))
+    setStartTime(slotStart)
+    setEndTime(slotEnd)
+  }
+
   useEffect(() => {
     if (!location) {
       return
@@ -246,30 +368,33 @@ export default function BookingScreen({
 
     switch (pickerMode) {
       case 'startDate':
-        setStartDate(selectedDate)
+        setSelectedScheduledSlotKey(null)
+        setStartDate(startOfDate(selectedDate))
 
         if (
           endDate &&
-          endDate < selectedDate
+          endDate < startOfDate(selectedDate)
         ) {
-          setEndDate(selectedDate)
+          setEndDate(startOfDate(selectedDate))
         }
 
         break
 
       case 'endDate':
+        setSelectedScheduledSlotKey(null)
         if (
           startDate &&
           selectedDate < startDate
         ) {
-          setEndDate(startDate)
+          setEndDate(startOfDate(startDate))
         } else {
-          setEndDate(selectedDate)
+          setEndDate(startOfDate(selectedDate))
         }
 
         break
 
       case 'startTime':
+        setSelectedScheduledSlotKey(null)
         setStartTime(selectedDate)
 
         if (
@@ -291,6 +416,7 @@ export default function BookingScreen({
         break
 
       case 'endTime':
+        setSelectedScheduledSlotKey(null)
         if (selectedDate <= startTime) {
           const nextEnd =
             new Date(startTime)
@@ -544,6 +670,7 @@ export default function BookingScreen({
                 )
               }
             />
+
           </Section>
         ) : null}
 
@@ -602,6 +729,20 @@ export default function BookingScreen({
                 )
               }
             />
+
+            {nearTermScheduledDate ? (
+              <ScheduledSlotPicker
+                state={scheduledAvailabilityState}
+                error={scheduledAvailabilityError}
+                slots={scheduledSlots}
+                selectedSlotKey={selectedScheduledSlotKey}
+                onSelect={selectScheduledSlot}
+              />
+            ) : (
+              <Text style={styles.futureAvailabilityText}>
+                Future dates use direct scheduling. Current worker availability is not required.
+              </Text>
+            )}
           </Section>
         ) : null}
 
@@ -926,6 +1067,22 @@ export default function BookingScreen({
             null
           }
           onPress={() => {
+          if (
+            nearTermScheduledDate &&
+            (scheduledAvailabilityState !== 'available' ||
+              !selectedScheduledSlotKey ||
+              !scheduledSlots.some(
+                slot => `${slot.start}-${slot.end}` === selectedScheduledSlotKey &&
+                  slot.available_worker_count > 0,
+              ))
+          ) {
+            setValidation({
+              valid: false,
+              errors: ['Select an available backend slot before continuing.'],
+            })
+            return
+          }
+
   const result = validateBooking({
     service,
     bookingType,
@@ -1156,6 +1313,65 @@ function PickerModal({
   )
 }
 
+function ScheduledSlotPicker({
+  state,
+  error,
+  slots,
+  selectedSlotKey,
+  onSelect,
+}: {
+  state: 'idle' | 'loading' | 'available' | 'empty' | 'service_area' | 'error'
+  error: string | null
+  slots: ScheduledAvailabilitySlot[]
+  selectedSlotKey: string | null
+  onSelect: (slot: ScheduledAvailabilitySlot) => void
+}) {
+  return (
+    <View style={styles.slotContainer}>
+      <Text style={styles.fieldLabel}>Available time slots</Text>
+
+      {state === 'loading' ? (
+        <View style={styles.slotStatus}>
+          <ActivityIndicator />
+          <Text style={styles.availabilityText}>Checking backend availability...</Text>
+        </View>
+      ) : state === 'service_area' ? (
+        <Text style={styles.availabilityError}>This address is outside the service area.</Text>
+      ) : state === 'error' ? (
+        <Text style={styles.availabilityError}>{error ?? 'Unable to load available slots.'}</Text>
+      ) : state === 'empty' ? (
+        <Text style={styles.availabilityWarning}>No workers are available for this duration on the selected date.</Text>
+      ) : state === 'available' ? (
+        slots.map(slot => {
+          const selected = selectedSlotKey === `${slot.start}-${slot.end}`
+          const unavailable = slot.available_worker_count <= 0
+
+          return (
+            <TouchableOpacity
+              key={`${slot.start}-${slot.end}`}
+              style={[styles.slot, selected && styles.slotSelected, unavailable && styles.slotUnavailable]}
+              disabled={unavailable}
+              onPress={() => onSelect(slot)}
+            >
+              <View>
+                <Text style={styles.slotTime}>
+                  {formatTime(new Date(slot.start))} – {formatTime(new Date(slot.end))}
+                </Text>
+                <Text style={styles.slotWorkers}>
+                  {unavailable ? 'Unavailable' : `${slot.available_worker_count} worker${slot.available_worker_count === 1 ? '' : 's'} available`}
+                </Text>
+              </View>
+              <Text style={styles.slotAction}>{selected ? 'Selected' : 'Select'}</Text>
+            </TouchableOpacity>
+          )
+        })
+      ) : (
+        <Text style={styles.availabilityText}>Select a near-term date to see available slots.</Text>
+      )}
+    </View>
+  )
+}
+
 function Section({
   title,
   children,
@@ -1339,6 +1555,56 @@ const styles = StyleSheet.create({
     marginTop: 5,
     color: '#B91C1C',
     lineHeight: 19,
+  },
+
+  futureAvailabilityText: {
+    marginTop: 12,
+    color: '#6B7280',
+    lineHeight: 19,
+  },
+
+  slotContainer: {
+    marginTop: 18,
+  },
+
+  slotStatus: {
+    marginTop: 8,
+    alignItems: 'center',
+  },
+
+  slot: {
+    marginTop: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  slotSelected: {
+    borderColor: '#111827',
+    backgroundColor: '#E5E7EB',
+  },
+
+  slotUnavailable: {
+    opacity: 0.5,
+  },
+
+  slotTime: {
+    color: '#111827',
+    fontWeight: '700',
+  },
+
+  slotWorkers: {
+    marginTop: 4,
+    color: '#166534',
+  },
+
+  slotAction: {
+    color: '#111827',
+    fontWeight: '700',
   },
 
   typeContainer: {

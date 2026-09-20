@@ -1,11 +1,20 @@
 import {
   ActivityIndicator,
+  Alert,
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
+import { useState } from 'react'
+import RazorpayCheckout from 'react-native-razorpay'
 
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
+import {
+  createRazorpayOrder,
+  markRazorpayPaymentFailed,
+  verifyRazorpayPayment,
+} from '../../services/payment/razorpay.service'
 
 type PaymentScreenProps = {
   bookingId: string
@@ -13,6 +22,7 @@ type PaymentScreenProps = {
   currency: string
   occurrenceCount: number
   totalWorkingHours: number
+  onPaid: () => void
 }
 
 function formatMoney(
@@ -28,7 +38,68 @@ export default function PaymentScreen({
   currency,
   occurrenceCount,
   totalWorkingHours,
+  onPaid,
 }: PaymentScreenProps) {
+  const [processing, setProcessing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handlePayment() {
+    if (processing) return
+
+    setProcessing(true)
+    setError(null)
+
+    try {
+      let order
+      try {
+        order = await createRazorpayOrder(
+          bookingId,
+          finalAmount,
+          currency,
+        )
+      } catch (orderError) {
+        await markRazorpayPaymentFailed(bookingId).catch(
+          statusError => console.error(
+            'Unable to mark failed payment order:',
+            statusError,
+          ),
+        )
+        throw orderError
+      }
+
+      let checkout
+      try {
+        checkout = await RazorpayCheckout.open({
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency,
+          order_id: order.orderId,
+          name: 'TempStaff',
+          description: 'TempStaff booking',
+        })
+      } catch (checkoutError) {
+        await markRazorpayPaymentFailed(bookingId).catch(
+          statusError => console.error(
+            'Unable to mark cancelled payment:',
+            statusError,
+          ),
+        )
+        throw checkoutError
+      }
+
+      await verifyRazorpayPayment(bookingId, checkout)
+      onPaid()
+    } catch (paymentError) {
+      const message = paymentError instanceof Error
+        ? paymentError.message
+        : 'Payment was not completed.'
+      setError(message)
+      Alert.alert('Payment not completed', message)
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   return (
     <ScreenContainer>
       <View style={styles.container}>
@@ -66,33 +137,17 @@ export default function PaymentScreen({
           />
         </View>
 
-        <View style={styles.statusCard}>
-          <ActivityIndicator size="small" />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <Text style={styles.statusTitle}>
-            Payment integration pending
-          </Text>
-
-          <Text style={styles.statusText}>
-            The booking has been created and
-            the final amount was calculated by
-            the backend. Payment processing
-            will be connected separately.
-          </Text>
-        </View>
-
-        <View style={styles.backendCard}>
-          <Text style={styles.backendTitle}>
-            Backend-calculated amount
-          </Text>
-
-          <Text style={styles.backendText}>
-            The customer app does not calculate
-            the booking price. The amount shown
-            above comes directly from the backend
-            booking result.
-          </Text>
-        </View>
+        <Pressable
+          style={styles.payButton}
+          disabled={processing}
+          onPress={() => void handlePayment()}
+        >
+          {processing ? <ActivityIndicator color="#FFFFFF" /> : (
+            <Text style={styles.payButtonText}>Pay securely</Text>
+          )}
+        </Pressable>
       </View>
     </ScreenContainer>
   )
@@ -173,44 +228,14 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
 
-  statusCard: {
-    marginTop: 16,
-    padding: 18,
-    borderRadius: 16,
-    backgroundColor: '#F9FAFB',
+  error: { marginTop: 16, color: '#B91C1C' },
+  payButton: {
+    marginTop: 20,
+    minHeight: 52,
+    borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#111827',
   },
-
-  statusTitle: {
-    marginTop: 10,
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
-  },
-
-  statusText: {
-    marginTop: 8,
-    lineHeight: 20,
-    textAlign: 'center',
-    color: '#6B7280',
-  },
-
-  backendCard: {
-    marginTop: 16,
-    padding: 18,
-    borderRadius: 16,
-    backgroundColor: '#F9FAFB',
-  },
-
-  backendTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
-  },
-
-  backendText: {
-    marginTop: 8,
-    lineHeight: 20,
-    color: '#6B7280',
-  },
+  payButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 16 },
 })

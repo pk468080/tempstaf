@@ -11,6 +11,9 @@ export type BookingPriceResult = {
   total_working_hours?: number
   gross_amount?: number
   discount_amount?: number
+  platform_fee?: number
+  tax_amount?: number
+  tax?: number
   final_amount?: number
   currency?: string
   commitment_days?: number | null
