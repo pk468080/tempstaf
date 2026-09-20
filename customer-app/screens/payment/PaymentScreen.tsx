@@ -6,18 +6,32 @@ import {
   Text,
   View,
 } from 'react-native'
-import { useState } from 'react'
+import {
+  useEffect,
+  useState,
+} from 'react'
 import RazorpayCheckout from 'react-native-razorpay'
 
-import { ScreenContainer } from '../../components/layout/ScreenContainer'
+import {
+  ScreenContainer,
+} from '../../components/layout/ScreenContainer'
+
 import {
   createRazorpayOrder,
+  getBookingPaymentDetails,
   markRazorpayPaymentFailed,
   verifyRazorpayPayment,
+  type BookingPaymentDetails,
   type RazorpayOrder,
 } from '../../services/payment/razorpay.service'
 
 type PaymentScreenProps = {
+  /*
+   * These values remain in navigation for compatibility
+   * with the existing navigator.
+   *
+   * They are NOT treated as authoritative for payment.
+   */
   bookingId: string
   finalAmount: number
   currency: string
@@ -35,74 +49,146 @@ function formatMoney(
 
 export default function PaymentScreen({
   bookingId,
-  finalAmount,
-  currency,
-  occurrenceCount,
-  totalWorkingHours,
+  finalAmount: navigationAmount,
+  currency: navigationCurrency,
+  occurrenceCount:
+    navigationOccurrenceCount,
+  totalWorkingHours:
+    navigationTotalWorkingHours,
   onPaid,
 }: PaymentScreenProps) {
-  const [processing, setProcessing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [
+    details,
+    setDetails,
+  ] = useState<
+    BookingPaymentDetails | null
+  >(null)
 
-    async function handlePayment() {
-    if (processing) return
+  const [
+    processing,
+    setProcessing,
+  ] = useState(false)
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true)
+
+  const [
+    error,
+    setError,
+  ] = useState<string | null>(
+    null,
+  )
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadPaymentDetails() {
+      setLoading(true)
+      setError(null)
+
+      try {
+        const authoritative =
+          await getBookingPaymentDetails(
+            bookingId,
+          )
+
+        if (cancelled) {
+          return
+        }
+
+        setDetails(
+          authoritative,
+        )
+      } catch (loadError) {
+        if (cancelled) {
+          return
+        }
+
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Unable to load the booking payment details.',
+        )
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadPaymentDetails()
+
+    return () => {
+      cancelled = true
+    }
+  }, [bookingId])
+
+  async function handlePayment() {
+    if (
+      processing ||
+      loading ||
+      !details
+    ) {
+      return
+    }
 
     setProcessing(true)
     setError(null)
 
     try {
-      let order: RazorpayOrder | null = null
+      let order: RazorpayOrder
 
       try {
-        const createdOrder = await createRazorpayOrder(
-          bookingId,
-          finalAmount,
-          currency,
-        )
-
-        if (!createdOrder) {
-          throw new Error(
-            'The payment order could not be created.',
+        /*
+         * The amount and currency used here came from
+         * the persisted booking, not navigation state.
+         */
+        order =
+          await createRazorpayOrder(
+            bookingId,
+            details.amount,
+            details.currency,
           )
-        }
-
-        order = createdOrder
-      } catch (orderError) {
+      } catch (
+        orderError
+      ) {
         await markRazorpayPaymentFailed(
           bookingId,
-        ).catch(statusError => {
-          console.error(
-            'Unable to mark failed payment order:',
-            statusError,
-          )
-        })
+        ).catch(
+          statusError => {
+            console.error(
+              'Unable to mark failed payment order:',
+              statusError,
+            )
+          },
+        )
 
         throw orderError
       }
 
       /*
-       * The backend found that Razorpay already captured
-       * this booking's payment.
+       * The backend discovered that this payment was
+       * already captured and finalized.
        *
-       * Do NOT open Razorpay Checkout again.
+       * Never launch Checkout a second time.
        */
-      if (order.alreadyPaid) {
+      if (
+        order.alreadyPaid
+      ) {
         onPaid()
         return
       }
 
-      /*
-       * From this point onward, order is guaranteed
-       * to be non-null.
-       */
-      const payableOrder = order
-
       if (
-        !payableOrder.keyId ||
-        !payableOrder.orderId ||
-        !Number.isFinite(payableOrder.amount) ||
-        payableOrder.amount <= 0 ||
-        !payableOrder.currency
+        !order.keyId ||
+        !order.orderId ||
+        !Number.isFinite(
+          order.amount,
+        ) ||
+        order.amount <= 0 ||
+        !order.currency
       ) {
         throw new Error(
           'The payment order returned by the server is invalid.',
@@ -112,34 +198,52 @@ export default function PaymentScreen({
       let checkout
 
       try {
-        checkout = await RazorpayCheckout.open({
-          key: payableOrder.keyId,
-          amount: payableOrder.amount,
-          currency: payableOrder.currency,
-          order_id: payableOrder.orderId,
-          name: 'TempStaff',
-          description: 'TempStaff booking',
-        })
-      } catch (checkoutError) {
+        checkout =
+          await RazorpayCheckout.open(
+            {
+              key:
+                order.keyId,
+              amount:
+                order.amount,
+              currency:
+                order.currency,
+              order_id:
+                order.orderId,
+              name:
+                'TempStaff',
+              description:
+                'TempStaff booking',
+            },
+          )
+      } catch (
+        checkoutError
+      ) {
         await markRazorpayPaymentFailed(
           bookingId,
-        ).catch(statusError => {
-          console.error(
-            'Unable to mark cancelled payment:',
-            statusError,
-          )
-        })
+        ).catch(
+          statusError => {
+            console.error(
+              'Unable to mark cancelled payment:',
+              statusError,
+            )
+          },
+        )
 
         throw checkoutError
       }
 
+      /*
+       * Verification and finalization are server-side.
+       */
       await verifyRazorpayPayment(
         bookingId,
         checkout,
       )
 
       onPaid()
-    } catch (paymentError) {
+    } catch (
+      paymentError
+    ) {
       const message =
         paymentError instanceof Error
           ? paymentError.message
@@ -156,6 +260,28 @@ export default function PaymentScreen({
     }
   }
 
+  /*
+   * The navigation values are retained only as a temporary
+   * display fallback before authoritative booking data loads.
+   *
+   * Payment cannot be initiated until details are loaded.
+   */
+  const amount =
+    details?.amount ??
+    navigationAmount
+
+  const displayCurrency =
+    details?.currency ??
+    navigationCurrency
+
+  const occurrenceCount =
+    details?.occurrenceCount ??
+    navigationOccurrenceCount
+
+  const totalWorkingHours =
+    details?.totalWorkingHours ??
+    navigationTotalWorkingHours
+
   return (
     <ScreenContainer>
       <View style={styles.container}>
@@ -168,23 +294,43 @@ export default function PaymentScreen({
             Amount payable
           </Text>
 
-          <Text style={styles.amount}>
-            {formatMoney(
-              finalAmount,
-              currency,
-            )}
-          </Text>
+          {loading ? (
+            <ActivityIndicator
+              style={
+                styles.amountLoader
+              }
+            />
+          ) : (
+            <Text
+              style={
+                styles.amount
+              }
+            >
+              {formatMoney(
+                amount,
+                displayCurrency,
+              )}
+            </Text>
+          )}
 
-          <View style={styles.divider} />
+          <View
+            style={
+              styles.divider
+            }
+          />
 
           <Row
             label="Occurrences"
-            value={String(occurrenceCount)}
+            value={String(
+              occurrenceCount,
+            )}
           />
 
           <Row
             label="Working hours"
-            value={String(totalWorkingHours)}
+            value={String(
+              totalWorkingHours,
+            )}
           />
 
           <Row
@@ -193,15 +339,47 @@ export default function PaymentScreen({
           />
         </View>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <Text
+            style={
+              styles.error
+            }
+          >
+            {error}
+          </Text>
+        ) : null}
 
         <Pressable
-          style={styles.payButton}
-          disabled={processing}
-          onPress={() => void handlePayment()}
+          style={[
+            styles.payButton,
+            (
+              processing ||
+              loading ||
+              !details
+            ) &&
+              styles.disabledButton,
+          ]}
+          disabled={
+            processing ||
+            loading ||
+            !details
+          }
+          onPress={() =>
+            void handlePayment()
+          }
         >
-          {processing ? <ActivityIndicator color="#FFFFFF" /> : (
-            <Text style={styles.payButtonText}>Pay securely</Text>
+          {processing ? (
+            <ActivityIndicator
+              color="#FFFFFF"
+            />
+          ) : (
+            <Text
+              style={
+                styles.payButtonText
+              }
+            >
+              Pay securely
+            </Text>
           )}
         </Pressable>
       </View>
@@ -217,81 +395,120 @@ function Row({
   value: string
 }) {
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>
+    <View
+      style={styles.row}
+    >
+      <Text
+        style={
+          styles.rowLabel
+        }
+      >
         {label}
       </Text>
 
-      <Text style={styles.rowValue}>
+      <Text
+        style={
+          styles.rowValue
+        }
+      >
         {value}
       </Text>
     </View>
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      padding: 20,
+    },
 
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 20,
-  },
+    title: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: '#111827',
+      marginBottom: 20,
+    },
 
-  card: {
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: '#F9FAFB',
-  },
+    card: {
+      padding: 20,
+      borderRadius: 16,
+      backgroundColor:
+        '#F9FAFB',
+    },
 
-  label: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
+    label: {
+      fontSize: 16,
+      color: '#6B7280',
+    },
 
-  amount: {
-    marginTop: 8,
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#111827',
-  },
+    amount: {
+      marginTop: 8,
+      fontSize: 32,
+      fontWeight: '800',
+      color: '#111827',
+    },
 
-  divider: {
-    height: 1,
-    backgroundColor: '#E5E7EB',
-    marginVertical: 18,
-  },
+    amountLoader: {
+      marginTop: 18,
+      alignSelf:
+        'flex-start',
+    },
 
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 16,
-    paddingVertical: 7,
-  },
+    divider: {
+      height: 1,
+      backgroundColor:
+        '#E5E7EB',
+      marginVertical: 18,
+    },
 
-  rowLabel: {
-    color: '#6B7280',
-  },
+    row: {
+      flexDirection:
+        'row',
+      justifyContent:
+        'space-between',
+      gap: 16,
+      paddingVertical: 7,
+    },
 
-  rowValue: {
-    flex: 1,
-    textAlign: 'right',
-    fontWeight: '600',
-    color: '#111827',
-  },
+    rowLabel: {
+      color: '#6B7280',
+    },
 
-  error: { marginTop: 16, color: '#B91C1C' },
-  payButton: {
-    marginTop: 20,
-    minHeight: 52,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#111827',
-  },
-  payButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 16 },
-})
+    rowValue: {
+      flex: 1,
+      textAlign:
+        'right',
+      fontWeight:
+        '600',
+      color: '#111827',
+    },
+
+    error: {
+      marginTop: 16,
+      color: '#B91C1C',
+    },
+
+    payButton: {
+      marginTop: 20,
+      minHeight: 52,
+      borderRadius: 12,
+      alignItems:
+        'center',
+      justifyContent:
+        'center',
+      backgroundColor:
+        '#111827',
+    },
+
+    disabledButton: {
+      opacity: 0.5,
+    },
+
+    payButtonText: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+      fontSize: 16,
+    },
+  })
