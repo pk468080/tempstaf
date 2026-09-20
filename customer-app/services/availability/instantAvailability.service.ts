@@ -1,25 +1,13 @@
 import { supabase } from '../../lib/supabase'
-import { getAvailableServiceIds } from './availability.service'
 import type { AvailabilityResult } from '../../types/availability'
 
-type WorkerRow = {
-  worker_id: string
-  worker_profile:
-    | {
-        worker_status:
-          | 'offline'
-          | 'available'
-          | 'busy'
-          | 'suspended'
-        service_radius_km: number | string | null
-        current_location: unknown
-      }
-    | null
-}
-
-type Point = {
-  latitude: number
-  longitude: number
+type InstantAvailabilityRpcResult = {
+  service_area_available?: boolean
+  nearby_worker_available?: boolean
+  instant_available?: boolean
+  nearby_worker_count?: number
+  nearest_worker_id?: string | null
+  nearest_worker_distance_km?: number | string | null
 }
 
 export async function checkInstantAvailability(
@@ -29,198 +17,94 @@ export async function checkInstantAvailability(
 ): Promise<AvailabilityResult> {
   const checkedAt = new Date().toISOString()
 
-  const availableServiceIds =
-    await getAvailableServiceIds(
-      latitude,
-      longitude,
-    )
-
-  const serviceAreaAvailable =
-    availableServiceIds.has(serviceId)
-
-  if (!serviceAreaAvailable) {
+  if (
+    !serviceId ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
     return {
       serviceAreaAvailable: false,
       nearbyWorkerAvailable: false,
       instantAvailable: false,
       recommendedBookingType: 'scheduled',
       nearbyWorkerCount: 0,
+      nearestWorkerId: null,
+      nearestWorkerDistanceKm: null,
       checkedAt,
+      errorMessage: 'A valid service and location are required.',
     }
   }
 
-  const { data, error } = await supabase
-    .from('worker_services')
-    .select(`
-      worker_id,
-      worker_profile:worker_profiles!inner (
-        worker_status,
-        service_radius_km,
-        current_location
-      )
-    `)
-    .eq('service_id', serviceId)
-    .in('worker_profile.worker_status', [
-      'available',
-      'busy',
-    ])
+  const { data, error } = await supabase.rpc(
+    'check_customer_instant_worker_availability',
+    {
+      p_service_id: serviceId,
+      p_latitude: latitude,
+      p_longitude: longitude,
+    },
+  )
 
   if (error) {
     throw error
   }
 
-  const workers =
-    (data ?? []) as unknown as WorkerRow[]
+  const result = (data ?? null) as
+    | InstantAvailabilityRpcResult
+    | null
 
-  let nearbyWorkerCount = 0
-
-  for (const row of workers) {
-    const profile = row.worker_profile
-
-    if (!profile) {
-      continue
-    }
-
-    const point = parsePoint(
-      profile.current_location,
+  if (!result) {
+    throw new Error(
+      'The backend did not return instant availability.',
     )
-
-    const radiusKm = Number(
-      profile.service_radius_km,
-    )
-
-    if (
-      !point ||
-      !Number.isFinite(radiusKm) ||
-      radiusKm <= 0
-    ) {
-      continue
-    }
-
-    const distanceKm = calculateDistanceKm(
-      latitude,
-      longitude,
-      point.latitude,
-      point.longitude,
-    )
-
-    if (distanceKm <= radiusKm) {
-      nearbyWorkerCount += 1
-    }
   }
 
-  const instantAvailable =
+  const serviceAreaAvailable =
+    result.service_area_available === true
+
+  const nearbyWorkerCount = Number(
+    result.nearby_worker_count ?? 0,
+  )
+
+  const nearbyWorkerAvailable =
+    result.nearby_worker_available === true ||
     nearbyWorkerCount > 0
 
+  const instantAvailable =
+    result.instant_available === true &&
+    serviceAreaAvailable &&
+    nearbyWorkerAvailable
+
+  const nearestWorkerDistanceValue =
+    result.nearest_worker_distance_km
+
+  const nearestWorkerDistanceKm =
+    nearestWorkerDistanceValue == null
+      ? null
+      : Number(nearestWorkerDistanceValue)
+
   return {
-    serviceAreaAvailable: true,
-    nearbyWorkerAvailable: instantAvailable,
+    serviceAreaAvailable,
+    nearbyWorkerAvailable,
     instantAvailable,
     recommendedBookingType:
       instantAvailable
         ? 'instant'
         : 'scheduled',
-    nearbyWorkerCount,
+    nearbyWorkerCount:
+      Number.isFinite(nearbyWorkerCount)
+        ? nearbyWorkerCount
+        : 0,
+    nearestWorkerId:
+      result.nearest_worker_id ?? null,
+    nearestWorkerDistanceKm:
+      nearestWorkerDistanceKm !== null &&
+      Number.isFinite(nearestWorkerDistanceKm)
+        ? nearestWorkerDistanceKm
+        : null,
     checkedAt,
   }
-}
-
-function parsePoint(
-  value: unknown,
-): Point | null {
-  if (!value) {
-    return null
-  }
-
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'coordinates' in value
-  ) {
-    const coordinates = (
-      value as {
-        coordinates?: unknown
-      }
-    ).coordinates
-
-    if (
-      Array.isArray(coordinates) &&
-      coordinates.length >= 2
-    ) {
-      const longitude = Number(
-        coordinates[0],
-      )
-
-      const latitude = Number(
-        coordinates[1],
-      )
-
-      if (
-        Number.isFinite(latitude) &&
-        Number.isFinite(longitude)
-      ) {
-        return {
-          latitude,
-          longitude,
-        }
-      }
-    }
-  }
-
-  if (typeof value === 'string') {
-    const match = value.match(
-      /POINT\s*\(\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\)/i,
-    )
-
-    if (match) {
-      const longitude = Number(match[1])
-      const latitude = Number(match[2])
-
-      if (
-        Number.isFinite(latitude) &&
-        Number.isFinite(longitude)
-      ) {
-        return {
-          latitude,
-          longitude,
-        }
-      }
-    }
-  }
-
-  return null
-}
-
-function calculateDistanceKm(
-  latitude1: number,
-  longitude1: number,
-  latitude2: number,
-  longitude2: number,
-): number {
-  const earthRadiusKm = 6371
-
-  const latitudeDelta =
-    toRadians(latitude2 - latitude1)
-
-  const longitudeDelta =
-    toRadians(longitude2 - longitude1)
-
-  const a =
-    Math.sin(latitudeDelta / 2) ** 2 +
-    Math.cos(toRadians(latitude1)) *
-      Math.cos(toRadians(latitude2)) *
-      Math.sin(longitudeDelta / 2) ** 2
-
-  return (
-    2 *
-    earthRadiusKm *
-    Math.atan2(
-      Math.sqrt(a),
-      Math.sqrt(1 - a),
-    )
-  )
-}
-
-function toRadians(value: number): number {
-  return (value * Math.PI) / 180
 }

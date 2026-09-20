@@ -12,6 +12,8 @@ export type AvailabilityResult = {
   instantAvailable: boolean
   recommendedBookingType: 'instant' | 'scheduled'
   nearbyWorkerCount: number
+  nearestWorkerId?: string | null
+  nearestWorkerDistanceKm?: number | null
   checkedAt: string
   errorMessage?: string
 }
