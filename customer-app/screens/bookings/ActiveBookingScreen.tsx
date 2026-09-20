@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Pressable,
@@ -14,10 +14,13 @@ import {
 import {
   getCustomerBooking,
   getLatestWorkerLocation,
+  getWorkerLocationAgeSeconds,
+  getWorkerLocationFreshness,
   requestBookingOtp,
   type BookingStatus,
   type CustomerBooking,
   type WorkerLocation,
+  type WorkerLocationFreshness,
 } from '../../services/booking/bookingTracking.service'
 
 import { supabase } from '../../lib/supabase'
@@ -26,9 +29,7 @@ type ActiveBookingScreenProps = {
   bookingId: string
 }
 
-function formatStatus(
-  status: BookingStatus,
-) {
+function formatStatus(status: BookingStatus) {
   return status
     .replace(/_/g, ' ')
     .replace(/\b\w/g, value =>
@@ -36,9 +37,7 @@ function formatStatus(
     )
 }
 
-function formatMoney(
-  amount: number | null,
-) {
+function formatMoney(amount: number | null) {
   if (amount === null) {
     return '—'
   }
@@ -46,9 +45,7 @@ function formatMoney(
   return amount.toFixed(2)
 }
 
-function formatDateTime(
-  value: string | null,
-) {
+function formatDateTime(value: string | null) {
   if (!value) {
     return 'Not set'
   }
@@ -70,12 +67,15 @@ function elapsedSince(
     ? Date.parse(completedAt)
     : Date.now()
 
+  const start = Date.parse(startedAt)
+
+  if (!Number.isFinite(start)) {
+    return '00:00:00'
+  }
+
   const seconds = Math.max(
     0,
-    Math.floor(
-      (end - Date.parse(startedAt)) /
-        1000,
-    ),
+    Math.floor((end - start) / 1000),
   )
 
   const hours = Math.floor(
@@ -106,6 +106,16 @@ function isTerminalStatus(
     status === 'completed' ||
     status === 'cancelled' ||
     status === 'expired'
+  )
+}
+
+function isTrackingStatus(
+  status: BookingStatus,
+) {
+  return (
+    status === 'on_the_way' ||
+    status === 'arrived' ||
+    status === 'in_progress'
   )
 }
 
@@ -164,13 +174,13 @@ function getStateMessage(
       return 'Your payment is confirmed. We are finding an eligible worker.'
 
     case 'assigned':
-      return 'Your booking is confirmed and a worker has been assigned.'
+      return 'Your booking is confirmed. Your worker will start the journey when travelling to you.'
 
     case 'on_the_way':
       return 'Your assigned worker is travelling to the booking location.'
 
     case 'arrived':
-      return 'Your worker has arrived at the booking location.'
+      return 'Your worker has arrived. Provide the start OTP when requested.'
 
     case 'in_progress':
       return 'Your service is currently in progress.'
@@ -195,46 +205,64 @@ function getStateMessage(
   }
 }
 
+function getTrackingLabel(
+  freshness: WorkerLocationFreshness,
+) {
+  switch (freshness) {
+    case 'fresh':
+      return 'Live location available'
+
+    case 'stale':
+      return 'Location temporarily unavailable'
+
+    case 'unavailable':
+      return 'Waiting for worker location'
+  }
+}
+
 export default function ActiveBookingScreen({
   bookingId,
 }: ActiveBookingScreenProps) {
-  const [
-    booking,
-    setBooking,
-  ] = useState<CustomerBooking | null>(
-    null,
-  )
+  const [booking, setBooking] =
+    useState<CustomerBooking | null>(null)
 
-  const [
-    location,
-    setLocation,
-  ] = useState<WorkerLocation | null>(
-    null,
-  )
+  const [location, setLocation] =
+    useState<WorkerLocation | null>(null)
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true)
+  const [locationNow, setLocationNow] =
+    useState(Date.now())
 
-  const [
-    error,
-    setError,
-  ] = useState<string | null>(
-    null,
-  )
+  const [loading, setLoading] =
+    useState(true)
 
-  const [
-    otp,
-    setOtp,
-  ] = useState<string | null>(
-    null,
-  )
+  const [error, setError] =
+    useState<string | null>(null)
 
-  const [
-    timer,
-    setTimer,
-  ] = useState('00:00:00')
+  const [otp, setOtp] =
+    useState<string | null>(null)
+
+  const [timer, setTimer] =
+    useState('00:00:00')
+
+  const locationFreshness =
+    useMemo(
+      () =>
+        getWorkerLocationFreshness(
+          location,
+          locationNow,
+        ),
+      [location, locationNow],
+    )
+
+  const locationAgeSeconds =
+    useMemo(
+      () =>
+        getWorkerLocationAgeSeconds(
+          location,
+          locationNow,
+        ),
+      [location, locationNow],
+    )
 
   async function refresh() {
     try {
@@ -246,15 +274,17 @@ export default function ActiveBookingScreen({
       setBooking(nextBooking)
 
       if (nextBooking.worker_id) {
-        setLocation(
+        const nextLocation =
           await getLatestWorkerLocation(
             bookingId,
-          ),
-        )
+          )
+
+        setLocation(nextLocation)
       } else {
         setLocation(null)
       }
 
+      setLocationNow(Date.now())
       setError(null)
     } catch (nextError) {
       setError(
@@ -270,10 +300,16 @@ export default function ActiveBookingScreen({
   useEffect(() => {
     void refresh()
 
-    const interval =
+    const refreshInterval =
       setInterval(
         () => void refresh(),
         15000,
+      )
+
+    const clockInterval =
+      setInterval(
+        () => setLocationNow(Date.now()),
+        1000,
       )
 
     const channel =
@@ -299,15 +335,18 @@ export default function ActiveBookingScreen({
             table: 'worker_locations',
             filter: `booking_id=eq.${bookingId}`,
           },
-          payload =>
+          payload => {
             setLocation(
               payload.new as WorkerLocation,
-            ),
+            )
+            setLocationNow(Date.now())
+          },
         )
         .subscribe()
 
     return () => {
-      clearInterval(interval)
+      clearInterval(refreshInterval)
+      clearInterval(clockInterval)
       void supabase.removeChannel(
         channel,
       )
@@ -344,6 +383,30 @@ export default function ActiveBookingScreen({
   async function showOtp(
     type: 'start' | 'end',
   ) {
+    if (!booking) {
+      return
+    }
+
+    if (
+      type === 'start' &&
+      booking.status !== 'arrived'
+    ) {
+      setError(
+        'The start OTP is available after the worker arrives.',
+      )
+      return
+    }
+
+    if (
+      type === 'end' &&
+      booking.status !== 'in_progress'
+    ) {
+      setError(
+        'The end OTP is available while the service is in progress.',
+      )
+      return
+    }
+
     try {
       const result =
         await requestBookingOtp(
@@ -369,13 +432,9 @@ export default function ActiveBookingScreen({
   if (loading) {
     return (
       <ScreenContainer>
-        <View
-          style={styles.loading}
-        >
+        <View style={styles.loading}>
           <ActivityIndicator />
-          <Text
-            style={styles.loadingText}
-          >
+          <Text style={styles.loadingText}>
             Loading booking...
           </Text>
         </View>
@@ -386,18 +445,12 @@ export default function ActiveBookingScreen({
   if (!booking) {
     return (
       <ScreenContainer>
-        <View
-          style={styles.container}
-        >
-          <Text
-            style={styles.title}
-          >
+        <View style={styles.container}>
+          <Text style={styles.title}>
             Booking
           </Text>
 
-          <Text
-            style={styles.error}
-          >
+          <Text style={styles.error}>
             {error ??
               'Booking could not be loaded.'}
           </Text>
@@ -414,15 +467,18 @@ export default function ActiveBookingScreen({
       booking.status,
     )
 
+  const tracking =
+    isTrackingStatus(
+      booking.status,
+    )
+
   return (
     <ScreenContainer>
-      <View
-        style={styles.container}
-      >
-        <Text
-          style={styles.title}
-        >
-          Booking confirmation
+      <View style={styles.container}>
+        <Text style={styles.title}>
+          {tracking
+            ? 'Booking tracking'
+            : 'Booking confirmation'}
         </Text>
 
         <View
@@ -431,19 +487,21 @@ export default function ActiveBookingScreen({
             booking.status ===
               'searching_worker' &&
               styles.searchingCard,
+            booking.status ===
+              'on_the_way' &&
+              styles.trackingCard,
+            booking.status ===
+              'in_progress' &&
+              styles.progressCard,
           ]}
         >
-          <Text
-            style={styles.stateTitle}
-          >
+          <Text style={styles.stateTitle}>
             {getStateTitle(
               booking,
             )}
           </Text>
 
-          <Text
-            style={styles.stateMessage}
-          >
+          <Text style={styles.stateMessage}>
             {getStateMessage(
               booking,
             )}
@@ -451,19 +509,13 @@ export default function ActiveBookingScreen({
         </View>
 
         {error ? (
-          <Text
-            style={styles.error}
-          >
+          <Text style={styles.error}>
             {error}
           </Text>
         ) : null}
 
-        <View
-          style={styles.card}
-        >
-          <Text
-            style={styles.sectionTitle}
-          >
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>
             Booking details
           </Text>
 
@@ -526,59 +578,110 @@ export default function ActiveBookingScreen({
           'pending_payment' &&
         booking.status !==
           'payment_failed' ? (
-          <View
-            style={styles.card}
-          >
-            <Text
-              style={styles.sectionTitle}
-            >
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>
               Worker
             </Text>
 
             {workerAssigned ? (
               <>
-                <Text
-                  style={styles.worker}
-                >
+                <Text style={styles.worker}>
                   Worker assigned
                 </Text>
 
-                <Text
-                  style={
-                    styles.workerId
-                  }
-                >
-                  Worker ID: {
-                    booking.worker_id
-                  }
+                <Text style={styles.workerId}>
+                  Worker ID:{' '}
+                  {booking.worker_id}
                 </Text>
 
-                {location ? (
-                  <Text
+                {tracking ? (
+                  <View
                     style={
-                      styles.location
+                      styles.trackingPanel
                     }
                   >
-                    Latest location:{' '}
-                    {location.latitude.toFixed(
-                      5,
+                    <Text
+                      style={
+                        styles.trackingTitle
+                      }
+                    >
+                      Worker tracking
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.freshness,
+                        locationFreshness ===
+                          'fresh' &&
+                          styles.freshText,
+                        locationFreshness ===
+                          'stale' &&
+                          styles.staleText,
+                      ]}
+                    >
+                      {getTrackingLabel(
+                        locationFreshness,
+                      )}
+                    </Text>
+
+                    {location &&
+                    locationFreshness ===
+                      'fresh' ? (
+                      <>
+                        <Text
+                          style={
+                            styles.location
+                          }
+                        >
+                          Last location:{' '}
+                          {location.latitude.toFixed(
+                            5,
+                          )}
+                          ,{' '}
+                          {location.longitude.toFixed(
+                            5,
+                          )}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.locationAge
+                          }
+                        >
+                          Updated{' '}
+                          {locationAgeSeconds ??
+                            0}{' '}
+                          seconds ago
+                        </Text>
+                      </>
+                    ) : locationFreshness ===
+                      'stale' ? (
+                      <Text
+                        style={
+                          styles.staleMessage
+                        }
+                      >
+                        The last known worker
+                        location is too old to
+                        be presented as live.
+                        We will continue checking
+                        for a fresh update.
+                      </Text>
+                    ) : (
+                      <Text
+                        style={
+                          styles.staleMessage
+                        }
+                      >
+                        Waiting for the worker's
+                        first location update.
+                      </Text>
                     )}
-                    ,{' '}
-                    {location.longitude.toFixed(
-                      5,
-                    )}
-                    {'\n'}
-                    Updated{' '}
-                    {new Date(
-                      location.recorded_at,
-                    ).toLocaleTimeString()}
-                  </Text>
+                  </View>
                 ) : null}
               </>
             ) : (
-              <Text
-                style={styles.worker}
-              >
+              <Text style={styles.worker}>
                 Searching for a worker...
               </Text>
             )}
@@ -588,38 +691,26 @@ export default function ActiveBookingScreen({
         {booking.status ===
           'in_progress' &&
         booking.started_at ? (
-          <View
-            style={styles.timerCard}
-          >
-            <Text
-              style={styles.timerLabel}
-            >
+          <View style={styles.timerCard}>
+            <Text style={styles.timerLabel}>
               Service duration
             </Text>
 
-            <Text
-              style={styles.timer}
-            >
+            <Text style={styles.timer}>
               {timer}
             </Text>
           </View>
         ) : null}
 
         {booking.status ===
-            'arrived' ||
-        booking.status ===
-            'assigned' ? (
+        'arrived' ? (
           <Pressable
             style={styles.button}
             onPress={() =>
               void showOtp('start')
             }
           >
-            <Text
-              style={
-                styles.buttonText
-              }
-            >
+            <Text style={styles.buttonText}>
               Show start OTP
             </Text>
           </Pressable>
@@ -633,29 +724,19 @@ export default function ActiveBookingScreen({
               void showOtp('end')
             }
           >
-            <Text
-              style={
-                styles.buttonText
-              }
-            >
+            <Text style={styles.buttonText}>
               Show end OTP
             </Text>
           </Pressable>
         ) : null}
 
         {otp ? (
-          <View
-            style={styles.otpCard}
-          >
-            <Text
-              style={styles.otpLabel}
-            >
+          <View style={styles.otpCard}>
+            <Text style={styles.otpLabel}>
               Booking OTP
             </Text>
 
-            <Text
-              style={styles.otp}
-            >
+            <Text style={styles.otp}>
               {otp}
             </Text>
           </View>
@@ -663,11 +744,20 @@ export default function ActiveBookingScreen({
 
         {booking.status ===
           'searching_worker' ? (
-          <Text
-            style={styles.refreshHint}
-          >
-            We will continue checking for
-            an eligible worker automatically.
+          <Text style={styles.refreshHint}>
+            We will continue checking for an
+            eligible worker automatically.
+          </Text>
+        ) : null}
+
+        {booking.status ===
+          'completed' ? (
+          <Text style={styles.completedMessage}>
+            Service completed at{' '}
+            {formatDateTime(
+              booking.completed_at,
+            )}
+            .
           </Text>
         ) : null}
       </View>
@@ -683,18 +773,12 @@ function Row({
   value: string
 }) {
   return (
-    <View
-      style={styles.row}
-    >
-      <Text
-        style={styles.label}
-      >
+    <View style={styles.row}>
+      <Text style={styles.label}>
         {label}
       </Text>
 
-      <Text
-        style={styles.value}
-      >
+      <Text style={styles.value}>
         {value}
       </Text>
     </View>
@@ -734,6 +818,14 @@ const styles =
 
     searchingCard: {
       backgroundColor: '#EFF6FF',
+    },
+
+    trackingCard: {
+      backgroundColor: '#F3F4F6',
+    },
+
+    progressCard: {
+      backgroundColor: '#F9FAFB',
     },
 
     stateTitle: {
@@ -794,9 +886,47 @@ const styles =
       fontSize: 12,
     },
 
+    trackingPanel: {
+      marginTop: 16,
+      padding: 16,
+      borderRadius: 12,
+      backgroundColor: '#FFFFFF',
+    },
+
+    trackingTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: '#111827',
+    },
+
+    freshness: {
+      marginTop: 8,
+      fontWeight: '700',
+    },
+
+    freshText: {
+      color: '#047857',
+    },
+
+    staleText: {
+      color: '#B45309',
+    },
+
     location: {
       marginTop: 12,
       color: '#374151',
+      lineHeight: 20,
+    },
+
+    locationAge: {
+      marginTop: 4,
+      color: '#6B7280',
+      fontSize: 12,
+    },
+
+    staleMessage: {
+      marginTop: 12,
+      color: '#6B7280',
       lineHeight: 20,
     },
 
@@ -858,6 +988,14 @@ const styles =
       marginTop: 4,
       marginBottom: 16,
       color: '#6B7280',
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+
+    completedMessage: {
+      marginTop: 4,
+      marginBottom: 16,
+      color: '#047857',
       textAlign: 'center',
       lineHeight: 20,
     },

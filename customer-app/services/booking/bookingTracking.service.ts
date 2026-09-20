@@ -36,6 +36,11 @@ export type WorkerLocation = {
   recorded_at: string
 }
 
+export type WorkerLocationFreshness =
+  | 'unavailable'
+  | 'fresh'
+  | 'stale'
+
 type BookingRow = CustomerBooking & {
   service_variant?: {
     service?: {
@@ -44,14 +49,11 @@ type BookingRow = CustomerBooking & {
   } | null
 }
 
-function mapBooking(
-  row: BookingRow,
-): CustomerBooking {
+function mapBooking(row: BookingRow): CustomerBooking {
   return {
     ...row,
     service_name:
-      row.service_variant?.service?.name ??
-      null,
+      row.service_variant?.service?.name ?? null,
   }
 }
 
@@ -116,6 +118,59 @@ export async function getLatestWorkerLocation(
   }
 
   return data as WorkerLocation | null
+}
+
+export function getWorkerLocationFreshness(
+  location: WorkerLocation | null,
+  nowMs = Date.now(),
+): WorkerLocationFreshness {
+  if (!location) {
+    return 'unavailable'
+  }
+
+  const recordedAt = Date.parse(
+    location.recorded_at,
+  )
+
+  if (!Number.isFinite(recordedAt)) {
+    return 'stale'
+  }
+
+  const ageMs = Math.max(
+    0,
+    nowMs - recordedAt,
+  )
+
+  // Worker publishes frequent location updates.
+  // Anything older than 60 seconds is not treated
+  // as the worker's current position.
+  return ageMs <= 60_000
+    ? 'fresh'
+    : 'stale'
+}
+
+export function getWorkerLocationAgeSeconds(
+  location: WorkerLocation | null,
+  nowMs = Date.now(),
+): number | null {
+  if (!location) {
+    return null
+  }
+
+  const recordedAt = Date.parse(
+    location.recorded_at,
+  )
+
+  if (!Number.isFinite(recordedAt)) {
+    return null
+  }
+
+  return Math.max(
+    0,
+    Math.floor(
+      (nowMs - recordedAt) / 1000,
+    ),
+  )
 }
 
 export async function requestBookingOtp(
