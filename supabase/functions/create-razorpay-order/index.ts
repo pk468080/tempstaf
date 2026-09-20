@@ -331,18 +331,192 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (
+      if (
       existingPayment?.provider_order_id &&
       Number(existingPayment.amount) === amount &&
       existingPayment.currency === currency
     ) {
+      const razorpayAuth = btoa(
+        `${razorpayKeyId}:${razorpayKeySecret}`
+      );
+
+      /*
+       * A local "pending" payment does not prove that the
+       * Razorpay order is still payable. The previous checkout
+       * may already have succeeded while local finalization failed.
+       *
+       * Ask Razorpay for the payments attached to this order before
+       * reusing the order.
+       */
+      const paymentsResponse = await fetch(
+        `https://api.razorpay.com/v1/orders/${encodeURIComponent(
+          existingPayment.provider_order_id
+        )}/payments`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Basic ${razorpayAuth}`,
+          },
+        }
+      );
+
+      const paymentsData =
+        await paymentsResponse.json();
+
+      if (!paymentsResponse.ok) {
+        console.error(
+          "Razorpay existing-order lookup failed:",
+          paymentsData
+        );
+
+        throw new Error(
+          paymentsData?.error?.description ||
+            "Unable to verify existing Razorpay order."
+        );
+      }
+
+      const capturedPayment =
+        Array.isArray(paymentsData?.items)
+          ? paymentsData.items.find(
+              (item: Record<string, unknown>) =>
+                item.status === "captured"
+            )
+          : null;
+
+      if (capturedPayment?.id) {
+        /*
+         * We have provider-side proof that this order was already paid.
+         * Never open Checkout again for this order.
+         */
+        const capturedAmount =
+          Number(capturedPayment.amount);
+
+        const capturedCurrency =
+          typeof capturedPayment.currency === "string"
+            ? capturedPayment.currency
+            : null;
+
+        if (
+          !Number.isFinite(capturedAmount) ||
+          capturedAmount !== Math.round(amount * 100)
+        ) {
+          shouldMarkPaymentFailed = false;
+
+          console.error(
+            "Captured Razorpay amount does not match booking amount.",
+            {
+              bookingId,
+              expectedAmount: Math.round(amount * 100),
+              capturedAmount,
+              providerOrderId:
+                existingPayment.provider_order_id,
+              providerPaymentId:
+                capturedPayment.id,
+            }
+          );
+
+          throw new Error(
+            "The captured Razorpay payment amount does not match this booking."
+          );
+        }
+
+        if (
+          !capturedCurrency ||
+          capturedCurrency !== currency
+        ) {
+          shouldMarkPaymentFailed = false;
+
+          console.error(
+            "Captured Razorpay currency does not match booking currency.",
+            {
+              bookingId,
+              expectedCurrency: currency,
+              capturedCurrency,
+              providerOrderId:
+                existingPayment.provider_order_id,
+              providerPaymentId:
+                capturedPayment.id,
+            }
+          );
+
+          throw new Error(
+            "The captured Razorpay payment currency does not match this booking."
+          );
+        }
+
+        /*
+         * From this point onward Razorpay has confirmed a successful
+         * payment. Do not mark the booking as payment_failed if local
+         * finalization encounters an error.
+         */
+        shouldMarkPaymentFailed = false;
+
+        const { data: finalizationResult, error: finalizationError } =
+          await adminClient.rpc(
+            "finalize_razorpay_payment",
+            {
+              p_payment_id: existingPayment.id,
+              p_provider_payment_id:
+                String(capturedPayment.id),
+              p_paid_at:
+                typeof capturedPayment.created_at === "number"
+                  ? new Date(
+                      capturedPayment.created_at * 1000
+                    ).toISOString()
+                  : new Date().toISOString(),
+            }
+          );
+
+        if (finalizationError) {
+          console.error(
+            "Existing Razorpay payment finalization failed:",
+            finalizationError
+          );
+
+          throw new Error(
+            "A Razorpay payment was found, but it could not be finalized."
+          );
+        }
+
+        if (
+          !finalizationResult ||
+          finalizationResult.success !== true
+        ) {
+          console.error(
+            "Unexpected existing Razorpay finalization result:",
+            finalizationResult
+          );
+
+          throw new Error(
+            "A Razorpay payment was found, but it could not be finalized."
+          );
+        }
+
+        return jsonResponse({
+          success: true,
+          alreadyPaid: true,
+          bookingId,
+          paymentId: String(capturedPayment.id),
+          status:
+            finalizationResult.booking_status ??
+            "paid",
+          assigned:
+            finalizationResult.assigned ?? false,
+          workerId:
+            finalizationResult.worker_id ?? null,
+        });
+      }
+
+      /*
+       * No captured payment exists.
+       * The pending Razorpay order can safely be reused.
+       */
       return jsonResponse({
         success: true,
         keyId: razorpayKeyId,
         orderId:
           existingPayment.provider_order_id,
-        amount:
-          Math.round(amount * 100),
+        amount: Math.round(amount * 100),
         currency,
       });
     }

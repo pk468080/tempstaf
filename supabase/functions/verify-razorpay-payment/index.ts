@@ -618,96 +618,72 @@ Deno.serve(async (req: Request) => {
     }
 
     /*
-     * Persist the verified Razorpay payment.
-     */
-    const {
-      error: paymentUpdateError,
-    } =
-      await adminClient
-        .from("payments")
-        .update({
-          provider_payment_id:
-            razorpayPaymentId,
-          status: "paid",
-          paid_at:
-            new Date().toISOString(),
-        })
-        .eq(
-          "id",
-          payment.id
-        )
-        .eq(
-          "booking_id",
-          bookingId
-        );
-
-    if (paymentUpdateError) {
-      console.error(
-        "Payment update failed:",
-        paymentUpdateError
-      );
-
-      throw new Error(
-        "Unable to record verified payment."
-      );
+ * Finalize the verified Razorpay payment through
+ * the authoritative server-side payment RPC.
+ *
+ * This RPC:
+ * - locks the payment and booking
+ * - records the provider payment ID
+ * - marks the payment paid
+ * - marks the booking paid
+ * - assigns/searches for a worker
+ * - is idempotent for an already-paid payment
+ */
+const {
+  data: finalizationResult,
+  error: finalizationError,
+} =
+  await adminClient.rpc(
+    "finalize_razorpay_payment",
+    {
+      p_payment_id: payment.id,
+      p_provider_payment_id:
+        razorpayPaymentId,
+      p_paid_at:
+        new Date().toISOString(),
     }
+  );
 
-    /*
-     * Use the authenticated wrapper so
-     * auth.uid() remains available to the
-     * booking state transition.
-     */
-    const {
-      data: transitionResult,
-      error:
-        transitionError,
-    } =
-      await userClient.rpc(
-        "complete_test_payment",
-        {
-          p_booking_id:
-            bookingId,
-        }
-      );
+if (finalizationError) {
+  console.error(
+    "Razorpay payment finalization failed:",
+    finalizationError
+  );
 
-    if (transitionError) {
-      /*
-       * Payment may have been processed by
-       * a concurrent request. Check the actual
-       * booking state before reporting failure.
-       */
-      const {
-        data: currentBooking,
-      } =
-        await adminClient
-          .from("bookings")
-          .select(
-            "status"
-          )
-          .eq(
-            "id",
-            bookingId
-          )
-          .eq(
-            "customer_id",
-            user.id
-          )
-          .maybeSingle();
+  throw new Error(
+    "Payment was verified, but could not be finalized."
+  );
+}
 
-      if (
-        currentBooking?.status !==
-        "paid"
-      ) {
-        console.error(
-          "Booking payment transition failed:",
-          transitionError
-        );
+if (
+  !finalizationResult ||
+  finalizationResult.success !== true
+) {
+  console.error(
+    "Unexpected Razorpay finalization result:",
+    finalizationResult
+  );
 
-        throw new Error(
-          "Payment was verified, but the booking could not be marked as paid."
-        );
-      }
-    }
+  throw new Error(
+    "Payment was verified, but could not be finalized."
+  );
+}
+
+return jsonResponse({
+  success: true,
+  bookingId,
+  paymentId:
+    razorpayPaymentId,
+  status:
+    finalizationResult.booking_status ??
+    "paid",
+  assigned:
+    finalizationResult.assigned ?? false,
+  workerId:
+    finalizationResult.worker_id ?? null,
+  finalization:
+    finalizationResult,
+});
 
     return jsonResponse({
       success: true,

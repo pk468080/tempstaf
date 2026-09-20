@@ -14,6 +14,7 @@ import {
   createRazorpayOrder,
   markRazorpayPaymentFailed,
   verifyRazorpayPayment,
+  type RazorpayOrder,
 } from '../../services/payment/razorpay.service'
 
 type PaymentScreenProps = {
@@ -43,58 +44,113 @@ export default function PaymentScreen({
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function handlePayment() {
+    async function handlePayment() {
     if (processing) return
 
     setProcessing(true)
     setError(null)
 
     try {
-      let order
+      let order: RazorpayOrder | null = null
+
       try {
-        order = await createRazorpayOrder(
+        const createdOrder = await createRazorpayOrder(
           bookingId,
           finalAmount,
           currency,
         )
+
+        if (!createdOrder) {
+          throw new Error(
+            'The payment order could not be created.',
+          )
+        }
+
+        order = createdOrder
       } catch (orderError) {
-        await markRazorpayPaymentFailed(bookingId).catch(
-          statusError => console.error(
+        await markRazorpayPaymentFailed(
+          bookingId,
+        ).catch(statusError => {
+          console.error(
             'Unable to mark failed payment order:',
             statusError,
-          ),
-        )
+          )
+        })
+
         throw orderError
       }
 
+      /*
+       * The backend found that Razorpay already captured
+       * this booking's payment.
+       *
+       * Do NOT open Razorpay Checkout again.
+       */
+      if (order.alreadyPaid) {
+        onPaid()
+        return
+      }
+
+      /*
+       * From this point onward, order is guaranteed
+       * to be non-null.
+       */
+      const payableOrder = order
+
+      if (
+        !payableOrder.keyId ||
+        !payableOrder.orderId ||
+        !Number.isFinite(payableOrder.amount) ||
+        payableOrder.amount <= 0 ||
+        !payableOrder.currency
+      ) {
+        throw new Error(
+          'The payment order returned by the server is invalid.',
+        )
+      }
+
       let checkout
+
       try {
         checkout = await RazorpayCheckout.open({
-          key: order.keyId,
-          amount: order.amount,
-          currency: order.currency,
-          order_id: order.orderId,
+          key: payableOrder.keyId,
+          amount: payableOrder.amount,
+          currency: payableOrder.currency,
+          order_id: payableOrder.orderId,
           name: 'TempStaff',
           description: 'TempStaff booking',
         })
       } catch (checkoutError) {
-        await markRazorpayPaymentFailed(bookingId).catch(
-          statusError => console.error(
+        await markRazorpayPaymentFailed(
+          bookingId,
+        ).catch(statusError => {
+          console.error(
             'Unable to mark cancelled payment:',
             statusError,
-          ),
-        )
+          )
+        })
+
         throw checkoutError
       }
 
-      await verifyRazorpayPayment(bookingId, checkout)
+      await verifyRazorpayPayment(
+        bookingId,
+        checkout,
+      )
+
       onPaid()
     } catch (paymentError) {
-      const message = paymentError instanceof Error
-        ? paymentError.message
-        : 'Payment was not completed.'
+      const message =
+        paymentError instanceof Error
+          ? paymentError.message
+          : 'Payment was not completed.'
+
       setError(message)
-      Alert.alert('Payment not completed', message)
+
+      Alert.alert(
+        'Payment not completed',
+        message,
+      )
     } finally {
       setProcessing(false)
     }
