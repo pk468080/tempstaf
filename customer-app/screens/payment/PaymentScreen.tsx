@@ -19,7 +19,7 @@ import {
 import {
   createRazorpayOrder,
   getBookingPaymentDetails,
-  markRazorpayPaymentFailed,
+
   verifyRazorpayPayment,
   type BookingPaymentDetails,
   type RazorpayOrder,
@@ -140,34 +140,12 @@ export default function PaymentScreen({
     try {
       let order: RazorpayOrder
 
-      try {
-        /*
-         * The amount and currency used here came from
-         * the persisted booking, not navigation state.
-         */
-        order =
-          await createRazorpayOrder(
-            bookingId,
-            details.amount,
-            details.currency,
-          )
-      } catch (
-        orderError
-      ) {
-        await markRazorpayPaymentFailed(
-          bookingId,
-        ).catch(
-          statusError => {
-            console.error(
-              'Unable to mark failed payment order:',
-              statusError,
-            )
-          },
-        )
-
-        throw orderError
-      }
-
+      order =
+  await createRazorpayOrder(
+    bookingId,
+    details.amount,
+    details.currency,
+  )
       /*
        * The backend discovered that this payment was
        * already captured and finalized.
@@ -216,21 +194,17 @@ export default function PaymentScreen({
             },
           )
       } catch (
-        checkoutError
-      ) {
-        await markRazorpayPaymentFailed(
-          bookingId,
-        ).catch(
-          statusError => {
-            console.error(
-              'Unable to mark cancelled payment:',
-              statusError,
-            )
-          },
-        )
-
-        throw checkoutError
-      }
+  checkoutError
+) {
+  /*
+   * Do not mark the booking payment_failed here.
+   *
+   * Razorpay may have accepted/captured the payment even
+   * when the mobile checkout callback is interrupted.
+   * The backend/webhook reconciliation remains authoritative.
+   */
+  throw checkoutError
+}
 
       /*
        * Verification and finalization are server-side.
