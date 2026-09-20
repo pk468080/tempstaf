@@ -123,10 +123,9 @@ export async function getHomeServices(): Promise<HomeService[]> {
               : Number.POSITIVE_INFINITY
 
           return (
-            Number.isFinite(effectiveFrom) &&
-            effectiveFrom <= now &&
-            now < effectiveTo
-          )
+  effectiveFrom <= now &&
+  now < effectiveTo
+)
         })
         .sort((a, b) => {
           const aTime =
