@@ -16,6 +16,7 @@ export type BookingStatus =
 export type CustomerBooking = {
 	id: string
 	status: BookingStatus
+	booking_type?: string | null
 	service_name: string | null
 	scheduled_start: string | null
 	scheduled_end: string | null
@@ -26,6 +27,7 @@ export type CustomerBooking = {
 	completed_at: string | null
 	journey_started_at: string | null
 	arrived_at: string | null
+	created_at?: string | null
 }
 
 export type WorkerLocation = {
@@ -57,6 +59,26 @@ export async function getCustomerBooking(
 		...row,
 		service_name: row.service_variant?.service?.name ?? null,
 	}
+}
+
+export async function getCustomerBookings(): Promise<CustomerBooking[]> {
+	const { data, error } = await supabase
+		.from('bookings')
+		.select(
+			'id, status, booking_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name))',
+		)
+		.order('created_at', { ascending: false })
+
+	if (error) {
+		throw error
+	}
+
+	return ((data ?? []) as unknown as Array<CustomerBooking & {
+		service_variant?: { service?: { name?: string } | null } | null
+	}>).map(row => ({
+		...row,
+		service_name: row.service_variant?.service?.name ?? null,
+	}))
 }
 
 export async function getLatestWorkerLocation(

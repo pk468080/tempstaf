@@ -3,8 +3,6 @@ import {
 } from '@react-navigation/bottom-tabs'
 import {
   StyleSheet,
-  Text,
-  View,
 } from 'react-native'
 import {
   createNativeStackNavigator,
@@ -15,6 +13,8 @@ import BookingScreen from '../screens/bookings/BookingScreen'
 import HomeScreen from '../screens/home/HomeScreen'
 import PaymentScreen from '../screens/payment/PaymentScreen'
 import ActiveBookingScreen from '../screens/bookings/ActiveBookingScreen'
+import MyBookingsScreen from '../screens/bookings/MyBookingsScreen'
+import MyProfileScreen from '../screens/profile/MyProfileScreen'
 
 import {
   getOrCreateCustomerAddress,
@@ -47,6 +47,7 @@ type CustomerNavigatorProps = {
     longitude: number,
     address: string,
   ) => void
+  onSignOut: () => void
 }
 
 type CustomerStackParamList = {
@@ -139,6 +140,7 @@ function convertWeekdays(
 export default function CustomerNavigator({
   location,
   onLocationChange,
+  onSignOut,
 }: CustomerNavigatorProps) {
   return (
     <Stack.Navigator
@@ -177,19 +179,15 @@ export default function CustomerNavigator({
             </Tab.Screen>
 
             <Tab.Screen name="My Bookings">
-              {() => (
-                <Placeholder
-                  title="My Bookings"
+              {({ navigation }) => (
+                <MyBookingsScreen
+                  onBookingPress={bookingId => navigation.navigate('ActiveBooking', { bookingId })}
                 />
               )}
             </Tab.Screen>
 
             <Tab.Screen name="My Profile">
-              {() => (
-                <Placeholder
-                  title="My Profile"
-                />
-              )}
+              {() => <MyProfileScreen onSignOut={onSignOut} />}
             </Tab.Screen>
           </Tab.Navigator>
         )}
@@ -296,7 +294,7 @@ export default function CustomerNavigator({
                       ),
 
                     selectedWeekdays:
-                      [new Date(draft.startDate!).getDay()],
+                      [0, 1, 2, 3, 4, 5, 6],
 
                     excludedDates:
                       draft.excludedDates,
@@ -478,34 +476,6 @@ export default function CustomerNavigator({
   )
 }
 
-function Placeholder({
-  title,
-}: {
-  title: string
-}) {
-  return (
-    <View
-      style={styles.placeholder}
-    >
-      <Text
-        style={
-          styles.placeholderText
-        }
-      >
-        {title}
-      </Text>
-
-      <Text
-        style={
-          styles.placeholderSubtext
-        }
-      >
-        This screen will be built separately.
-      </Text>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
   tabBar: {
     height: 64,
@@ -517,20 +487,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
-  placeholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  placeholderText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-  },
-
-  placeholderSubtext: {
-    marginTop: 8,
-    color: '#6B7280',
-  },
 })

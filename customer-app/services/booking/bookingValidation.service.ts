@@ -51,11 +51,11 @@ export function validateBooking(
     )
   }
 
-  if (
-    input.endTime <= input.startTime
-  ) {
+  const durationMs = input.endTime.getTime() - input.startTime.getTime()
+
+  if (durationMs < 60 * 60 * 1000) {
     errors.push(
-      'End time must be later than start time.',
+      'Booking duration must be at least 1 hour.',
     )
   }
 

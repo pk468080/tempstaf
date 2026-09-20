@@ -41,7 +41,7 @@ export default function BookingPriceSummary({
     )
   }
 
-  if (!finalAmount) {
+  if (finalAmount === undefined) {
     return null
   }
 
@@ -73,7 +73,7 @@ export default function BookingPriceSummary({
         </View>
       )}
 
-      {occurrenceCount && occurrenceCount > 1 && (
+      {occurrenceCount !== undefined && (
         <View style={styles.row}>
           <Text style={styles.label}>Occurrences</Text>
           <Text style={styles.value}>{occurrenceCount}</Text>

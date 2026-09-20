@@ -95,7 +95,7 @@ export function isNearTermDate(date: Date, today: Date = startOfToday()): boolea
 export function getDurationHours(startTime: Date, endTime: Date): number {
   const diffMs = endTime.getTime() - startTime.getTime()
   const diffHours = diffMs / (60 * 60 * 1000)
-  return Math.max(1, Math.round(diffHours * 10) / 10) // Round to 1 decimal, min 1 hour
+  return Math.round(diffHours * 10) / 10
 }
 
 /**
@@ -223,7 +223,8 @@ export function formatMoney(amount: number | undefined, currency: string | undef
  * Validate time range (must be at least 1 hour)
  */
 export function isValidTimeRange(startTime: Date, endTime: Date): boolean {
-  return endTime > startTime && getDurationHours(startTime, endTime) >= 1
+  const durationMs = endTime.getTime() - startTime.getTime()
+  return durationMs >= 60 * 60 * 1000
 }
 
 /**

@@ -27,13 +27,14 @@ import {
 
 import {
   startOfToday,
+  startOfDay,
   isNearTermDate,
   getDurationHours,
-  toDateKey,
+  isValidTimeRange,
   getWeekdayIndex,
   generateRecurringOccurrences,
+  generateScheduledOccurrences,
   formatDateDisplay,
-  formatTimeDisplay,
 } from '../../lib/bookingUtils'
 
 import type { HomeService } from '../../types/service'
@@ -83,7 +84,9 @@ export default function BookingScreen({ service, location, onContinue }: Booking
   const [scheduledSlots, setScheduledSlots] = useState<ScheduledAvailabilitySlot[]>([])
   const [scheduledAvailabilityLoading, setScheduledAvailabilityLoading] = useState(false)
   const [scheduledAvailabilityError, setScheduledAvailabilityError] = useState<string | null>(null)
+  const [scheduledServiceAreaAvailable, setScheduledServiceAreaAvailable] = useState<boolean | null>(null)
   const [selectedScheduledSlotKey, setSelectedScheduledSlotKey] = useState<string | null>(null)
+  const [currentTime, setCurrentTime] = useState(() => new Date())
 
   // Pricing
   const [pricing, setPricing] = useState<BookingPriceResult | null>(null)
@@ -92,8 +95,20 @@ export default function BookingScreen({ service, location, onContinue }: Booking
 
   // Derived state
   const durationHours = getDurationHours(startTime, endTime)
+  const timeRangeValid = isValidTimeRange(startTime, endTime)
   const isNearTerm = startDate && isNearTermDate(startDate, today)
   const canSelectScheduledSlots = bookingType === 'scheduled' && isNearTerm
+  const isTodaySelected = !!startDate && startOfDay(startDate).getTime() === today.getTime()
+  const visibleScheduledSlots = useMemo(() => {
+    if (!isTodaySelected) return scheduledSlots
+
+    return scheduledSlots.filter(slot => new Date(slot.start).getTime() >= currentTime.getTime())
+  }, [currentTime, isTodaySelected, scheduledSlots])
+  const selectedSlotIsAvailable = visibleScheduledSlots.some(
+    slot => `${slot.start}-${slot.end}` === selectedScheduledSlotKey && slot.available_worker_count > 0,
+  )
+  const serviceAreaUnavailable =
+    availabilityResult?.serviceAreaAvailable === false || scheduledServiceAreaAvailable === false
 
   const recurringOccurrences = useMemo(() => {
     if (bookingType !== 'recurring' || !startDate || !endDate) return []
@@ -122,8 +137,14 @@ export default function BookingScreen({ service, location, onContinue }: Booking
     async function loadScheduledSlots() {
       setScheduledSlots([])
       setScheduledAvailabilityError(null)
+      setScheduledServiceAreaAvailable(null)
 
       if (!canSelectScheduledSlots || !startDate || !location) {
+        return
+      }
+
+      if (!timeRangeValid) {
+        setScheduledAvailabilityError('Select a time range of at least 1 hour.')
         return
       }
 
@@ -147,10 +168,12 @@ export default function BookingScreen({ service, location, onContinue }: Booking
         if (cancelled) return
 
         if (!result.service_area_available) {
+          setScheduledServiceAreaAvailable(false)
           setScheduledAvailabilityError('Service not available in this area for the selected date.')
           return
         }
 
+        setScheduledServiceAreaAvailable(true)
         setScheduledSlots(result.slots)
       } catch (error) {
         if (cancelled) return
@@ -166,7 +189,20 @@ export default function BookingScreen({ service, location, onContinue }: Booking
     return () => {
       cancelled = true
     }
-  }, [canSelectScheduledSlots, startDate, location, service.serviceVariantId, durationHours])
+  }, [canSelectScheduledSlots, startDate, location, service.serviceVariantId, durationHours, timeRangeValid])
+
+  useEffect(() => {
+    if (!isTodaySelected || !canSelectScheduledSlots) return
+
+    const interval = setInterval(() => setCurrentTime(new Date()), 30_000)
+    return () => clearInterval(interval)
+  }, [canSelectScheduledSlots, isTodaySelected])
+
+  useEffect(() => {
+    if (selectedScheduledSlotKey && !selectedSlotIsAvailable) {
+      setSelectedScheduledSlotKey(null)
+    }
+  }, [selectedScheduledSlotKey, selectedSlotIsAvailable])
 
   // Load pricing for scheduled/recurring bookings
   useEffect(() => {
@@ -255,6 +291,26 @@ export default function BookingScreen({ service, location, onContinue }: Booking
     setEndTime(slotEnd)
   }
 
+  function handleStartDateChange(date: Date) {
+    setSelectedScheduledSlotKey(null)
+    setStartDate(date)
+  }
+
+  function handleEndDateChange(date: Date) {
+    setSelectedScheduledSlotKey(null)
+    setEndDate(date)
+  }
+
+  function handleStartTimeChange(time: Date) {
+    setSelectedScheduledSlotKey(null)
+    setStartTime(time)
+  }
+
+  function handleEndTimeChange(time: Date) {
+    setSelectedScheduledSlotKey(null)
+    setEndTime(time)
+  }
+
   // Handle toggling excluded dates
   function handleToggleExcludedDate(dateKey: string) {
     setExcludedDates(current =>
@@ -264,7 +320,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
 
   // Handle booking continuation
   function handleContinue() {
-    if (!onContinue || !location) return
+    if (!onContinue || !location || !canContinue) return
 
     const draft: BookingDraft = {
       serviceId: service.id,
@@ -284,7 +340,24 @@ export default function BookingScreen({ service, location, onContinue }: Booking
   }
 
   // Validation
-  const canContinue = !!location && (bookingType === 'instant' || (startDate && endDate && (bookingType === 'scheduled' || selectedWeekdays.length > 0)))
+  const scheduledOccurrences = startDate && endDate
+    ? generateScheduledOccurrences(startDate, endDate, excludedDates)
+    : []
+  const hasRequiredDates = !!startDate && !!endDate && (
+    bookingType === 'recurring'
+      ? recurringOccurrences.length > 0
+      : scheduledOccurrences.length > 0
+  )
+  const hasInstantAvailability = availabilityResult?.serviceAreaAvailable === true && availabilityResult.instantAvailable
+  const canContinue = Boolean(
+    location &&
+    !serviceAreaUnavailable &&
+    timeRangeValid &&
+    (bookingType === 'instant'
+      ? hasInstantAvailability
+      : hasRequiredDates &&
+        (bookingType === 'scheduled' ? (!canSelectScheduledSlots || selectedSlotIsAvailable) : selectedWeekdays.length > 0)),
+  )
 
   return (
     <ScreenContainer>
@@ -297,7 +370,7 @@ export default function BookingScreen({ service, location, onContinue }: Booking
         {/* Service Area Status */}
         <ServiceAreaStatusCard
           address={location?.address || 'No location selected'}
-          available={!!location && availabilityResult?.serviceAreaAvailable !== false}
+          available={!!location && !serviceAreaUnavailable}
           loading={availabilityStatus === 'checking'}
           error={availabilityStatus === 'error' ? availabilityError : null}
         />
@@ -353,16 +426,16 @@ export default function BookingScreen({ service, location, onContinue }: Booking
               endDate={endDate}
               excludedDates={excludedDates}
               minDate={today}
-              onStartDateChange={setStartDate}
-              onEndDateChange={setEndDate}
+              onStartDateChange={handleStartDateChange}
+              onEndDateChange={handleEndDateChange}
               onExcludedDateToggle={handleToggleExcludedDate}
             />
 
             <TimeRangePicker
               startTime={startTime}
               endTime={endTime}
-              onStartTimeChange={setStartTime}
-              onEndTimeChange={setEndTime}
+              onStartTimeChange={handleStartTimeChange}
+              onEndTimeChange={handleEndTimeChange}
             />
 
             {/* Near-term availability slots */}
@@ -374,15 +447,19 @@ export default function BookingScreen({ service, location, onContinue }: Booking
 
                 {scheduledAvailabilityError && <BookingErrorState message={scheduledAvailabilityError} />}
 
-                {!scheduledAvailabilityLoading && !scheduledAvailabilityError && scheduledSlots.length === 0 && (
+                {!scheduledAvailabilityLoading && !scheduledAvailabilityError && visibleScheduledSlots.length === 0 && (
                   <View style={styles.emptySlots}>
-                    <Text style={styles.emptySlotsText}>No availability for this time duration on the selected date.</Text>
+                    <Text style={styles.emptySlotsText}>
+                      {isTodaySelected
+                        ? 'No future availability remains today for this time duration.'
+                        : 'No availability for this time duration on the selected date.'}
+                    </Text>
                   </View>
                 )}
 
                 {!scheduledAvailabilityLoading &&
                   !scheduledAvailabilityError &&
-                  scheduledSlots.map((slot, index) => (
+                  visibleScheduledSlots.map((slot, index) => (
                     <AvailabilitySlot
                       key={`${slot.start}-${slot.end}-${index}`}
                       start={slot.start}
@@ -413,8 +490,8 @@ export default function BookingScreen({ service, location, onContinue }: Booking
               endDate={endDate}
               excludedDates={excludedDates}
               minDate={today}
-              onStartDateChange={setStartDate}
-              onEndDateChange={setEndDate}
+              onStartDateChange={handleStartDateChange}
+              onEndDateChange={handleEndDateChange}
               onExcludedDateToggle={handleToggleExcludedDate}
             />
 
@@ -430,8 +507,8 @@ export default function BookingScreen({ service, location, onContinue }: Booking
             <TimeRangePicker
               startTime={startTime}
               endTime={endTime}
-              onStartTimeChange={setStartTime}
-              onEndTimeChange={setEndTime}
+              onStartTimeChange={handleStartTimeChange}
+              onEndTimeChange={handleEndTimeChange}
             />
 
             {recurringOccurrences.length > 0 && (

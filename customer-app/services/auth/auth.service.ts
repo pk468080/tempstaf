@@ -22,7 +22,7 @@ export type CustomerAuthState =
       phone: string
     }
 
-type CustomerProfile = {
+export type CustomerProfile = {
   id: string
   full_name: string | null
   phone: string | null
@@ -100,6 +100,16 @@ async function getCustomerProfile(
   }
 
   return profile
+}
+
+export async function getCurrentCustomerProfile(): Promise<CustomerProfile | null> {
+  const session = await getCurrentSession()
+
+  if (!session) {
+    return null
+  }
+
+  return getCustomerProfile(session.user.id)
 }
 
 function profileNeedsRegistration(

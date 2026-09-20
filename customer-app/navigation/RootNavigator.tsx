@@ -267,7 +267,7 @@ export default function RootNavigator() {
         </Stack.Screen>
 
         <Stack.Screen name="Customer">
-          {() => (
+          {({ navigation }) => (
             <CustomerNavigator
               location={
                 customerLocation
@@ -275,6 +275,7 @@ export default function RootNavigator() {
               onLocationChange={
                 handleLocationChange
               }
+              onSignOut={() => navigation.replace('Login')}
             />
           )}
         </Stack.Screen>

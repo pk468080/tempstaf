@@ -173,6 +173,10 @@ export default function BookingDetailsScreen({
             label="Booking type"
             value={bookingType.charAt(0).toUpperCase() + bookingType.slice(1)}
           />
+          <DetailRow
+            label="Hourly rate"
+            value={service.hourlyPrice === null ? 'Unavailable' : `${service.currency ?? ''} ${service.hourlyPrice}/hour`}
+          />
         </BookingSection>
 
         {/* Location Section */}
@@ -215,7 +219,7 @@ export default function BookingDetailsScreen({
               baseAmount={pricing?.gross_amount}
               discountAmount={pricing?.discount_amount}
               platformFee={pricing?.platform_fee}
-              taxAmount={pricing?.tax_amount}
+              taxAmount={pricing?.tax_amount ?? pricing?.tax}
               finalAmount={pricing?.final_amount}
               currency={pricing?.currency}
               occurrenceCount={pricing?.occurrence_count}
