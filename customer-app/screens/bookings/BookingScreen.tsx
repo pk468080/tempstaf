@@ -340,18 +340,51 @@ export default function BookingScreen({ service, location, onContinue }: Booking
   }
 
   // Validation
-  const scheduledOccurrences = startDate && endDate
-    ? generateScheduledOccurrences(startDate, endDate, excludedDates)
+ // Validation
+const scheduledOccurrences =
+  startDate && endDate
+    ? generateScheduledOccurrences(
+        startDate,
+        endDate,
+        excludedDates,
+      )
     : []
-  const hasRequiredDates = !!startDate && !!endDate && (
+
+const hasRequiredDates =
+  !!startDate &&
+  !!endDate &&
+  (
     bookingType === 'recurring'
       ? recurringOccurrences.length > 0
       : scheduledOccurrences.length > 0
   )
-  const hasInstantAvailability = availabilityResult?.serviceAreaAvailable === true && availabilityResult.instantAvailable
-  const areaCheckPassed =
+
+const areaCheckPassed =
   availabilityStatus === 'available' &&
   availabilityResult?.serviceAreaAvailable === true
+
+const hasInstantAvailability =
+  areaCheckPassed &&
+  availabilityResult?.instantAvailable === true
+
+const canContinue = Boolean(
+  location &&
+  areaCheckPassed &&
+  timeRangeValid &&
+  (
+    bookingType === 'instant'
+      ? hasInstantAvailability
+      : hasRequiredDates &&
+        (
+          bookingType === 'scheduled'
+            ? (
+                !canSelectScheduledSlots ||
+                selectedSlotIsAvailable
+              )
+            : selectedWeekdays.length > 0
+        )
+  ),
+)
 
   return (
     <ScreenContainer>
