@@ -349,15 +349,9 @@ export default function BookingScreen({ service, location, onContinue }: Booking
       : scheduledOccurrences.length > 0
   )
   const hasInstantAvailability = availabilityResult?.serviceAreaAvailable === true && availabilityResult.instantAvailable
-  const canContinue = Boolean(
-    location &&
-    !serviceAreaUnavailable &&
-    timeRangeValid &&
-    (bookingType === 'instant'
-      ? hasInstantAvailability
-      : hasRequiredDates &&
-        (bookingType === 'scheduled' ? (!canSelectScheduledSlots || selectedSlotIsAvailable) : selectedWeekdays.length > 0)),
-  )
+  const areaCheckPassed =
+  availabilityStatus === 'available' &&
+  availabilityResult?.serviceAreaAvailable === true
 
   return (
     <ScreenContainer>
