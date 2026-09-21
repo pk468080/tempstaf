@@ -8,6 +8,7 @@ import {
   getWorkerProfile,
   updateWorkerName,
   updateWorkerPhone,
+  updateWorkerProfile,
 } from '../services/worker/workerProfile.service'
 
 import type {

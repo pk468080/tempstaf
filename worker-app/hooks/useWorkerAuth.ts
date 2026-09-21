@@ -167,23 +167,23 @@ export function useWorkerAuth(): UseWorkerAuthResult {
     void initialize()
 
     const {
-      data:
-        subscription,
-    } =
-      subscribeToWorkerAuthChanges(
-        (
-          nextSession,
-        ) => {
-          if (!mounted) {
-            return
-          }
+  data: {
+    subscription,
+  },
+} =
+  subscribeToWorkerAuthChanges(
+    (
+      nextSession,
+    ) => {
+      if (!mounted) {
+        return
+      }
 
-          void loadAuth(
-            nextSession,
-          )
-        },
+      void loadAuth(
+        nextSession,
       )
-
+    },
+  )
     return () => {
       mounted = false
       subscription.unsubscribe()

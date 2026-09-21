@@ -64,9 +64,6 @@ TaskManager.defineTask(
   async ({
     data,
     error,
-  }: {
-    data?: unknown
-    error?: TaskManager.TaskManagerError
   }) => {
     if (error) {
       return
