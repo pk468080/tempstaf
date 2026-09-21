@@ -694,24 +694,63 @@ export default function BookingScreen({
       return
     }
 
-    const draft: BookingDraft = {
-      serviceId: service.id,
-      bookingType,
-      location,
-      startDate: startDate
-        ? startDate.toISOString()
-        : null,
-      endDate: endDate
-        ? endDate.toISOString()
-        : null,
-      startTime: startTime.toISOString(),
-      endTime: endTime.toISOString(),
-      selectedWeekdays,
-      excludedDates,
-      hourlyPrice: service.hourlyPrice ?? 0,
-      currency: service.currency ?? null,
-    }
+    const normalizedSelectedWeekdays =
+  bookingType === 'recurring'
+    ? Array.from(
+        new Set(
+          selectedWeekdays
+            .filter(weekday =>
+              [
+                'Sunday',
+                'Monday',
+                'Tuesday',
+                'Wednesday',
+                'Thursday',
+                'Friday',
+                'Saturday',
+              ].includes(weekday),
+            ),
+        ),
+      )
+    : []
 
+const normalizedExcludedDates =
+  bookingType === 'recurring'
+    ? Array.from(
+        new Set(excludedDates),
+      ).sort()
+    : []
+
+const draft: BookingDraft = {
+  serviceId: service.id,
+  bookingType,
+  location,
+  startDate: startDate
+    ? startDate.toISOString()
+    : null,
+  endDate: endDate
+    ? endDate.toISOString()
+    : null,
+  startTime: startTime.toISOString(),
+  endTime: endTime.toISOString(),
+  selectedWeekdays:
+    bookingType === 'recurring'
+      ? normalizedSelectedWeekdays
+      : [],
+  excludedDates:
+    bookingType === 'recurring'
+      ? normalizedExcludedDates
+      : [],
+  hourlyPrice: service.hourlyPrice ?? 0,
+  currency: service.currency ?? null,
+}
+
+if (
+  bookingType === 'recurring' &&
+  normalizedSelectedWeekdays.length === 0
+) {
+  return
+}
     onContinue(draft)
   }
 
