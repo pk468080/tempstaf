@@ -635,21 +635,43 @@ Deno.serve(async (req: Request) => {
     }
 
     /*
-     * Only a captured payment is treated as paid.
-     */
-    if (
-      razorpayPayment.status !==
-      "captured"
-    ) {
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            "Razorpay payment has not been captured.",
-        },
-        409
-      );
-    }
+ * Authorization is a legitimate intermediate Razorpay state.
+ *
+ * Do NOT treat it as payment failure. Automatic capture may
+ * happen shortly after authorization, and the Razorpay webhook
+ * remains authoritative for the captured -> paid transition.
+ */
+if (
+  razorpayPayment.status ===
+  "authorized"
+) {
+  return jsonResponse({
+    success: true,
+    paymentPending: true,
+    bookingId,
+    paymentId: razorpayPaymentId,
+    status: "authorized",
+  });
+}
+
+/*
+ * Only a captured payment can finalize the booking.
+ */
+if (
+  razorpayPayment.status !==
+  "captured"
+) {
+  return jsonResponse(
+    {
+      success: false,
+      error:
+        razorpayPayment.status === "failed"
+          ? "Razorpay payment failed."
+          : "Razorpay payment is still being processed.",
+    },
+    409
+  );
+}
 
     /*
      * Finalize through the authoritative

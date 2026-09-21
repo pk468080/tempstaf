@@ -217,12 +217,23 @@ export default function PaymentScreen({
       /*
        * Verification and finalization are server-side.
        */
-      await verifyRazorpayPayment(
-        bookingId,
-        checkout,
-      )
+     const verification =
+  await verifyRazorpayPayment(
+    bookingId,
+    checkout,
+  )
 
-      onPaid()
+if (
+  verification.paymentPending
+) {
+  Alert.alert(
+    'Payment authorized',
+    'Razorpay has authorized your payment and is completing the capture. Please do not make another payment. Your booking will be confirmed after capture.',
+  )
+  return
+}
+
+onPaid()
     } catch (
       paymentError
     ) {

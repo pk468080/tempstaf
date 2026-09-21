@@ -16,6 +16,7 @@ export type RazorpayPaymentResult = {
   bookingId: string
   paymentId: string
   status: string
+  paymentPending?: boolean
 }
 
 export type RazorpayCheckoutResult = {
@@ -557,14 +558,14 @@ export async function verifyRazorpayPayment(
     > | null
 
   if (
-    result?.success !== true ||
-    typeof result.bookingId !==
-      'string' ||
-    typeof result.paymentId !==
-      'string' ||
-    typeof result.status !==
-      'string'
-  ) {
+  result?.success !== true ||
+  typeof result.bookingId !==
+    'string' ||
+  typeof result.paymentId !==
+    'string' ||
+  typeof result.status !==
+    'string'
+) {
     const serverError =
       typeof result?.error ===
       'string'
@@ -578,12 +579,14 @@ export async function verifyRazorpayPayment(
   }
 
   return {
-    success: true,
-    bookingId:
-      result.bookingId,
-    paymentId:
-      result.paymentId,
-    status:
-      result.status,
-  }
+  success: true,
+  bookingId:
+    result.bookingId,
+  paymentId:
+    result.paymentId,
+  status:
+    result.status,
+  paymentPending:
+    result.paymentPending === true,
+}
 }
