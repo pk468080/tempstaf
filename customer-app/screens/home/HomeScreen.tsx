@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Modal,
   RefreshControl,
   ScrollView,
@@ -13,10 +14,20 @@ import {
 } from 'react-native'
 import * as Location from 'expo-location'
 
-import HomePromotionSlider from '../../components/home/HomePromotionSlider'
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
 import { getHomeServices } from '../../services/services/services.service'
 import type { HomeService } from '../../types/service'
+
+const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
+const heroBannerImage = require('../../assets/home/hero-banner.png')
+const heroWorkerImage = require('../../assets/home/hero-worker.png')
+
+const serviceImages: Record<string, number> = {
+  helper: require('../../assets/services/helper.png'),
+  'housekeeping boy': require('../../assets/services/housekeeping-boy.png'),
+  'office boy': require('../../assets/services/office-boy.png'),
+  'pantry boy': require('../../assets/services/pantry-boy.png'),
+}
 
 type HomeLocation = {
   latitude: number
@@ -387,6 +398,7 @@ export default function HomeScreen({
         <View style={styles.loading}>
           <ActivityIndicator
             size="large"
+            color="#00A7A7"
           />
 
           <Text
@@ -453,48 +465,148 @@ export default function HomeScreen({
             onRefresh={
               refreshHome
             }
+            tintColor="#00A7A7"
           />
         }
         showsVerticalScrollIndicator={
           false
         }
       >
-        <TouchableOpacity
+        <View style={styles.topHeader}>
+          <Image
+            source={tempStaffLogo}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+
+          <TouchableOpacity
+            style={
+              styles.locationPill
+            }
+            activeOpacity={0.8}
+            onPress={() =>
+              setLocationPickerVisible(
+                true,
+              )
+            }
+          >
+            <View
+              style={
+                styles.locationIcon
+              }
+            >
+              <Text
+                style={
+                  styles.locationIconText
+                }
+              >
+                ●
+              </Text>
+            </View>
+
+            <View
+              style={
+                styles.locationTextWrap
+              }
+            >
+              <Text
+                style={
+                  styles.locationLabel
+                }
+              >
+                SERVICE LOCATION
+              </Text>
+
+              <Text
+                style={styles.location}
+                numberOfLines={1}
+              >
+                {address}
+              </Text>
+            </View>
+
+            <Text
+              style={
+                styles.locationChevron
+              }
+            >
+              ›
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View
           style={
-            styles.locationSection
-          }
-          activeOpacity={0.7}
-          onPress={() =>
-            setLocationPickerVisible(
-              true,
-            )
+            styles.heroCard
           }
         >
-          <Text
+          <Image
+            source={heroBannerImage}
             style={
-              styles.locationLabel
+              styles.heroBackground
+            }
+            resizeMode="cover"
+          />
+
+          <View
+            style={
+              styles.heroOverlay
+            }
+          />
+
+          <View
+            style={
+              styles.heroCopy
             }
           >
-            Service location
-          </Text>
+            <Text
+              style={
+                styles.heroEyebrow
+              }
+            >
+              TEMPSTAFF
+            </Text>
 
-          <Text
-            style={styles.location}
-            numberOfLines={2}
-          >
-            {address}
-          </Text>
+            <Text
+              style={
+                styles.heroTitle
+              }
+            >
+              Staff when you need them.
+            </Text>
 
-          <Text
+            <Text
+              style={
+                styles.heroSubtitle
+              }
+            >
+              Reliable hourly support for
+              offices and businesses.
+            </Text>
+
+            <View
+              style={
+                styles.heroBadge
+              }
+            >
+              <Text
+                style={
+                  styles.heroBadgeText
+                }
+              >
+                HOURLY STAFFING
+              </Text>
+            </View>
+          </View>
+
+          <Image
+            source={heroWorkerImage}
             style={
-              styles.changeLocation
+              styles.heroWorker
             }
-          >
-            Change location
-          </Text>
-        </TouchableOpacity>
-
-        <HomePromotionSlider />
+            resizeMode="contain"
+          />
+        </View>
 
         {locationError ? (
           <View
@@ -532,39 +644,21 @@ export default function HomeScreen({
         ) : null}
 
         <View
-          style={styles.banner}
-        >
-          <Text
-            style={
-              styles.bannerTitle
-            }
-          >
-            Book trusted help
-          </Text>
-
-          <Text
-            style={
-              styles.bannerText
-            }
-          >
-            Select a service and
-            continue to choose your
-            booking time and availability.
-          </Text>
-        </View>
-
-        <View
           style={
             styles.sectionHeader
           }
         >
-          <View>
+          <View
+            style={
+              styles.sectionHeadingWrap
+            }
+          >
             <Text
               style={
                 styles.sectionTitle
               }
             >
-              Services
+              All staffing services
             </Text>
 
             <Text
@@ -572,10 +666,16 @@ export default function HomeScreen({
                 styles.sectionSubtitle
               }
             >
-              Hourly services available
-              for booking
+              Hourly staff for your office
+              & business
             </Text>
           </View>
+
+          <View
+            style={
+              styles.sectionAccent
+            }
+          />
         </View>
 
         {error ? (
@@ -635,12 +735,14 @@ export default function HomeScreen({
           <FlatList
             data={services}
             scrollEnabled={false}
+            numColumns={2}
+            columnWrapperStyle={
+              styles.serviceRow
+            }
             keyExtractor={item =>
               item.id
             }
-            renderItem={({
-              item,
-            }) => (
+            renderItem={({ item }) => (
               <ServiceCard
                 service={item}
                 onPress={() => {
@@ -659,6 +761,38 @@ export default function HomeScreen({
             )}
           />
         )}
+
+        <View
+          style={
+            styles.bottomBanner
+          }
+        >
+          <View
+            style={
+              styles.bottomBannerAccent
+            }
+          />
+
+          <Text
+            style={
+              styles.bottomBannerTitle
+            }
+          >
+            Flexible staffing for
+            everyday business needs.
+          </Text>
+
+          <Text
+            style={
+              styles.bottomBannerText
+            }
+          >
+            Choose your service, select
+            your schedule, and continue
+            through the existing booking
+            flow.
+          </Text>
+        </View>
       </ScrollView>
 
       <Modal
@@ -684,15 +818,28 @@ export default function HomeScreen({
                 styles.modalHeader
               }
             >
-              <Text
-                style={
-                  styles.modalTitle
-                }
-              >
-                Service location
-              </Text>
+              <View>
+                <Text
+                  style={
+                    styles.modalKicker
+                  }
+                >
+                  TEMPSTAFF
+                </Text>
+
+                <Text
+                  style={
+                    styles.modalTitle
+                  }
+                >
+                  Service location
+                </Text>
+              </View>
 
               <TouchableOpacity
+                style={
+                  styles.modalCloseButton
+                }
                 onPress={() =>
                   setLocationPickerVisible(
                     false,
@@ -730,7 +877,7 @@ export default function HomeScreen({
                 setLocationError('')
               }}
               placeholder="Enter address or area"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor="#94A3B8"
               style={
                 styles.locationInput
               }
@@ -814,12 +961,66 @@ function ServiceCard({
   service: HomeService
   onPress: () => void
 }) {
+  const image =
+    serviceImages[
+      service.name
+        .trim()
+        .toLowerCase()
+    ]
+
   return (
     <TouchableOpacity
       style={styles.card}
-      activeOpacity={0.8}
+      activeOpacity={0.86}
       onPress={onPress}
     >
+      <View
+        style={
+          styles.cardImageWrap
+        }
+      >
+        {image ? (
+          <Image
+            source={image}
+            style={
+              styles.cardImage
+            }
+            resizeMode="cover"
+          />
+        ) : (
+          <View
+            style={
+              styles.cardImageFallback
+            }
+          >
+            <Text
+              style={
+                styles.cardImageFallbackText
+              }
+            >
+              TS
+            </Text>
+          </View>
+        )}
+
+        <View
+          style={
+            styles.cardPricePill
+          }
+        >
+          <Text
+            style={
+              styles.cardPricePillText
+            }
+          >
+            {service.hourlyPrice ===
+            null
+              ? 'Price unavailable'
+              : `${service.currency ?? ''} ${service.hourlyPrice}/hr`}
+          </Text>
+        </View>
+      </View>
+
       <View
         style={
           styles.cardContent
@@ -829,6 +1030,7 @@ function ServiceCard({
           style={
             styles.serviceName
           }
+          numberOfLines={1}
         >
           {service.name}
         </Text>
@@ -844,21 +1046,26 @@ function ServiceCard({
           </Text>
         ) : null}
 
-        <Text
-          style={styles.price}
+        <View
+          style={
+            styles.bookRow
+          }
         >
-          {service.hourlyPrice ===
-          null
-            ? 'Pricing unavailable'
-            : `${service.currency ?? ''} ${service.hourlyPrice}/hour`}
-        </Text>
-      </View>
+          <Text
+            style={
+              styles.hourlyLabel
+            }
+          >
+            Hourly service
+          </Text>
 
-      <Text
-        style={styles.book}
-      >
-        Book
-      </Text>
+          <Text
+            style={styles.book}
+          >
+            Book ›
+          </Text>
+        </View>
+      </View>
     </TouchableOpacity>
   )
 }
@@ -899,133 +1106,347 @@ function formatAddress(
 
 const styles = StyleSheet.create({
   content: {
-    padding: 20,
-    paddingBottom: 100,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 110,
   },
 
-  locationSection: {
-    marginBottom: 18,
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+
+  logo: {
+    width: 126,
+    height: 44,
+  },
+
+  locationPill: {
+    flex: 1,
+    minHeight: 50,
+    marginLeft: 12,
+    paddingHorizontal: 11,
+    borderRadius: 15,
+    backgroundColor: '#F5F9FC',
+    borderWidth: 1,
+    borderColor: '#DDEAF2',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  locationIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E0F7F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  locationIconText: {
+    fontSize: 11,
+    color: '#00A7A7',
+  },
+
+  locationTextWrap: {
+    flex: 1,
+    marginLeft: 8,
   },
 
   locationLabel: {
-    fontSize: 13,
-    color: '#6B7280',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: '#718096',
   },
 
   location: {
-    marginTop: 4,
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#111827',
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#062F52',
   },
 
-  changeLocation: {
-    marginTop: 6,
-    fontSize: 14,
+  locationChevron: {
+    marginLeft: 5,
+    fontSize: 23,
+    lineHeight: 23,
+    color: '#00A7A7',
+  },
+
+  heroCard: {
+    height: 218,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#EAF7FA',
+    position: 'relative',
+    marginBottom: 28,
+  },
+
+  heroBackground: {
+    ...StyleSheet.absoluteFillObject,
+    width: undefined,
+    height: undefined,
+  },
+
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(245, 251, 253, 0.82)',
+  },
+
+  heroCopy: {
+    position: 'absolute',
+    left: 18,
+    top: 22,
+    width: '53%',
+    zIndex: 2,
+  },
+
+  heroEyebrow: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+    color: '#00A7A7',
+  },
+
+  heroTitle: {
+    marginTop: 7,
+    fontSize: 25,
+    lineHeight: 29,
+    fontWeight: '900',
+    color: '#062F52',
+  },
+
+  heroSubtitle: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 18,
     fontWeight: '600',
-    color: '#007AFF',
+    color: '#466477',
+  },
+
+  heroBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#FF9B32',
+  },
+
+  heroBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+    color: '#FFFFFF',
+  },
+
+  heroWorker: {
+    position: 'absolute',
+    right: -15,
+    bottom: -22,
+    width: '58%',
+    height: '106%',
+    zIndex: 1,
   },
 
   locationWarning: {
-    marginBottom: 18,
+    marginTop: -12,
+    marginBottom: 20,
     padding: 14,
-    borderRadius: 12,
-    backgroundColor: '#FEF2F2',
+    borderRadius: 14,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
   },
 
   locationWarningText: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#B91C1C',
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#9A3412',
   },
 
   locationRetryText: {
     marginTop: 8,
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#007AFF',
-  },
-
-  banner: {
-    minHeight: 130,
-    borderRadius: 18,
-    padding: 20,
-    justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
-    marginBottom: 28,
-  },
-
-  bannerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-  },
-
-  bannerText: {
-    marginTop: 8,
-    fontSize: 14,
-    lineHeight: 21,
-    color: '#6B7280',
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#007A7A',
   },
 
   sectionHeader: {
-    marginBottom: 14,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+
+  sectionHeadingWrap: {
+    flex: 1,
   },
 
   sectionTitle: {
     fontSize: 23,
-    fontWeight: '700',
-    color: '#111827',
+    lineHeight: 28,
+    fontWeight: '900',
+    color: '#062F52',
   },
 
   sectionSubtitle: {
     marginTop: 4,
     fontSize: 13,
-    color: '#6B7280',
+    lineHeight: 19,
+    fontWeight: '500',
+    color: '#6B7C8B',
+  },
+
+  sectionAccent: {
+    width: 42,
+    height: 5,
+    marginBottom: 4,
+    borderRadius: 4,
+    backgroundColor: '#FF9B32',
+  },
+
+  serviceRow: {
+    justifyContent: 'space-between',
   },
 
   card: {
-    minHeight: 145,
+    width: '48.3%',
+    marginBottom: 16,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 12,
+    borderColor: '#E4EDF2',
+    overflow: 'hidden',
+    shadowColor: '#062F52',
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: {
+      width: 0,
+      height: 5,
+    },
+    elevation: 3,
+  },
+
+  cardImageWrap: {
+    height: 132,
+    backgroundColor: '#EAF5F7',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  cardImageFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E0F7F7',
+  },
+
+  cardImageFallbackText: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#00A7A7',
+  },
+
+  cardPricePill: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(6, 47, 82, 0.92)',
+  },
+
+  cardPricePillText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  cardContent: {
+    padding: 11,
+  },
+
+  serviceName: {
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '900',
+    color: '#062F52',
+  },
+
+  description: {
+    minHeight: 34,
+    marginTop: 5,
+    fontSize: 10.5,
+    lineHeight: 15,
+    color: '#718096',
+  },
+
+  bookRow: {
+    marginTop: 9,
+    paddingTop: 9,
+    borderTopWidth: 1,
+    borderTopColor: '#EDF2F5',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
 
-  cardContent: {
-    flex: 1,
-    paddingRight: 12,
-  },
-
-  serviceName: {
-    fontSize: 18,
+  hourlyLabel: {
+    fontSize: 9,
     fontWeight: '700',
-    color: '#111827',
-  },
-
-  description: {
-    marginTop: 6,
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#6B7280',
-  },
-
-  price: {
-    marginTop: 12,
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+    color: '#00A7A7',
   },
 
   book: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-    padding: 8,
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#062F52',
+  },
+
+  bottomBanner: {
+    marginTop: 10,
+    marginBottom: 12,
+    padding: 18,
+    borderRadius: 20,
+    backgroundColor: '#062F52',
+    overflow: 'hidden',
+  },
+
+  bottomBannerAccent: {
+    position: 'absolute',
+    right: -20,
+    top: -28,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#00A7A7',
+    opacity: 0.35,
+  },
+
+  bottomBannerTitle: {
+    maxWidth: '82%',
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+
+  bottomBannerText: {
+    maxWidth: '88%',
+    marginTop: 7,
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#C8E5E8',
   },
 
   loading: {
@@ -1059,7 +1480,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#062F52',
   },
 
   retryLocationButtonText: {
@@ -1070,8 +1491,10 @@ const styles = StyleSheet.create({
 
   errorBox: {
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
 
   errorText: {
@@ -1086,13 +1509,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#062F52',
   },
 
   errorRetryText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 
   empty: {
@@ -1102,8 +1525,8 @@ const styles = StyleSheet.create({
 
   emptyTitle: {
     fontSize: 17,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: '700',
+    color: '#062F52',
     textAlign: 'center',
   },
 
@@ -1112,12 +1535,12 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 21,
-    textAlignVertical: 'center',
   },
 
   modalContainer: {
     flex: 1,
     padding: 24,
+    backgroundColor: '#FFFFFF',
   },
 
   modalHeader: {
@@ -1126,16 +1549,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
 
+  modalKicker: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+    color: '#00A7A7',
+  },
+
   modalTitle: {
+    marginTop: 3,
     fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '900',
+    color: '#062F52',
+  },
+
+  modalCloseButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#F3F8FA',
   },
 
   closeButton: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#062F52',
   },
 
   modalDescription: {
@@ -1149,11 +1587,12 @@ const styles = StyleSheet.create({
     marginTop: 24,
     height: 52,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
+    borderColor: '#C9D9E1',
+    borderRadius: 14,
     paddingHorizontal: 16,
     fontSize: 16,
-    color: '#111827',
+    color: '#062F52',
+    backgroundColor: '#F9FCFD',
   },
 
   locationError: {
@@ -1165,10 +1604,10 @@ const styles = StyleSheet.create({
   primaryButton: {
     marginTop: 16,
     minHeight: 52,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#007AFF',
+    backgroundColor: '#062F52',
   },
 
   disabledButton: {
@@ -1177,23 +1616,24 @@ const styles = StyleSheet.create({
 
   primaryButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#FFFFFF',
   },
 
   currentLocationButton: {
     marginTop: 12,
     minHeight: 52,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: '#B8D2D9',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#F7FBFC',
   },
 
   currentLocationButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: '700',
+    color: '#062F52',
   },
 })
