@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -21,6 +22,9 @@ type RegistrationScreenProps = {
 
 const MAX_NAME_LENGTH = 100
 const MAX_COMPANY_NAME_LENGTH = 150
+
+const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
+const registrationHero = require('../../assets/home/hero-worker.png')
 
 export default function RegistrationScreen({
   phone,
@@ -89,19 +93,72 @@ export default function RegistrationScreen({
       >
         <View style={styles.container}>
           <View>
-            <Text style={styles.title}>
-              Create your account
-            </Text>
+            <View style={styles.brandRow}>
+              <Image
+                source={tempStaffLogo}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+              <View style={styles.brandDivider} />
+              <Text style={styles.brandLabel}>
+                NEW CUSTOMER
+              </Text>
+            </View>
 
-            <Text style={styles.subtitle}>
-              Complete your details to continue.
-            </Text>
+            <View style={styles.heroCard}>
+              <View style={styles.heroCopy}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>
+                    03
+                  </Text>
+                </View>
+
+                <Text style={styles.title}>
+                  Let’s get your account ready
+                </Text>
+
+                <Text style={styles.subtitle}>
+                  Add a few details so TempStaff can
+                  personalize your booking experience.
+                </Text>
+
+                <View style={styles.phonePill}>
+                  <View style={styles.phoneDot} />
+                  <Text style={styles.phoneText}>
+                    {phone || 'Mobile verified'}
+                  </Text>
+                </View>
+              </View>
+
+              <Image
+                source={registrationHero}
+                style={styles.heroImage}
+                resizeMode="contain"
+              />
+            </View>
           </View>
 
-          <View style={styles.form}>
+          <View style={styles.formCard}>
+            <View style={styles.formHeader}>
+              <View style={styles.profileIcon}>
+                <Text style={styles.profileIconText}>
+                  +
+                </Text>
+              </View>
+
+              <View style={styles.formHeaderCopy}>
+                <Text style={styles.formTitle}>
+                  Your details
+                </Text>
+                <Text style={styles.formSubtitle}>
+                  This information will be linked to your customer account.
+                </Text>
+              </View>
+            </View>
+
             <View style={styles.field}>
               <Text style={styles.label}>
-                Name
+                Full name
               </Text>
 
               <TextInput
@@ -110,7 +167,8 @@ export default function RegistrationScreen({
                   setName(value)
                   setError('')
                 }}
-                placeholder="Enter your name"
+                placeholder="Enter your full name"
+                placeholderTextColor="#9AAEBB"
                 autoCapitalize="words"
                 autoCorrect={false}
                 editable={!loading}
@@ -132,7 +190,8 @@ export default function RegistrationScreen({
                   setCompanyName(value)
                   setError('')
                 }}
-                placeholder="Enter company name"
+                placeholder="Enter your company name"
+                placeholderTextColor="#9AAEBB"
                 autoCapitalize="words"
                 autoCorrect={false}
                 editable={!loading}
@@ -144,9 +203,14 @@ export default function RegistrationScreen({
             </View>
 
             {error.length > 0 && (
-              <Text style={styles.error}>
-                {error}
-              </Text>
+              <View style={styles.errorBox}>
+                <Text style={styles.errorIcon}>
+                  !
+                </Text>
+                <Text style={styles.error}>
+                  {error}
+                </Text>
+              </View>
             )}
 
             <AppButton
@@ -158,11 +222,11 @@ export default function RegistrationScreen({
               disabled={!isValid || loading}
               onPress={handleContinue}
             />
-          </View>
 
-          <Text style={styles.phone}>
-            Mobile: {phone || 'Not available'}
-          </Text>
+            <Text style={styles.helperText}>
+              You can update your account details later.
+            </Text>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </ScreenContainer>
@@ -173,53 +237,237 @@ const styles = StyleSheet.create({
   keyboard: {
     flex: 1,
   },
+
   container: {
     flex: 1,
-    padding: 24,
-    paddingTop: 60,
-    paddingBottom: 32,
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 18,
+    justifyContent: 'space-between',
+    backgroundColor: '#F7FBFD',
   },
+
+  brandRow: {
+    height: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  logo: {
+    width: 118,
+    height: 34,
+  },
+
+  brandDivider: {
+    width: 1,
+    height: 18,
+    marginHorizontal: 12,
+    backgroundColor: '#D8E6ED',
+  },
+
+  brandLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+    color: '#6C8190',
+  },
+
+  heroCard: {
+    minHeight: 220,
+    marginTop: 18,
+    paddingLeft: 20,
+    paddingTop: 21,
+    paddingBottom: 10,
+    borderRadius: 26,
+    overflow: 'hidden',
+    backgroundColor: '#062F52',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  heroCopy: {
+    flex: 1,
+    zIndex: 2,
+  },
+
+  stepBadge: {
+    width: 38,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00A7A7',
+    marginBottom: 13,
+  },
+
+  stepBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
+  },
+
   title: {
-    fontSize: 30,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: 27,
+    lineHeight: 33,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    maxWidth: 215,
   },
+
   subtitle: {
-    marginTop: 10,
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#6B7280',
-  },
-  form: {
-    marginTop: 48,
-    gap: 20,
-  },
-  field: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  input: {
-    height: 52,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: '#111827',
-  },
-  error: {
-    fontSize: 14,
+    marginTop: 9,
+    fontSize: 13,
     lineHeight: 20,
-    color: '#DC2626',
+    color: '#D9EAF3',
+    maxWidth: 220,
   },
-  phone: {
-    marginTop: 'auto',
-    fontSize: 14,
-    color: '#6B7280',
+
+  phonePill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 13,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.11)',
+  },
+
+  phoneDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 8,
+    backgroundColor: '#00D0C5',
+  },
+
+  phoneText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  heroImage: {
+    width: 136,
+    height: 178,
+    marginRight: -11,
+    marginBottom: -1,
+  },
+
+  formCard: {
+    padding: 18,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2EDF2',
+    shadowColor: '#062F52',
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    shadowOffset: {
+      width: 0,
+      height: 7,
+    },
+    elevation: 3,
+  },
+
+  formHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  profileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E5F7F7',
+    marginRight: 11,
+  },
+
+  profileIconText: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#008C8C',
+  },
+
+  formHeaderCopy: {
+    flex: 1,
+  },
+
+  formTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#17354A',
+  },
+
+  formSubtitle: {
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#718491',
+  },
+
+  field: {
+    marginBottom: 13,
+  },
+
+  label: {
+    marginBottom: 7,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#29465A',
+  },
+
+  input: {
+    height: 51,
+    borderWidth: 1.2,
+    borderColor: '#C5D6DF',
+    borderRadius: 14,
+    paddingHorizontal: 15,
+    backgroundColor: '#F9FCFD',
+    fontSize: 15,
+    color: '#062F52',
+  },
+
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    marginBottom: 11,
+    borderRadius: 12,
+    backgroundColor: '#FFF2F0',
+  },
+
+  errorIcon: {
+    width: 18,
+    height: 18,
+    marginRight: 7,
+    borderRadius: 9,
+    textAlign: 'center',
+    lineHeight: 18,
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    backgroundColor: '#D92D20',
+  },
+
+  error: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#B42318',
+    fontWeight: '600',
+  },
+
+  helperText: {
+    marginTop: 10,
+    fontSize: 11,
+    lineHeight: 16,
+    color: '#8A9AA4',
     textAlign: 'center',
   },
 })
