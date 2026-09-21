@@ -154,19 +154,19 @@ export default function AvailabilityScreen({
     )
 
   const [timezone, setTimezone] =
-  useState<string>(
-    SCHEDULE.defaults.timezone,
-  )
+    useState<string>(
+      SCHEDULE.defaults.timezone,
+    )
 
   const [
-  slotIntervalMinutes,
-  setSlotIntervalMinutes,
-] = useState<string>(
-  String(
-    SCHEDULE.defaults
-      .slotIntervalMinutes,
-  ),
-)
+    slotIntervalMinutes,
+    setSlotIntervalMinutes,
+  ] = useState<string>(
+    String(
+      SCHEDULE.defaults
+        .slotIntervalMinutes,
+    ),
+  )
 
   const [loading, setLoading] =
     useState(true)
@@ -611,22 +611,15 @@ export default function AvailabilityScreen({
 
         <View style={styles.daysCard}>
           {(
-           (
-  Object.keys(days).map(
-    Number,
-  ) as WorkerDayOfWeek[]
-).map(dayOfWeek => {
-            const dayOfWeek =
-              Number(
-                dayValue,
-              ) as WorkerDayOfWeek
-
-            const draft =
-              days[dayOfWeek]
+            Object.keys(days).map(
+              Number,
+            ) as WorkerDayOfWeek[]
+          ).map(dayOfWeek => {
+            const draft = days[dayOfWeek]
 
             return (
               <View
-                key={dayValue}
+                key={dayOfWeek}
                 style={[
                   styles.dayRow,
                   dayOfWeek !== 0 &&
@@ -648,9 +641,7 @@ export default function AvailabilityScreen({
                           styles.dayToggleTextActive,
                       ]}
                     >
-                      {draft.enabled
-                        ? 'ON'
-                        : 'OFF'}
+                      {draft.enabled ? 'ON' : 'OFF'}
                     </Text>
                   </View>
 
@@ -661,9 +652,7 @@ export default function AvailabilityScreen({
                     }
                   </Text>
 
-                  <View
-                    style={styles.dayAction}
-                  >
+                  <View style={styles.dayAction}>
                     <AppButton
                       title={
                         draft.enabled
@@ -672,17 +661,11 @@ export default function AvailabilityScreen({
                       }
                       variant="secondary"
                       onPress={() => {
-                        updateDay(
-                          dayOfWeek,
-                          {
-                            enabled:
-                              !draft.enabled,
-                          },
-                        )
+                        updateDay(dayOfWeek, {
+                          enabled: !draft.enabled,
+                        })
                       }}
-                      disabled={
-                        saving
-                      }
+                      disabled={saving}
                     />
                   </View>
                 </View>
@@ -690,24 +673,16 @@ export default function AvailabilityScreen({
                 {draft.enabled ? (
                   <View style={styles.timeRow}>
                     <View style={styles.timeField}>
-                      <Text
-                        style={styles.timeLabel}
-                      >
+                      <Text style={styles.timeLabel}>
                         Start
                       </Text>
 
                       <TextInput
-                        value={
-                          draft.startTime
-                        }
+                        value={draft.startTime}
                         onChangeText={value => {
-                          updateDay(
-                            dayOfWeek,
-                            {
-                              startTime:
-                                value,
-                            },
-                          )
+                          updateDay(dayOfWeek, {
+                            startTime: value,
+                          })
                         }}
                         placeholder="09:00"
                         placeholderTextColor={
@@ -715,45 +690,29 @@ export default function AvailabilityScreen({
                         }
                         autoCapitalize="none"
                         autoCorrect={false}
-                        editable={
-                          !saving
-                        }
+                        editable={!saving}
                         maxLength={5}
-                        style={
-                          styles.timeInput
-                        }
+                        style={styles.timeInput}
                       />
                     </View>
 
                     <View style={styles.timeDivider}>
-                      <Text
-                        style={
-                          styles.timeDividerText
-                        }
-                      >
+                      <Text style={styles.timeDividerText}>
                         to
                       </Text>
                     </View>
 
                     <View style={styles.timeField}>
-                      <Text
-                        style={styles.timeLabel}
-                      >
+                      <Text style={styles.timeLabel}>
                         End
                       </Text>
 
                       <TextInput
-                        value={
-                          draft.endTime
-                        }
+                        value={draft.endTime}
                         onChangeText={value => {
-                          updateDay(
-                            dayOfWeek,
-                            {
-                              endTime:
-                                value,
-                            },
-                          )
+                          updateDay(dayOfWeek, {
+                            endTime: value,
+                          })
                         }}
                         placeholder="18:00"
                         placeholderTextColor={
@@ -761,13 +720,9 @@ export default function AvailabilityScreen({
                         }
                         autoCapitalize="none"
                         autoCorrect={false}
-                        editable={
-                          !saving
-                        }
+                        editable={!saving}
                         maxLength={5}
-                        style={
-                          styles.timeInput
-                        }
+                        style={styles.timeInput}
                       />
                     </View>
                   </View>
