@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -63,6 +64,15 @@ type BookingScreenProps = {
 
 type BookingType = 'instant' | 'scheduled' | 'recurring'
 
+const serviceImages: Record<string, number> = {
+  helper: require('../../assets/services/helper.png'),
+  'housekeeping boy': require('../../assets/services/housekeeping-boy.png'),
+  'office boy': require('../../assets/services/office-boy.png'),
+  'pantry boy': require('../../assets/services/pantry-boy.png'),
+}
+
+const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
+
 const METHOD_COPY: Record<
   BookingType,
   {
@@ -91,6 +101,10 @@ const METHOD_COPY: Record<
     description:
       'Book the same service on selected days.',
   },
+}
+
+function getServiceImage(name: string) {
+  return serviceImages[name.trim().toLowerCase()]
 }
 
 export default function BookingScreen({
@@ -757,6 +771,16 @@ if (
   return (
     <ScreenContainer>
       <View style={styles.header}>
+        <View style={styles.brandRow}>
+          <Image
+            source={tempStaffLogo}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
+          <View style={styles.brandDivider} />
+          <Text style={styles.brandCaption}>BOOKING</Text>
+        </View>
+
         <View style={styles.headerTop}>
           <View style={styles.stepBadge}>
             <Text style={styles.stepBadgeText}>
@@ -813,13 +837,23 @@ if (
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.serviceHero}>
-          <View style={styles.serviceHeroIcon}>
-            <Text style={styles.serviceHeroIconText}>
-              {service.name
-                .trim()
-                .charAt(0)
-                .toUpperCase()}
-            </Text>
+          <View style={styles.serviceHeroImageWrap}>
+            {getServiceImage(service.name) ? (
+              <Image
+                source={getServiceImage(service.name)}
+                style={styles.serviceHeroImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.serviceHeroFallback}>
+                <Text style={styles.serviceHeroIconText}>
+                  {service.name
+                    .trim()
+                    .charAt(0)
+                    .toUpperCase()}
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.serviceHeroContent}>
@@ -1961,6 +1995,31 @@ if (
 }
 
 const styles = StyleSheet.create({
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  brandLogo: {
+    width: 92,
+    height: 28,
+  },
+
+  brandDivider: {
+    width: 1,
+    height: 18,
+    marginHorizontal: 10,
+    backgroundColor: '#D8E8ED',
+  },
+
+  brandCaption: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    color: '#5E7C8B',
+  },
+
   header: {
     paddingHorizontal: 20,
     paddingTop: 10,
@@ -1980,7 +2039,7 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: '#062F52',
   },
 
   stepBadgeText: {
@@ -2006,7 +2065,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 28,
     fontWeight: '800',
-    color: '#111827',
+    color: '#062F52',
   },
 
   progressTrack: {
@@ -2020,7 +2079,7 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 2,
-    backgroundColor: '#111827',
+    backgroundColor: '#00A7A7',
   },
 
   progressLabels: {
@@ -2032,7 +2091,7 @@ const styles = StyleSheet.create({
   progressActive: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#111827',
+    color: '#062F52',
   },
 
   progressLabel: {
@@ -2053,23 +2112,34 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderRadius: 18,
-    backgroundColor: '#111827',
+    backgroundColor: '#062F52',
   },
 
-  serviceHeroIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+  serviceHeroImageWrap: {
+    width: 62,
+    height: 62,
+    borderRadius: 18,
+    overflow: 'hidden',
     backgroundColor: '#FFFFFF',
     marginRight: 14,
+  },
+
+  serviceHeroImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  serviceHeroFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EAF7F7',
   },
 
   serviceHeroIconText: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#111827',
+    color: '#062F52',
   },
 
   serviceHeroContent: {
@@ -2101,9 +2171,9 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 14,
     borderRadius: 16,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5F2F5',
   },
 
   locationIcon: {
@@ -2112,14 +2182,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#E5F2F5',
     marginRight: 12,
   },
 
   locationIconText: {
     fontSize: 28,
     lineHeight: 26,
-    color: '#334155',
+    color: '#174C68',
     fontWeight: '800',
   },
 
@@ -2132,7 +2202,7 @@ const styles = StyleSheet.create({
     lineHeight: 13,
     fontWeight: '800',
     letterSpacing: 0.9,
-    color: '#64748B',
+    color: '#5E7C8B',
   },
 
   locationAddress: {
@@ -2140,7 +2210,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 19,
     fontWeight: '600',
-    color: '#0F172A',
+    color: '#062F52',
   },
 
   availabilityShell: {
@@ -2155,10 +2225,10 @@ const styles = StyleSheet.create({
     marginTop: -18,
     borderBottomLeftRadius: 14,
     borderBottomRightRadius: 14,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F0FBF8',
     borderWidth: 1,
     borderTopWidth: 0,
-    borderColor: '#BBF7D0',
+    borderColor: '#BFE9DF',
   },
 
   availabilityStatusDot: {
@@ -2176,26 +2246,26 @@ const styles = StyleSheet.create({
   availabilityTitle: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#166534',
+    color: '#087F72',
   },
 
   availabilitySubtitle: {
     marginTop: 2,
     fontSize: 11,
-    color: '#15803D',
+    color: '#087F72',
   },
 
   distanceBadge: {
     paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#DDF7F0',
   },
 
   distanceBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#166534',
+    color: '#087F72',
   },
 
   sectionDescription: {
@@ -2203,7 +2273,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     fontSize: 13,
     lineHeight: 19,
-    color: '#64748B',
+    color: '#5E7C8B',
   },
 
   methodList: {
@@ -2218,12 +2288,12 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5F2F5',
   },
 
   methodCardSelected: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#111827',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#062F52',
     borderWidth: 2,
   },
 
@@ -2237,18 +2307,18 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#EAF7F7',
     marginRight: 12,
   },
 
   methodIconSelected: {
-    backgroundColor: '#111827',
+    backgroundColor: '#00A7A7',
   },
 
   methodIconText: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#475569',
+    color: '#37657A',
   },
 
   methodIconTextSelected: {
@@ -2275,7 +2345,7 @@ const styles = StyleSheet.create({
   },
 
   methodEyebrowSelected: {
-    color: '#475569',
+    color: '#37657A',
   },
 
   methodTitle: {
@@ -2283,11 +2353,11 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 22,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#062F52',
   },
 
   methodTitleSelected: {
-    color: '#111827',
+    color: '#062F52',
   },
 
   methodDescription: {
@@ -2295,33 +2365,33 @@ const styles = StyleSheet.create({
     paddingRight: 4,
     fontSize: 12,
     lineHeight: 17,
-    color: '#64748B',
+    color: '#5E7C8B',
   },
 
   availableBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#DDF7F0',
   },
 
   availableBadgeText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#166534',
+    color: '#087F72',
   },
 
   unavailableBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#EAF7F7',
   },
 
   unavailableBadgeText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#64748B',
+    color: '#5E7C8B',
   },
 
   radioOuter: {
@@ -2336,14 +2406,14 @@ const styles = StyleSheet.create({
   },
 
   radioOuterSelected: {
-    borderColor: '#111827',
+    borderColor: '#062F52',
   },
 
   radioInner: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#111827',
+    backgroundColor: '#00A7A7',
   },
 
   infoBanner: {
@@ -2351,9 +2421,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 13,
     borderRadius: 14,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5F2F5',
   },
 
   infoBannerIcon: {
@@ -2362,21 +2432,21 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#E5F2F5',
     marginRight: 10,
   },
 
   infoBannerIconText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#334155',
+    color: '#174C68',
   },
 
   infoBannerText: {
     flex: 1,
     fontSize: 12,
     lineHeight: 17,
-    color: '#475569',
+    color: '#37657A',
     fontWeight: '500',
   },
 
@@ -2385,7 +2455,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderRadius: 16,
-    backgroundColor: '#111827',
+    backgroundColor: '#062F52',
   },
 
   durationEyebrow: {
@@ -2406,7 +2476,7 @@ const styles = StyleSheet.create({
     width: 1,
     height: 32,
     marginHorizontal: 18,
-    backgroundColor: '#334155',
+    backgroundColor: '#174C68',
   },
 
   durationRight: {
@@ -2428,28 +2498,28 @@ const styles = StyleSheet.create({
   warningCard: {
     padding: 13,
     borderRadius: 14,
-    backgroundColor: '#FFF7ED',
+    backgroundColor: '#FFF4E8',
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: '#FFD8B0',
   },
 
   warningTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#9A3412',
+    color: '#A75A16',
   },
 
   warningText: {
     marginTop: 3,
     fontSize: 12,
     lineHeight: 17,
-    color: '#C2410C',
+    color: '#B86A20',
   },
 
   fallbackCard: {
     padding: 15,
     borderRadius: 16,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#CBD5E1',
   },
@@ -2457,14 +2527,14 @@ const styles = StyleSheet.create({
   fallbackTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#062F52',
   },
 
   fallbackText: {
     marginTop: 5,
     fontSize: 12,
     lineHeight: 18,
-    color: '#64748B',
+    color: '#5E7C8B',
   },
 
   fallbackButton: {
@@ -2475,7 +2545,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: '#062F52',
   },
 
   fallbackButtonText: {
@@ -2488,9 +2558,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     padding: 14,
     borderRadius: 18,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5F2F5',
   },
 
   availabilityHeader: {
@@ -2503,26 +2573,26 @@ const styles = StyleSheet.create({
   availabilityHeading: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#062F52',
   },
 
   availabilitySubheading: {
     marginTop: 2,
     fontSize: 11,
-    color: '#64748B',
+    color: '#5E7C8B',
   },
 
   slotConfirmedBadge: {
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#DDF7F0',
   },
 
   slotConfirmedBadgeText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#166534',
+    color: '#087F72',
   },
 
   emptySlotsCard: {
@@ -2530,14 +2600,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5F2F5',
     alignItems: 'center',
   },
 
   emptySlotsTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#334155',
+    color: '#174C68',
   },
 
   emptySlotsText: {
@@ -2545,16 +2615,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',
-    color: '#64748B',
+    color: '#5E7C8B',
   },
 
   futureBookingCard: {
     flexDirection: 'row',
     padding: 14,
     borderRadius: 16,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5F2F5',
   },
 
   futureBookingIcon: {
@@ -2563,14 +2633,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#E5F2F5',
     marginRight: 11,
   },
 
   futureBookingIconText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#334155',
+    color: '#174C68',
   },
 
   futureBookingContent: {
@@ -2580,22 +2650,22 @@ const styles = StyleSheet.create({
   futureBookingTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#062F52',
   },
 
   futureBookingText: {
     marginTop: 3,
     fontSize: 12,
     lineHeight: 17,
-    color: '#64748B',
+    color: '#5E7C8B',
   },
 
   recurringSummary: {
     padding: 14,
     borderRadius: 18,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5F2F5',
   },
 
   recurringSummaryTop: {
@@ -2608,27 +2678,27 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.8,
-    color: '#64748B',
+    color: '#5E7C8B',
   },
 
   recurringCount: {
     marginTop: 3,
     fontSize: 17,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#062F52',
   },
 
   recurringBadge: {
     paddingHorizontal: 9,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#E5F2F5',
   },
 
   recurringBadgeText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#475569',
+    color: '#37657A',
   },
 
   trustCard: {
@@ -2639,7 +2709,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5F2F5',
   },
 
   trustItem: {
@@ -2658,7 +2728,7 @@ const styles = StyleSheet.create({
   trustText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#5E7C8B',
   },
 
   bottomSpacer: {
@@ -2671,7 +2741,7 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#E5F2F5',
   },
 
   footerSummary: {
@@ -2691,7 +2761,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 13,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#062F52',
   },
 
   footerPriceBlock: {
@@ -2708,7 +2778,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
     fontSize: 18,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#062F52',
   },
 
   continueButton: {
@@ -2718,7 +2788,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: '#00A7A7',
   },
 
   continueButtonDisabled: {
