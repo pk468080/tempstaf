@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import {
+  Image,
   StyleSheet,
-  Text,
   View,
 } from 'react-native'
 
@@ -90,13 +90,11 @@ export default function SplashScreen({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>
-        TempStaff
-      </Text>
-
-      <Text style={styles.subtitle}>
-        On-demand workforce
-      </Text>
+      <Image
+        source={require('../../assets/splash/tempstaff-splash.png')}
+        style={styles.splashImage}
+        resizeMode="contain"
+      />
     </View>
   )
 }
@@ -106,18 +104,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F7FBFD',
   },
 
-  logo: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#111827',
-  },
-
-  subtitle: {
-    marginTop: 8,
-    fontSize: 15,
-    color: '#6B7280',
+  splashImage: {
+    width: '100%',
+    height: '100%',
   },
 })
