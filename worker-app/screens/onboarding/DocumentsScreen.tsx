@@ -17,7 +17,7 @@ import * as DocumentPicker from 'expo-document-picker'
 import { AppButton } from '../../components/ui/AppButton'
 import DocumentUploadCard from '../../components/onboarding/DocumentUploadCard'
 import ErrorState from '../../components/ui/ErrorState'
-import { OnboardingProgress } from '../../components/onboarding/OnboardingProgress'
+import OnboardingProgress from '../../components/onboarding/OnboardingProgress'
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
 
 import {
