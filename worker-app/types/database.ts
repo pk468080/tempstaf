@@ -415,7 +415,139 @@ export type Database = {
 
     Views: {}
 
-    Functions: {}
+    Functions: {
+  worker_booking_action: {
+    Args: {
+      p_booking_id: string
+      p_action: string
+    }
+    Returns: Json
+  }
+
+  worker_occurrence_action: {
+    Args: {
+      p_occurrence_id: string
+      p_action: string
+    }
+    Returns: Json
+  }
+
+  verify_booking_otp_atomic: {
+    Args: {
+      p_booking_id: string
+      p_otp_type: string
+      p_otp_hash: string
+    }
+    Returns: Json
+  }
+
+  verify_booking_occurrence_otp_atomic: {
+    Args: {
+      p_occurrence_id: string
+      p_otp_type: string
+      p_otp_hash: string
+    }
+    Returns: Json
+  }
+
+  worker_respond_to_offer: {
+    Args: {
+      p_offer_id: string
+      p_response: string
+    }
+    Returns: Json
+  }
+
+  worker_set_presence: {
+    Args: {
+      p_available: boolean
+    }
+    Returns: Json
+  }
+
+  worker_presence_heartbeat: {
+    Args: {
+      p_latitude: number
+      p_longitude: number
+    }
+    Returns: Json
+  }
+
+  worker_update_location: {
+    Args: {
+      p_latitude: number
+      p_longitude: number
+      p_booking_id: string | null
+    }
+    Returns: Json
+  }
+
+  record_worker_booking_location: {
+    Args: {
+      p_booking_id: string
+      p_latitude: number
+      p_longitude: number
+    }
+    Returns: Json
+  }
+
+  save_worker_onboarding: {
+    Args: {
+      p_date_of_birth?: string | null
+      p_gender?: string | null
+      p_current_address?: string | null
+      p_permanent_address?: string | null
+      p_city?: string | null
+      p_state?: string | null
+      p_pincode?: string | null
+      p_experience_years?: number | null
+      p_experience_summary?: string | null
+      p_profile_photo_path?: string | null
+      p_service_latitude?: number | null
+      p_service_longitude?: number | null
+      p_onboarding_step?: number
+    }
+    Returns: Json
+  }
+
+  set_worker_onboarding_consent: {
+    Args: {}
+    Returns: Json
+  }
+
+  submit_worker_application: {
+    Args: {}
+    Returns: Json
+  }
+
+  save_worker_document: {
+    Args: {
+      p_document_type: string
+      p_file_path: string
+      p_file_name: string | null
+      p_mime_type: string | null
+      p_file_size: number | null
+    }
+    Returns: Json
+  }
+
+  set_worker_services: {
+    Args: {
+      p_service_ids: string[]
+    }
+    Returns: Json
+  }
+
+  create_worker_support_ticket: {
+    Args: {
+      p_category: string
+      p_subject: string
+      p_description: string
+      p_booking_id?: string | null
+    }
+    Returns: Json
+  }
+}
 
     Enums: {
       user_role: UserRole
