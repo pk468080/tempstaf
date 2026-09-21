@@ -154,19 +154,19 @@ export default function AvailabilityScreen({
     )
 
   const [timezone, setTimezone] =
-    useState(
-      SCHEDULE.defaults.timezone,
-    )
+  useState<string>(
+    SCHEDULE.defaults.timezone,
+  )
 
   const [
-    slotIntervalMinutes,
-    setSlotIntervalMinutes,
-  ] = useState(
-    String(
-      SCHEDULE.defaults
-        .slotIntervalMinutes,
-    ),
-  )
+  slotIntervalMinutes,
+  setSlotIntervalMinutes,
+] = useState<string>(
+  String(
+    SCHEDULE.defaults
+      .slotIntervalMinutes,
+  ),
+)
 
   const [loading, setLoading] =
     useState(true)
@@ -611,12 +611,11 @@ export default function AvailabilityScreen({
 
         <View style={styles.daysCard}>
           {(
-            Object.keys(
-              days,
-            ) as Array<
-              keyof DayDraftMap
-            >
-          ).map(dayValue => {
+           (
+  Object.keys(days).map(
+    Number,
+  ) as WorkerDayOfWeek[]
+).map(dayOfWeek => {
             const dayOfWeek =
               Number(
                 dayValue,
