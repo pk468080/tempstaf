@@ -21,7 +21,6 @@ import {
 import {
   getCustomerBooking,
   getCustomerBookingStatusHistory,
-  cancelCustomerBooking,
   getLatestWorkerLocation,
   getWorkerLocationAgeSeconds,
   getWorkerLocationFreshness,
@@ -32,6 +31,8 @@ import {
   type WorkerLocation,
   type WorkerLocationFreshness,
 } from '../../services/booking/bookingTracking.service'
+
+import { cancelCustomerBooking } from '../../services/booking/bookingCancellation.service'
 
 import { supabase } from '../../lib/supabase'
 
