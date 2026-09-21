@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -33,6 +34,9 @@ import { supabase } from '../../lib/supabase'
 type ActiveBookingScreenProps = {
   bookingId: string
 }
+
+const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
+const trackingHero = require('../../assets/home/hero-worker.png')
 
 function formatStatus(status: BookingStatus) {
   return status
@@ -480,8 +484,9 @@ export default function ActiveBookingScreen({
       <ScreenContainer>
         <View style={styles.loading}>
           <ActivityIndicator />
+          <Image source={tempStaffLogo} style={styles.loadingLogo} resizeMode="contain" />
           <Text style={styles.loadingText}>
-            Loading booking...
+            Loading your booking...
           </Text>
         </View>
       </ScreenContainer>
@@ -492,8 +497,12 @@ export default function ActiveBookingScreen({
     return (
       <ScreenContainer>
         <View style={styles.container}>
+          <View style={styles.brandRow}>
+            <Image source={tempStaffLogo} style={styles.logo} resizeMode="contain" />
+            <Text style={styles.brandLabel}>BOOKING</Text>
+          </View>
           <Text style={styles.title}>
-            Booking
+            Booking unavailable
           </Text>
 
           <Text style={styles.error}>
@@ -526,11 +535,23 @@ export default function ActiveBookingScreen({
   return (
     <ScreenContainer>
       <View style={styles.container}>
-        <Text style={styles.title}>
-          {tracking
-            ? 'Booking tracking'
-            : 'Booking confirmation'}
-        </Text>
+        <View style={styles.brandRow}>
+          <Image source={tempStaffLogo} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.brandLabel}>
+            {tracking ? 'LIVE TRACKING' : 'BOOKING'}
+          </Text>
+        </View>
+        <View style={styles.headingRow}>
+          <View style={styles.stepBadge}><Text style={styles.stepBadgeText}>{tracking ? '12' : '11'}</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>
+              {tracking ? 'Your worker is on the move' : 'Booking confirmed'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {tracking ? 'Follow the latest verified worker location below.' : 'Your TempStaff booking status and details are shown here.'}
+            </Text>
+          </View>
+        </View>
 
         <View
           style={[
@@ -546,6 +567,10 @@ export default function ActiveBookingScreen({
               styles.progressCard,
           ]}
         >
+          <View style={styles.stateTopRow}>
+            <View style={styles.stateIcon}><Text style={styles.stateIconText}>{tracking ? 'LIVE' : 'OK'}</Text></View>
+            <Image source={trackingHero} style={styles.stateHero} resizeMode="cover" />
+          </View>
           <Text style={styles.stateTitle}>
             {getStateTitle(
               booking,
@@ -950,44 +975,128 @@ const styles =
       gap: 12,
     },
 
+    loadingLogo: {
+      width: 150,
+      height: 52,
+      marginBottom: 8,
+    },
+
+    brandRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+
+    logo: {
+      width: 132,
+      height: 44,
+    },
+
+    brandLabel: {
+      marginLeft: 10,
+      color: '#00A7A7',
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 1.1,
+    },
+
+    headingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+
+    stepBadge: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#062F52',
+      marginRight: 12,
+    },
+
+    stepBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '900',
+    },
+
+    subtitle: {
+      marginTop: 4,
+      color: '#607789',
+      fontSize: 13,
+      lineHeight: 19,
+    },
+
+    stateTopRow: {
+      minHeight: 70,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+
+    stateIcon: {
+      width: 56,
+      height: 56,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#062F52',
+    },
+
+    stateIconText: {
+      color: '#FFFFFF',
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 0.7,
+    },
+
+    stateHero: {
+      width: 92,
+      height: 66,
+      borderRadius: 18,
+    },
+
     loadingText: {
       color: '#6B7280',
     },
 
     container: {
-      padding: 20,
+      padding: 18,
     },
 
     title: {
       fontSize: 28,
       fontWeight: '700',
-      color: '#111827',
+      color: '#062F52',
       marginBottom: 16,
     },
 
     stateCard: {
       padding: 18,
       borderRadius: 16,
-      backgroundColor: '#ECFDF5',
+      backgroundColor: '#E8F7F7',
       marginBottom: 16,
     },
 
     searchingCard: {
-      backgroundColor: '#EFF6FF',
+      backgroundColor: '#EAF4FB',
     },
 
     trackingCard: {
-      backgroundColor: '#F3F4F6',
+      backgroundColor: '#EEF5F8',
     },
 
     progressCard: {
-      backgroundColor: '#F9FAFB',
+      backgroundColor: '#FFFFFF',
     },
 
     stateTitle: {
       fontSize: 20,
       fontWeight: '800',
-      color: '#111827',
+      color: '#062F52',
     },
 
     stateMessage: {
@@ -1000,7 +1109,7 @@ const styles =
       marginBottom: 16,
       borderRadius: 16,
       overflow: 'hidden',
-      backgroundColor: '#F9FAFB',
+      backgroundColor: '#FFFFFF',
     },
 
     mapHeader: {
@@ -1012,7 +1121,7 @@ const styles =
     mapTitle: {
       fontSize: 17,
       fontWeight: '800',
-      color: '#111827',
+      color: '#062F52',
     },
 
     map: {
@@ -1025,13 +1134,13 @@ const styles =
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 24,
-      backgroundColor: '#F3F4F6',
+      backgroundColor: '#EEF5F8',
     },
 
     mapUnavailableTitle: {
       fontSize: 17,
       fontWeight: '800',
-      color: '#111827',
+      color: '#062F52',
       textAlign: 'center',
     },
 
@@ -1045,14 +1154,14 @@ const styles =
     card: {
       padding: 18,
       borderRadius: 16,
-      backgroundColor: '#F9FAFB',
+      backgroundColor: '#FFFFFF',
       marginBottom: 16,
     },
 
     sectionTitle: {
       fontSize: 17,
       fontWeight: '800',
-      color: '#111827',
+      color: '#062F52',
       marginBottom: 10,
     },
 
@@ -1070,7 +1179,7 @@ const styles =
     value: {
       flex: 1,
       maxWidth: '65%',
-      color: '#111827',
+      color: '#062F52',
       fontWeight: '600',
       textAlign: 'right',
     },
@@ -1079,7 +1188,7 @@ const styles =
       marginTop: 4,
       fontSize: 17,
       fontWeight: '700',
-      color: '#111827',
+      color: '#062F52',
     },
 
     workerId: {
@@ -1098,7 +1207,7 @@ const styles =
     trackingTitle: {
       fontSize: 16,
       fontWeight: '800',
-      color: '#111827',
+      color: '#062F52',
     },
 
     freshness: {
@@ -1107,7 +1216,7 @@ const styles =
     },
 
     freshText: {
-      color: '#047857',
+      color: '#008A88',
     },
 
     staleText: {
@@ -1135,7 +1244,7 @@ const styles =
     timerCard: {
       padding: 18,
       borderRadius: 16,
-      backgroundColor: '#F9FAFB',
+      backgroundColor: '#FFFFFF',
       marginBottom: 16,
       alignItems: 'center',
     },
@@ -1148,7 +1257,7 @@ const styles =
       marginTop: 6,
       fontSize: 36,
       fontWeight: '800',
-      color: '#111827',
+      color: '#062F52',
     },
 
     button: {
@@ -1156,7 +1265,7 @@ const styles =
       marginBottom: 12,
       padding: 14,
       borderRadius: 10,
-      backgroundColor: '#111827',
+      backgroundColor: '#00A7A7',
       alignItems: 'center',
     },
 
@@ -1170,7 +1279,7 @@ const styles =
       marginBottom: 16,
       padding: 18,
       borderRadius: 16,
-      backgroundColor: '#F9FAFB',
+      backgroundColor: '#FFFFFF',
       alignItems: 'center',
     },
 
@@ -1182,7 +1291,7 @@ const styles =
       marginTop: 6,
       fontSize: 28,
       fontWeight: '800',
-      color: '#111827',
+      color: '#062F52',
       letterSpacing: 4,
     },
 
@@ -1197,7 +1306,7 @@ const styles =
     completedMessage: {
       marginTop: 4,
       marginBottom: 16,
-      color: '#047857',
+      color: '#008A88',
       textAlign: 'center',
       lineHeight: 20,
     },
