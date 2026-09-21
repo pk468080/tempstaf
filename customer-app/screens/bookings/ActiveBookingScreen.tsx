@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Pressable,
   StyleSheet,
@@ -20,6 +21,7 @@ import {
 import {
   getCustomerBooking,
   getCustomerBookingStatusHistory,
+  cancelCustomerBooking,
   getLatestWorkerLocation,
   getWorkerLocationAgeSeconds,
   getWorkerLocationFreshness,
@@ -470,6 +472,56 @@ export default function ActiveBookingScreen({
     booking?.started_at,
     booking?.completed_at,
   ])
+
+  async function handleCancelBooking() {
+    if (!booking) {
+      return
+    }
+
+    if (
+      booking.status === 'completed' ||
+      booking.status === 'cancelled' ||
+      booking.status === 'expired'
+    ) {
+      return
+    }
+
+    Alert.alert(
+      'Cancel booking?',
+      booking.worker_id
+        ? 'This booking has an assigned worker and requires support/admin cancellation.'
+        : 'The cancellation policy will be applied. If a refund is due, a refund request will be created for processing.',
+      [
+        {
+          text: 'Keep booking',
+          style: 'cancel',
+        },
+        {
+          text: 'Cancel booking',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                setError(null)
+                await cancelCustomerBooking(
+                  booking.id,
+                  booking.booking_type,
+                )
+                setOtp(null)
+                await refresh()
+              } catch (nextError) {
+                setError(
+                  nextError instanceof Error
+                    ? nextError.message
+                    : 'Unable to cancel the booking.',
+                )
+              }
+            })()
+          },
+        },
+      ],
+    )
+  }
 
   async function showOtp(
     type: 'start' | 'end',
@@ -1044,6 +1096,20 @@ export default function ActiveBookingScreen({
           </Pressable>
         ) : null}
 
+        {!terminal &&
+        !workerAssigned &&
+        booking.status !== 'in_progress' &&
+        booking.status !== 'arrived' ? (
+          <Pressable
+            style={styles.cancelButton}
+            onPress={handleCancelBooking}
+          >
+            <Text style={styles.cancelButtonText}>
+              Cancel booking
+            </Text>
+          </Pressable>
+        ) : null}
+
         {otp ? (
           <View style={styles.otpCard}>
             <Text style={styles.otpLabel}>
@@ -1543,6 +1609,22 @@ const styles =
     buttonText: {
       color: '#FFFFFF',
       fontWeight: '700',
+    },
+
+    cancelButton: {
+      marginTop: 4,
+      marginBottom: 12,
+      padding: 14,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: '#F0B8B8',
+      backgroundColor: '#FFF6F6',
+      alignItems: 'center',
+    },
+
+    cancelButtonText: {
+      color: '#B91C1C',
+      fontWeight: '800',
     },
 
     otpCard: {
