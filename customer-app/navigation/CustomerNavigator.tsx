@@ -338,6 +338,50 @@ export default function CustomerNavigator({
               )
             }
 
+            const expectedWeekdayIndexes =
+              Array.from(
+                new Set(
+                  convertWeekdays(
+                    draft.selectedWeekdays,
+                  ),
+                ),
+              )
+
+            const expectedExcludedDates =
+              Array.from(
+                new Set(draft.excludedDates),
+              ).sort()
+
+            if (
+              expectedWeekdayIndexes.length === 0
+            ) {
+              throw new Error(
+                'At least one recurring weekday is required.',
+              )
+            }
+
+            if (
+              expectedWeekdayIndexes.length !==
+              draft.selectedWeekdays.length
+            ) {
+              throw new Error(
+                `Invalid recurring weekday state: ${JSON.stringify(
+                  draft.selectedWeekdays,
+                )}`,
+              )
+            }
+
+            if (
+              expectedExcludedDates.length !==
+              draft.excludedDates.length
+            ) {
+              throw new Error(
+                `Invalid recurring exclusion state: ${JSON.stringify(
+                  draft.excludedDates,
+                )}`,
+              )
+            }
+
             const result =
               await createCustomerRecurringBooking(
                 {
@@ -367,10 +411,10 @@ export default function CustomerNavigator({
                     ),
 
                   selectedWeekdays:
-                    weekdayIndexes,
+                    expectedWeekdayIndexes,
 
                   excludedDates:
-                    draft.excludedDates,
+                    expectedExcludedDates,
                 },
               )
 
