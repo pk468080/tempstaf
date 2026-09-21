@@ -191,38 +191,21 @@ export async function createWorkerApplication(): Promise<
 > {
   const workerId = await getCurrentWorkerId()
 
-  const existingApplication =
+  const application =
     await getLatestApplicationRow(workerId)
 
-  if (existingApplication) {
-    return mapApplication(existingApplication)
-  }
-
-  const {
-    data: application,
-    error,
-  } = await supabase
-    .from('worker_applications')
-    .insert({
-      worker_id: workerId,
-      onboarding_type: 'self_registered',
-      status: 'draft',
-    })
-    .select(
-      'id, worker_id, onboarding_type, status, submitted_at, reviewed_at, review_notes, reapply_after, created_at, updated_at',
+  if (!application) {
+    throw new Error(
+      'No worker application exists for this account. Please contact TempStaff support.',
     )
-    .single()
-
-  if (error) {
-    throw error
   }
 
   return mapApplication(application)
 }
 
-export async function updateWorkerApplicationStatus(
-  status: WorkerApplicationStatus,
-): Promise<WorkerApplication> {
+export async function submitWorkerApplication(): Promise<
+  WorkerApplication
+> {
   const workerId = await getCurrentWorkerId()
 
   const application =
@@ -234,47 +217,23 @@ export async function updateWorkerApplicationStatus(
     )
   }
 
-  const allowedStatuses: WorkerApplicationStatus[] = [
-    'draft',
-    'submitted',
-  ]
-
-  if (!allowedStatuses.includes(status)) {
-    throw new Error(
-      'Workers cannot directly set the requested application status.',
-    )
-  }
-
-  const {
-    data: updatedApplication,
-    error,
-  } = await supabase
-    .from('worker_applications')
-    .update({
-      status,
-      submitted_at:
-        status === 'submitted'
-          ? new Date().toISOString()
-          : application.submitted_at,
-    })
-    .eq('id', application.id)
-    .eq('worker_id', workerId)
-    .select(
-      'id, worker_id, onboarding_type, status, submitted_at, reviewed_at, review_notes, reapply_after, created_at, updated_at',
-    )
-    .single()
+  const { error } = await supabase.rpc(
+    'submit_worker_application',
+    {},
+  )
 
   if (error) {
     throw error
   }
 
-  return mapApplication(updatedApplication)
-}
+  const updatedApplication =
+    await getLatestApplicationRow(workerId)
 
-export async function submitWorkerApplication(): Promise<
-  WorkerApplication
-> {
-  return updateWorkerApplicationStatus(
-    'submitted',
-  )
+  if (!updatedApplication) {
+    throw new Error(
+      'The worker application could not be loaded after submission.',
+    )
+  }
+
+  return mapApplication(updatedApplication)
 }
