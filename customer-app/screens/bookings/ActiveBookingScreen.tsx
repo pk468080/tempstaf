@@ -4,6 +4,7 @@ import {
   Alert,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -645,7 +646,10 @@ export default function ActiveBookingScreen({
 
   return (
     <ScreenContainer>
-      <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.brandRow}>
           <Image source={tempStaffLogo} style={styles.logo} resizeMode="contain" />
           <Text style={styles.brandLabel}>
@@ -1177,7 +1181,7 @@ booking.scheduled_end ? (
             .
           </Text>
         ) : null}
-      </View>
+      </ScrollView>
     </ScreenContainer>
   )
 }
