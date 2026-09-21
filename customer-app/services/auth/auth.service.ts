@@ -230,87 +230,72 @@ export async function verifyOtp(
   }
 
   try {
-    const {
-      data: existingSessionData,
-      error: existingSessionError,
-    } = await supabase.auth.getSession()
+    const { data, error } =
+      await supabase.functions.invoke(
+        'customer-auth',
+        {
+          body: {
+            phone: normalizedPhone,
+            otp: TEMP_OTP,
+          },
+        },
+      )
 
-    if (existingSessionError) {
-      throw existingSessionError
+    if (error) {
+      throw error
     }
 
-    if (existingSessionData.session) {
-      const profile =
-        await getCustomerProfile(
-          existingSessionData.session.user.id,
-        )
-
-      const needsRegistration =
-        profileNeedsRegistration(profile)
-
-      const profilePhone = profile?.phone
-        ? normalizePhone(profile.phone)
-        : ''
-
-      const metadataPhone =
-        getUserMetadataPhone(
-          existingSessionData.session.user,
-        )
-
+    if (!data?.success) {
       return {
-        success: true,
-        phone:
-          profilePhone ||
-          metadataPhone ||
-          normalizedPhone,
-        session:
-          existingSessionData.session,
-        needsRegistration,
+        success: false,
+        error:
+          typeof data?.error === 'string'
+            ? data.error
+            : 'Unable to verify the OTP.',
       }
     }
 
-    const {
-      data: anonymousData,
-      error: anonymousError,
-    } =
-      await supabase.auth.signInAnonymously({
-        options: {
-          data: {
-            phone: normalizedPhone,
-          },
-        },
+    const session = data.session
+
+    if (!session) {
+      throw new Error(
+        'Authentication succeeded but no session was returned.',
+      )
+    }
+
+    /*
+     * functions.invoke returns the session from the Edge Function,
+     * but the local Supabase client must also adopt it so the rest of
+     * the customer app sees the authenticated customer identity.
+     */
+    const { error: sessionError } =
+      await supabase.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
       })
 
-    if (anonymousError) {
-      throw anonymousError
+    if (sessionError) {
+      throw sessionError
     }
 
-    if (!anonymousData.session) {
+    const authenticatedSession =
+      await getCurrentSession()
+
+    if (!authenticatedSession) {
       throw new Error(
-        'Supabase did not create an authentication session.',
+        'Supabase did not persist the customer session.',
       )
     }
-
-    if (!anonymousData.user) {
-      throw new Error(
-        'Supabase did not return an authenticated user.',
-      )
-    }
-
-    console.log(
-      'Supabase session: present',
-    )
-
-    console.log(
-      'Supabase user:',
-      anonymousData.user.id,
-    )
 
     return {
       success: true,
-      phone: normalizedPhone,
-      session: anonymousData.session,
-      needsRegistration: true,
+      phone:
+        typeof data.phone === 'string'
+          ? normalizePhone(data.phone)
+          : normalizedPhone,
+      session: authenticatedSession,
+      needsRegistration:
+        data.needsRegistration === true,
     }
   } catch (error) {
     console.error(
