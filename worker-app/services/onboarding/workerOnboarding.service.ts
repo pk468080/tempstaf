@@ -37,6 +37,11 @@ export type WorkerOnboardingRequiredField =
   | 'serviceLatitude'
   | 'serviceLongitude'
 
+type WorkerOnboardingProfileWithPhoto =
+  WorkerOnboardingProfile & {
+    profilePhotoPath: string | null
+  }
+
 const REQUIRED_FIELDS: WorkerOnboardingRequiredField[] = [
   'dateOfBirth',
   'gender',
@@ -75,9 +80,7 @@ type OnboardingProfileRow = {
 
 function mapOnboardingProfile(
   row: OnboardingProfileRow,
-): WorkerOnboardingProfile & {
-  profilePhotoPath: string | null
-} {
+): WorkerOnboardingProfileWithPhoto {
   return {
     dateOfBirth: row.date_of_birth,
     gender: row.gender,
@@ -200,9 +203,7 @@ function validateInput(
   if (
     input.gender &&
     !ALLOWED_GENDERS.includes(
-      input.gender as (
-        typeof ALLOWED_GENDERS
-      )[number],
+      input.gender as (typeof ALLOWED_GENDERS)[number],
     )
   ) {
     throw new Error(
@@ -254,10 +255,80 @@ function validateInput(
   }
 }
 
+function mergeOnboardingInput(
+  existing: WorkerOnboardingProfileWithPhoto | null,
+  input: WorkerOnboardingInput,
+) {
+  return {
+    dateOfBirth:
+      input.dateOfBirth !== undefined
+        ? input.dateOfBirth
+        : existing?.dateOfBirth ?? null,
+
+    gender:
+      input.gender !== undefined
+        ? normalizeOptionalText(input.gender)
+        : existing?.gender ?? null,
+
+    currentAddress:
+      input.currentAddress !== undefined
+        ? normalizeOptionalText(input.currentAddress)
+        : existing?.currentAddress ?? null,
+
+    permanentAddress:
+      input.permanentAddress !== undefined
+        ? normalizeOptionalText(input.permanentAddress)
+        : existing?.permanentAddress ?? null,
+
+    city:
+      input.city !== undefined
+        ? normalizeOptionalText(input.city)
+        : existing?.city ?? null,
+
+    state:
+      input.state !== undefined
+        ? normalizeOptionalText(input.state)
+        : existing?.state ?? null,
+
+    pincode:
+      input.pincode !== undefined
+        ? normalizeOptionalText(input.pincode)
+        : existing?.pincode ?? null,
+
+    experienceYears:
+      input.experienceYears !== undefined
+        ? input.experienceYears
+        : existing?.experienceYears ?? null,
+
+    experienceSummary:
+      input.experienceSummary !== undefined
+        ? normalizeOptionalText(input.experienceSummary)
+        : existing?.experienceSummary ?? null,
+
+    profilePhotoPath:
+      input.profilePhotoPath !== undefined
+        ? normalizeOptionalText(input.profilePhotoPath)
+        : existing?.profilePhotoPath ?? null,
+
+    serviceLatitude:
+      input.serviceLatitude !== undefined
+        ? input.serviceLatitude
+        : existing?.serviceLatitude ?? null,
+
+    serviceLongitude:
+      input.serviceLongitude !== undefined
+        ? input.serviceLongitude
+        : existing?.serviceLongitude ?? null,
+
+    onboardingStep:
+      input.onboardingStep !== undefined
+        ? input.onboardingStep
+        : existing?.onboardingStep ?? 1,
+  }
+}
+
 export async function getWorkerOnboardingProfile(): Promise<
-  (WorkerOnboardingProfile & {
-    profilePhotoPath: string | null
-  }) | null
+  WorkerOnboardingProfileWithPhoto | null
 > {
   const workerId = await getCurrentWorkerId()
 
@@ -283,82 +354,88 @@ export async function getWorkerOnboardingProfile(): Promise<
 
 export async function saveWorkerOnboarding(
   input: WorkerOnboardingInput,
-): Promise<
-  WorkerOnboardingProfile & {
-    profilePhotoPath: string | null
-  }
-> {
+): Promise<WorkerOnboardingProfileWithPhoto> {
   validateInput(input)
 
-  const params = {
-    p_date_of_birth:
-      input.dateOfBirth ?? null,
+  const existing =
+    await getWorkerOnboardingProfile()
 
-    p_gender:
-      normalizeOptionalText(input.gender),
+  const merged =
+    mergeOnboardingInput(existing, input)
 
-    p_current_address:
-      normalizeOptionalText(input.currentAddress),
-
-    p_permanent_address:
-      normalizeOptionalText(input.permanentAddress),
-
-    p_city:
-      normalizeOptionalText(input.city),
-
-    p_state:
-      normalizeOptionalText(input.state),
-
-    p_pincode:
-      normalizeOptionalText(input.pincode),
-
-    p_experience_years:
-      input.experienceYears ?? null,
-
-    p_experience_summary:
-      normalizeOptionalText(input.experienceSummary),
-
-    p_profile_photo_path:
-      normalizeOptionalText(input.profilePhotoPath),
-
-    p_service_latitude:
-      input.serviceLatitude ?? null,
-
-    p_service_longitude:
-      input.serviceLongitude ?? null,
-
-    p_onboarding_step:
-      input.onboardingStep ?? 1,
-  }
-
-  const { error } = await supabase.rpc(
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
     'save_worker_onboarding',
-    params,
+    {
+      p_date_of_birth:
+        merged.dateOfBirth,
+
+      p_gender:
+        merged.gender,
+
+      p_current_address:
+        merged.currentAddress,
+
+      p_permanent_address:
+        merged.permanentAddress,
+
+      p_city:
+        merged.city,
+
+      p_state:
+        merged.state,
+
+      p_pincode:
+        merged.pincode,
+
+      p_experience_years:
+        merged.experienceYears,
+
+      p_experience_summary:
+        merged.experienceSummary,
+
+      p_profile_photo_path:
+        merged.profilePhotoPath,
+
+      p_service_latitude:
+        merged.serviceLatitude,
+
+      p_service_longitude:
+        merged.serviceLongitude,
+
+      p_onboarding_step:
+        merged.onboardingStep,
+    },
   )
 
   if (error) {
     throw error
   }
 
-  const profile =
-    await getWorkerOnboardingProfile()
-
-  if (!profile) {
+  if (!data) {
     throw new Error(
-      'Worker onboarding profile could not be loaded after saving.',
+      'Worker onboarding profile could not be saved.',
     )
   }
 
-  return profile
+  return getWorkerOnboardingProfile().then(
+    (profile) => {
+      if (!profile) {
+        throw new Error(
+          'Worker onboarding profile could not be loaded after saving.',
+        )
+      }
+
+      return profile
+    },
+  )
 }
 
 export async function updateWorkerOnboardingStep(
   onboardingStep: number,
-): Promise<
-  WorkerOnboardingProfile & {
-    profilePhotoPath: string | null
-  }
-> {
+): Promise<WorkerOnboardingProfileWithPhoto> {
   return saveWorkerOnboarding({
     onboardingStep,
   })
