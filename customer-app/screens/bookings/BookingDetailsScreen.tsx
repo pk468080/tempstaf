@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,6 +28,19 @@ import {
 } from '../../lib/bookingUtils'
 
 import type { HomeService } from '../../types/service'
+
+const serviceImages: Record<string, number> = {
+  helper: require('../../assets/services/helper.png'),
+  'housekeeping boy': require('../../assets/services/housekeeping-boy.png'),
+  'office boy': require('../../assets/services/office-boy.png'),
+  'pantry boy': require('../../assets/services/pantry-boy.png'),
+}
+
+const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
+
+function getServiceImage(name: string) {
+  return serviceImages[name.trim().toLowerCase()]
+}
 
 type BookingDetailsScreenProps = {
   service: HomeService
@@ -88,11 +102,10 @@ export default function BookingDetailsScreen({
 
   const durationHours =
     Math.round(
-      (
-        (endTime.getTime() -
-          startTime.getTime()) /
-        (60 * 60 * 1000)
-      ) * 10,
+      ((endTime.getTime() -
+        startTime.getTime()) /
+        (60 * 60 * 1000)) *
+        10,
     ) / 10
 
   async function handleContinue() {
@@ -196,19 +209,9 @@ export default function BookingDetailsScreen({
 
         const weekdayIndexes =
           bookingType === 'scheduled'
-            ? [
-                0,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-              ]
+            ? [0, 1, 2, 3, 4, 5, 6]
             : selectedWeekdays
-                .map(w =>
-                  getWeekdayIndex(w),
-                )
+                .map(w => getWeekdayIndex(w))
                 .filter(i => i >= 0)
 
         const result =
@@ -216,24 +219,17 @@ export default function BookingDetailsScreen({
             {
               serviceVariantId:
                 service.serviceVariantId,
-
               startDate:
                 toDateString(startDate),
-
               endDate:
                 toDateString(endDate),
-
               startTime:
                 toTimeString(startTime),
-
               endTime:
                 toTimeString(endTime),
-
               selectedWeekdays:
                 weekdayIndexes,
-
               excludedDates,
-
               bookingType,
             },
           )
@@ -283,9 +279,101 @@ export default function BookingDetailsScreen({
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>
-          Review booking
-        </Text>
+        <View style={styles.header}>
+          <View style={styles.brandRow}>
+            <Image
+              source={tempStaffLogo}
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
+            <View style={styles.brandDivider} />
+            <Text style={styles.brandCaption}>
+              REVIEW
+            </Text>
+          </View>
+
+          <View style={styles.headerTop}>
+            <View style={styles.stepBadge}>
+              <Text style={styles.stepBadgeText}>
+                2
+              </Text>
+            </View>
+
+            <View style={styles.headerText}>
+              <Text style={styles.eyebrow}>
+                FINAL CHECK
+              </Text>
+              <Text style={styles.title}>
+                Review booking
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: '50%' },
+              ]}
+            />
+          </View>
+
+          <View style={styles.progressLabels}>
+            <Text style={styles.progressLabel}>
+              Booking
+            </Text>
+            <Text style={styles.progressActive}>
+              Review
+            </Text>
+            <Text style={styles.progressLabel}>
+              Payment
+            </Text>
+            <Text style={styles.progressLabel}>
+              Confirmation
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.serviceHero}>
+          <View style={styles.serviceImageWrap}>
+            {getServiceImage(service.name) ? (
+              <Image
+                source={getServiceImage(service.name)}
+                style={styles.serviceImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View
+                style={styles.serviceImageFallback}
+              >
+                <Text
+                  style={
+                    styles.serviceImageFallbackText
+                  }
+                >
+                  {service.name
+                    .trim()
+                    .charAt(0)
+                    .toUpperCase()}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.serviceHeroContent}>
+            <Text style={styles.serviceEyebrow}>
+              SELECTED SERVICE
+            </Text>
+            <Text style={styles.serviceHeroName}>
+              {service.name}
+            </Text>
+            <Text style={styles.serviceHeroRate}>
+              {service.hourlyPrice == null
+                ? 'Rate unavailable'
+                : `${service.currency ?? ''} ${service.hourlyPrice}/hour`}
+            </Text>
+          </View>
+        </View>
 
         <BookingSection title="Service">
           <DetailRow
@@ -312,10 +400,25 @@ export default function BookingDetailsScreen({
         </BookingSection>
 
         <BookingSection title="Location">
-          <Text style={styles.address}>
-            {location?.address ??
-              'No location selected'}
-          </Text>
+          <View style={styles.locationCard}>
+            <View style={styles.locationIcon}>
+              <Text
+                style={styles.locationIconText}
+              >
+                ⌖
+              </Text>
+            </View>
+
+            <View style={styles.locationContent}>
+              <Text style={styles.locationEyebrow}>
+                SERVICE LOCATION
+              </Text>
+              <Text style={styles.address}>
+                {location?.address ??
+                  'No location selected'}
+              </Text>
+            </View>
+          </View>
         </BookingSection>
 
         <BookingSection title="Schedule">
@@ -332,9 +435,7 @@ export default function BookingDetailsScreen({
           <DetailRow
             label="Duration"
             value={`${durationHours} hour${
-              durationHours === 1
-                ? ''
-                : 's'
+              durationHours === 1 ? '' : 's'
             }`}
           />
 
@@ -391,6 +492,27 @@ export default function BookingDetailsScreen({
               />
             </BookingSection>
           )}
+
+        <View style={styles.priceIntro}>
+          <View>
+            <Text
+              style={styles.priceIntroEyebrow}
+            >
+              BOOKING TOTAL
+            </Text>
+            <Text style={styles.priceIntroTitle}>
+              Transparent pricing
+            </Text>
+          </View>
+
+          <View style={styles.priceIntroBadge}>
+            <Text
+              style={styles.priceIntroBadgeText}
+            >
+              SECURE
+            </Text>
+          </View>
+        </View>
 
         <BookingSection title="Pricing">
           <BookingPriceSummary
@@ -499,57 +621,301 @@ function DetailRow({
 
 const styles = StyleSheet.create({
   content: {
-    paddingBottom: 100,
+    paddingBottom: 120,
+  },
+
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 16,
+    backgroundColor: '#FFFFFF',
+  },
+
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  brandLogo: {
+    width: 92,
+    height: 28,
+  },
+
+  brandDivider: {
+    width: 1,
+    height: 18,
+    marginHorizontal: 10,
+    backgroundColor: '#D8E8ED',
+  },
+
+  brandCaption: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    color: '#5E7C8B',
+  },
+
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  stepBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#062F52',
+  },
+
+  stepBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  headerText: {
+    flex: 1,
+  },
+
+  eyebrow: {
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+    color: '#6B8795',
   },
 
   title: {
-    fontSize: 28,
+    marginTop: 2,
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '800',
+    color: '#062F52',
+  },
+
+  progressTrack: {
+    height: 4,
+    marginTop: 16,
+    borderRadius: 2,
+    backgroundColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: '#00A7A7',
+  },
+
+  progressLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 7,
+  },
+
+  progressActive: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#062F52',
+  },
+
+  progressLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#9CA3AF',
+  },
+
+  serviceHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 14,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: '#062F52',
+  },
+
+  serviceImageWrap: {
+    width: 64,
+    height: 64,
+    marginRight: 14,
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+  },
+
+  serviceImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  serviceImageFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EAF7F7',
+  },
+
+  serviceImageFallbackText: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#062F52',
+  },
+
+  serviceHeroContent: {
+    flex: 1,
+  },
+
+  serviceEyebrow: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+    color: '#8FB6C8',
+  },
+
+  serviceHeroName: {
+    marginTop: 2,
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  serviceHeroRate: {
+    marginTop: 4,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#111827',
-    marginBottom: 24,
+    color: '#FFFFFF',
   },
 
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#EAF1F4',
+    gap: 18,
   },
 
   rowLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
+    flex: 0.9,
+    fontSize: 13,
+    color: '#6B8795',
+    fontWeight: '600',
   },
 
   rowValue: {
+    flex: 1.4,
+    textAlign: 'right',
     fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
+    lineHeight: 19,
+    fontWeight: '700',
+    color: '#062F52',
+  },
+
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 13,
+    borderRadius: 15,
+    backgroundColor: '#F5FBFC',
+    borderWidth: 1,
+    borderColor: '#DDECEF',
+  },
+
+  locationIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E3F5F5',
+    marginRight: 11,
+  },
+
+  locationIconText: {
+    fontSize: 23,
+    lineHeight: 25,
+    fontWeight: '800',
+    color: '#174C68',
+  },
+
+  locationContent: {
+    flex: 1,
+  },
+
+  locationEyebrow: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: '#5E7C8B',
   },
 
   address: {
-    fontSize: 15,
-    color: '#374151',
-    lineHeight: 22,
-    fontWeight: '500',
+    marginTop: 3,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#062F52',
+    fontWeight: '600',
+  },
+
+  priceIntro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 20,
+    marginBottom: 10,
+    padding: 14,
+    borderRadius: 15,
+    backgroundColor: '#EAF7F7',
+  },
+
+  priceIntroEyebrow: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: '#087F72',
+  },
+
+  priceIntroTitle: {
+    marginTop: 2,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#062F52',
+  },
+
+  priceIntroBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#DDF7F0',
+  },
+
+  priceIntroBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#087F72',
   },
 
   errorContainer: {
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     marginVertical: 16,
     padding: 14,
-    borderRadius: 12,
-    backgroundColor: '#FEF2F2',
+    borderRadius: 14,
+    backgroundColor: '#FFF4F4',
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#F4C7C7',
   },
 
   errorTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#991B1B',
   },
 
@@ -565,29 +931,30 @@ const styles = StyleSheet.create({
   },
 
   footer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 14,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: '#DDECEF',
   },
 
   continueButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: '#4F46E5',
+    minHeight: 52,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    backgroundColor: '#00A7A7',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   continueButtonDisabled: {
-    backgroundColor: '#D1D5DB',
+    backgroundColor: '#CBD5E1',
   },
 
   continueButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
 })
