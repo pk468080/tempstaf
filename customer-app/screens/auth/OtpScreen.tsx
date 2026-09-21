@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -19,6 +20,9 @@ type OtpScreenProps = {
     needsRegistration: boolean,
   ) => void
 }
+
+const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
+const otpHero = require('../../assets/home/hero-worker.png')
 
 export default function OtpScreen({
   phone,
@@ -67,23 +71,68 @@ export default function OtpScreen({
       >
         <View style={styles.container}>
           <View>
-            <Text style={styles.title}>
-              Verify your mobile number
-            </Text>
+            <View style={styles.brandRow}>
+              <Image
+                source={tempStaffLogo}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+              <View style={styles.brandDivider} />
+              <Text style={styles.brandLabel}>
+                SECURE LOGIN
+              </Text>
+            </View>
 
-            <Text style={styles.subtitle}>
-              Enter the 6-digit OTP sent to
-            </Text>
+            <View style={styles.heroCard}>
+              <View style={styles.heroCopy}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>
+                    02
+                  </Text>
+                </View>
 
-            <Text style={styles.phone}>
-              {phone}
-            </Text>
+                <Text style={styles.title}>
+                  Verify your mobile
+                </Text>
+
+                <Text style={styles.subtitle}>
+                  Enter the 6-digit verification code
+                  to continue securely.
+                </Text>
+
+                <View style={styles.phonePill}>
+                  <View style={styles.phoneDot} />
+                  <Text style={styles.phone}>
+                    {phone}
+                  </Text>
+                </View>
+              </View>
+
+              <Image
+                source={otpHero}
+                style={styles.heroImage}
+                resizeMode="contain"
+              />
+            </View>
           </View>
 
-          <View style={styles.form}>
-            <Text style={styles.label}>
-              OTP
-            </Text>
+          <View style={styles.formCard}>
+            <View style={styles.formHeader}>
+              <View style={styles.securityIcon}>
+                <Text style={styles.securityIconText}>
+                  ✓
+                </Text>
+              </View>
+
+              <View style={styles.formHeaderCopy}>
+                <Text style={styles.formTitle}>
+                  Enter verification code
+                </Text>
+                <Text style={styles.formSubtitle}>
+                  Use the 6-digit OTP sent to your mobile.
+                </Text>
+              </View>
+            </View>
 
             <TextInput
               value={otp}
@@ -93,13 +142,25 @@ export default function OtpScreen({
                   value.replace(/\D/g, ''),
                 )
               }}
-              placeholder="Enter 6-digit OTP"
+              placeholder="123456"
+              placeholderTextColor="#B8C6D1"
               keyboardType="number-pad"
               maxLength={6}
               autoFocus
               textContentType="oneTimeCode"
               style={styles.input}
             />
+
+            <View style={styles.codeHint}>
+              <View style={styles.infoDot}>
+                <Text style={styles.infoDotText}>
+                  i
+                </Text>
+              </View>
+              <Text style={styles.codeHintText}>
+                For development testing, use 123456.
+              </Text>
+            </View>
 
             {error ? (
               <Text style={styles.error}>
@@ -111,11 +172,16 @@ export default function OtpScreen({
               title={
                 loading
                   ? 'Verifying...'
-                  : 'Verify OTP'
+                  : 'Verify & Continue'
               }
               disabled={!isValid || loading}
               onPress={handleVerify}
             />
+
+            <Text style={styles.footerText}>
+              Your mobile number is used to secure
+              your TempStaff account.
+            </Text>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -130,56 +196,232 @@ const styles = StyleSheet.create({
 
   container: {
     flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 18,
     justifyContent: 'space-between',
-    padding: 24,
-    paddingTop: 60,
-    paddingBottom: 32,
+    backgroundColor: '#F7FBFD',
+  },
+
+  brandRow: {
+    height: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  logo: {
+    width: 118,
+    height: 34,
+  },
+
+  brandDivider: {
+    width: 1,
+    height: 18,
+    marginHorizontal: 12,
+    backgroundColor: '#D8E6ED',
+  },
+
+  brandLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+    color: '#6C8190',
+  },
+
+  heroCard: {
+    minHeight: 235,
+    marginTop: 18,
+    paddingLeft: 20,
+    paddingTop: 22,
+    paddingBottom: 14,
+    borderRadius: 26,
+    overflow: 'hidden',
+    backgroundColor: '#062F52',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  heroCopy: {
+    flex: 1,
+    zIndex: 2,
+  },
+
+  stepBadge: {
+    width: 38,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00A7A7',
+    marginBottom: 14,
+  },
+
+  stepBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
   },
 
   title: {
-    fontSize: 30,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: 29,
+    lineHeight: 34,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    maxWidth: 205,
   },
 
   subtitle: {
-    marginTop: 12,
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#6B7280',
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 21,
+    color: '#D9EAF3',
+    maxWidth: 215,
+  },
+
+  phonePill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 15,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.11)',
+  },
+
+  phoneDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 8,
+    backgroundColor: '#00D0C5',
   },
 
   phone: {
-    marginTop: 4,
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#111827',
-  },
-
-  form: {
-    gap: 12,
-  },
-
-  label: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  heroImage: {
+    width: 142,
+    height: 190,
+    marginRight: -13,
+    marginBottom: -2,
+  },
+
+  formCard: {
+    padding: 18,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2EDF2',
+    shadowColor: '#062F52',
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    shadowOffset: {
+      width: 0,
+      height: 7,
+    },
+    elevation: 3,
+  },
+
+  formHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  securityIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E5F7F7',
+    marginRight: 11,
+  },
+
+  securityIconText: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: '#008C8C',
+  },
+
+  formHeaderCopy: {
+    flex: 1,
+  },
+
+  formTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#17354A',
+  },
+
+  formSubtitle: {
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#718491',
   },
 
   input: {
-    height: 52,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 20,
-    letterSpacing: 4,
-    color: '#111827',
+    height: 58,
+    borderWidth: 1.5,
+    borderColor: '#BFD2DC',
+    borderRadius: 15,
+    paddingHorizontal: 18,
+    backgroundColor: '#F9FCFD',
+    fontSize: 25,
+    fontWeight: '800',
+    letterSpacing: 7,
+    color: '#062F52',
     textAlign: 'center',
   },
 
+  codeHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 11,
+  },
+
+  infoDot: {
+    width: 17,
+    height: 17,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 7,
+    backgroundColor: '#E8F4F8',
+  },
+
+  infoDotText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#4B7285',
+  },
+
+  codeHintText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#6D8290',
+  },
+
   error: {
-    fontSize: 14,
-    color: '#DC2626',
+    marginBottom: 10,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#D92D20',
+    fontWeight: '600',
+  },
+
+  footerText: {
+    marginTop: 10,
+    fontSize: 11,
+    lineHeight: 16,
+    color: '#8A9AA4',
+    textAlign: 'center',
   },
 })
