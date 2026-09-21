@@ -210,11 +210,13 @@ export type Database = {
         updated_at: string
       }>
 
-      worker_applications: TableDefinition<{
-        id: string
-        worker_id: string
-        onboarding_type: string
-        status: WorkerApplicationStatus
+    worker_applications: TableDefinition<{
+  id: string
+  worker_id: string
+  onboarding_type:
+    | 'self_registered'
+    | 'admin_created'
+  status: WorkerApplicationStatus
         submitted_at: string | null
         reviewed_at: string | null
         reviewed_by: string | null
