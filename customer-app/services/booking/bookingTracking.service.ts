@@ -63,7 +63,7 @@ export async function getCustomerBooking(
   const { data, error } = await supabase
     .from('bookings')
     .select(
-      'id, status, booking_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name))',
+     'id, status, booking_type:fulfillment_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name))',
     )
     .eq('id', bookingId)
     .single()
@@ -83,7 +83,7 @@ export async function getCustomerBookings(): Promise<
   const { data, error } = await supabase
     .from('bookings')
     .select(
-      'id, status, booking_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name))',
+      'id, status, booking_type:fulfillment_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name))',
     )
     .order('created_at', {
       ascending: false,
