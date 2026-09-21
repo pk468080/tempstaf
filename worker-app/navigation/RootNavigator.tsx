@@ -10,6 +10,7 @@ import SplashScreen from '../screens/auth/SplashScreen'
 import LoginScreen from '../screens/auth/LoginScreen'
 import WorkerRegistrationScreen from '../screens/auth/WorkerRegistrationScreen'
 import WorkerOnboardingScreen from '../screens/onboarding/WorkerOnboardingScreen'
+import WorkerNavigator from './WorkerNavigator'
 
 import type {
   RootStackParamList,
@@ -19,10 +20,6 @@ const Stack =
   createNativeStackNavigator<
     RootStackParamList
   >()
-
-function WorkerPlaceholderScreen() {
-  return null
-}
 
 export default function RootNavigator() {
   return (
@@ -68,7 +65,7 @@ export default function RootNavigator() {
             <LoginScreen
               onAuthenticated={() => {
                 navigation.replace(
-                  'WorkerOnboarding',
+                  'Worker',
                 )
               }}
               onRegister={() => {
@@ -118,7 +115,7 @@ export default function RootNavigator() {
 
         <Stack.Screen name="Worker">
           {() => (
-            <WorkerPlaceholderScreen />
+            <WorkerNavigator />
           )}
         </Stack.Screen>
       </Stack.Navigator>
