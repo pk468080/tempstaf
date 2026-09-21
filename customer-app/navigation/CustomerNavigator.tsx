@@ -7,7 +7,7 @@ import {
 import {
   createNativeStackNavigator,
 } from '@react-navigation/native-stack'
-
+import RescheduleBookingScreen from '../screens/bookings/RescheduleBookingScreen'
 import BookingDetailsScreen from '../screens/bookings/BookingDetailsScreen'
 import BookingScreen from '../screens/bookings/BookingScreen'
 import HomeScreen from '../screens/home/HomeScreen'
@@ -60,6 +60,11 @@ type CustomerStackParamList = {
   BookingDetails: {
     draft: BookingDraft
     service: HomeService
+  }
+    RescheduleBooking: {
+    bookingId: string
+    currentStart: string
+    currentEnd: string
   }
 
   Payment: {
@@ -514,8 +519,44 @@ export default function CustomerNavigator({
       </Stack.Screen>
 
       <Stack.Screen name="ActiveBooking">
-        {({ route }) => <ActiveBookingScreen bookingId={route.params.bookingId} />}
-      </Stack.Screen>
+  {({ route, navigation }) => (
+    <ActiveBookingScreen
+      bookingId={route.params.bookingId}
+      onReschedule={(
+        bookingId,
+        currentStart,
+        currentEnd,
+      ) =>
+        navigation.navigate(
+          'RescheduleBooking',
+          {
+            bookingId,
+            currentStart,
+            currentEnd,
+          },
+        )
+      }
+    />
+  )}
+</Stack.Screen>
+<Stack.Screen name="RescheduleBooking">
+  {({ route, navigation }) => (
+    <RescheduleBookingScreen
+      bookingId={route.params.bookingId}
+      currentStart={route.params.currentStart}
+      currentEnd={route.params.currentEnd}
+      onCompleted={() =>
+        navigation.replace(
+          'ActiveBooking',
+          {
+            bookingId:
+              route.params.bookingId,
+          },
+        )
+      }
+    />
+  )}
+</Stack.Screen>
     </Stack.Navigator>
   )
 }

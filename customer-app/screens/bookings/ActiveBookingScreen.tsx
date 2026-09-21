@@ -38,6 +38,11 @@ import { supabase } from '../../lib/supabase'
 
 type ActiveBookingScreenProps = {
   bookingId: string
+  onReschedule: (
+    bookingId: string,
+    currentStart: string,
+    currentEnd: string,
+  ) => void
 }
 
 const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
@@ -247,6 +252,7 @@ function toMapRegion(
 
 export default function ActiveBookingScreen({
   bookingId,
+  onReschedule,
 }: ActiveBookingScreenProps) {
   const [booking, setBooking] =
     useState<CustomerBooking | null>(null)
@@ -610,6 +616,17 @@ export default function ActiveBookingScreen({
 
   const workerAssigned =
     booking.worker_id !== null
+    const canReschedule =
+  booking.booking_type === 'scheduled' &&
+  booking.worker_id === null &&
+  booking.status !== 'completed' &&
+  booking.status !== 'cancelled' &&
+  booking.status !== 'expired' &&
+  booking.status !== 'on_the_way' &&
+  booking.status !== 'arrived' &&
+  booking.status !== 'in_progress' &&
+  booking.status !== 'pending_payment' &&
+  booking.status !== 'payment_failed'
 
   const terminal =
     isTerminalStatus(
@@ -1097,6 +1114,25 @@ export default function ActiveBookingScreen({
           </Pressable>
         ) : null}
 
+        {canReschedule &&
+booking.scheduled_start &&
+booking.scheduled_end ? (
+  <Pressable
+    style={styles.rescheduleButton}
+    onPress={() =>
+      onReschedule(
+        booking.id,
+        booking.scheduled_start!,
+        booking.scheduled_end!,
+      )
+    }
+  >
+    <Text style={styles.rescheduleButtonText}>
+      Reschedule booking
+    </Text>
+  </Pressable>
+) : null}
+
         {!terminal &&
         !workerAssigned &&
         booking.status !== 'in_progress' &&
@@ -1228,6 +1264,22 @@ const styles =
       fontSize: 13,
       lineHeight: 19,
     },
+
+    rescheduleButton: {
+  marginTop: 4,
+  marginBottom: 12,
+  padding: 14,
+  borderRadius: 10,
+  borderWidth: 1,
+  borderColor: '#00A7A7',
+  backgroundColor: '#E8F7F7',
+  alignItems: 'center',
+},
+
+rescheduleButtonText: {
+  color: '#008A88',
+  fontWeight: '800',
+},
 
     stateTopRow: {
       minHeight: 70,
