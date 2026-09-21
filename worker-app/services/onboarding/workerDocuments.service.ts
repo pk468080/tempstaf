@@ -260,6 +260,11 @@ export async function uploadWorkerDocument(
 
   const workerId = await getCurrentWorkerId()
 
+  const existingDocument =
+    await getWorkerDocument(
+      upload.documentType,
+    )
+
   const storagePath =
     buildStoragePath(
       workerId,
@@ -328,22 +333,38 @@ export async function uploadWorkerDocument(
     },
   )
 
-  if (saveError) {
+  if (saveError || !savedDocument) {
     await supabase.storage
       .from(STORAGE_BUCKET)
       .remove([storagePath])
 
-    throw saveError
-  }
-
-  if (!savedDocument) {
-    await supabase.storage
-      .from(STORAGE_BUCKET)
-      .remove([storagePath])
+    if (saveError) {
+      throw saveError
+    }
 
     throw new Error(
       'The document was uploaded but could not be registered.',
     )
+  }
+
+  if (
+    existingDocument &&
+    existingDocument.filePath !== storagePath
+  ) {
+    const {
+      error: cleanupError,
+    } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .remove([
+        existingDocument.filePath,
+      ])
+
+    if (cleanupError) {
+      console.warn(
+        'Previous worker document could not be removed from storage:',
+        cleanupError,
+      )
+    }
   }
 
   const document =
@@ -361,30 +382,11 @@ export async function uploadWorkerDocument(
 }
 
 export async function removeWorkerDocument(
-  documentType: WorkerDocumentType,
+  _documentType: WorkerDocumentType,
 ): Promise<void> {
-  validateDocumentType(documentType)
-
-  const document =
-    await getWorkerDocument(
-      documentType,
-    )
-
-  if (!document) {
-    return
-  }
-
-  const {
-    error,
-  } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .remove([
-      document.filePath,
-    ])
-
-  if (error) {
-    throw error
-  }
+  throw new Error(
+    'Worker document deletion is not supported. Upload a replacement document instead.',
+  )
 }
 
 export function isDocumentApproved(
