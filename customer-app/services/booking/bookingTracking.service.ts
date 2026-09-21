@@ -30,6 +30,15 @@ export type CustomerBooking = {
   created_at?: string | null
 }
 
+export type BookingStatusHistoryItem = {
+  id: string
+  booking_id: string
+  old_status: BookingStatus | null
+  new_status: BookingStatus
+  changed_by: string | null
+  created_at: string
+}
+
 export type WorkerLocation = {
   latitude: number
   longitude: number
@@ -63,7 +72,7 @@ export async function getCustomerBooking(
   const { data, error } = await supabase
     .from('bookings')
     .select(
-     'id, status, booking_type:fulfillment_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name))',
+      'id, status, booking_type:fulfillment_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name))',
     )
     .eq('id', bookingId)
     .single()
@@ -96,6 +105,28 @@ export async function getCustomerBookings(): Promise<
   return (
     (data ?? []) as unknown as BookingRow[]
   ).map(mapBooking)
+}
+
+export async function getCustomerBookingStatusHistory(
+  bookingId: string,
+): Promise<BookingStatusHistoryItem[]> {
+  const { data, error } = await supabase
+    .from('booking_status_history')
+    .select(
+      'id, booking_id, old_status, new_status, changed_by, created_at',
+    )
+    .eq('booking_id', bookingId)
+    .order('created_at', {
+      ascending: true,
+    })
+
+  if (error) {
+    throw error
+  }
+
+  return (
+    (data ?? []) as unknown as BookingStatusHistoryItem[]
+  )
 }
 
 export async function getLatestWorkerLocation(
@@ -141,9 +172,6 @@ export function getWorkerLocationFreshness(
     nowMs - recordedAt,
   )
 
-  // Worker publishes frequent location updates.
-  // Anything older than 60 seconds is not treated
-  // as the worker's current position.
   return ageMs <= 60_000
     ? 'fresh'
     : 'stale'

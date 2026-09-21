@@ -19,11 +19,13 @@ import {
 
 import {
   getCustomerBooking,
+  getCustomerBookingStatusHistory,
   getLatestWorkerLocation,
   getWorkerLocationAgeSeconds,
   getWorkerLocationFreshness,
   requestBookingOtp,
   type BookingStatus,
+  type BookingStatusHistoryItem,
   type CustomerBooking,
   type WorkerLocation,
   type WorkerLocationFreshness,
@@ -249,6 +251,9 @@ export default function ActiveBookingScreen({
   const [location, setLocation] =
     useState<WorkerLocation | null>(null)
 
+  const [statusHistory, setStatusHistory] =
+    useState<BookingStatusHistoryItem[]>([])
+
   const [locationNow, setLocationNow] =
     useState(Date.now())
 
@@ -295,6 +300,13 @@ export default function ActiveBookingScreen({
         )
 
       setBooking(nextBooking)
+
+      const nextHistory =
+        await getCustomerBookingStatusHistory(
+          bookingId,
+        )
+
+      setStatusHistory(nextHistory)
 
       if (nextBooking.worker_id) {
         const nextLocation =
@@ -361,6 +373,35 @@ export default function ActiveBookingScreen({
             filter: `id=eq.${bookingId}`,
           },
           () => void refresh(),
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'booking_status_history',
+            filter: `booking_id=eq.${bookingId}`,
+          },
+          payload => {
+            const nextHistory =
+              payload.new as BookingStatusHistoryItem
+
+            setStatusHistory(current => {
+              if (
+                current.some(
+                  item => item.id === nextHistory.id,
+                )
+              ) {
+                return current
+              }
+
+              return [...current, nextHistory].sort(
+                (left, right) =>
+                  Date.parse(left.created_at) -
+                  Date.parse(right.created_at),
+              )
+            })
+          },
         )
         .on(
           'postgres_changes',
@@ -695,6 +736,98 @@ export default function ActiveBookingScreen({
             ) : null}
           </View>
         ) : null}
+
+        <View style={styles.card}>
+          <View style={styles.timelineHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>
+                Booking timeline
+              </Text>
+              <Text style={styles.timelineSubtitle}>
+                Status changes recorded for this booking.
+              </Text>
+            </View>
+
+            <View style={styles.timelineCount}>
+              <Text style={styles.timelineCountText}>
+                {statusHistory.length}
+              </Text>
+            </View>
+          </View>
+
+          {statusHistory.length > 0 ? (
+            <View style={styles.timeline}>
+              {statusHistory.map((item, index) => {
+                const isLast =
+                  index === statusHistory.length - 1
+                const isCurrent =
+                  isLast && item.new_status === booking.status
+
+                return (
+                  <View
+                    key={item.id}
+                    style={styles.timelineItem}
+                  >
+                    <View style={styles.timelineRail}>
+                      <View
+                        style={[
+                          styles.timelineDot,
+                          isCurrent && styles.timelineDotCurrent,
+                        ]}
+                      />
+                      {!isLast ? (
+                        <View style={styles.timelineLine} />
+                      ) : null}
+                    </View>
+
+                    <View
+                      style={[
+                        styles.timelineContent,
+                        !isLast && styles.timelineContentSpaced,
+                      ]}
+                    >
+                      <View style={styles.timelineTitleRow}>
+                        <Text style={styles.timelineTitle}>
+                          {formatStatus(item.new_status)}
+                        </Text>
+                        {isCurrent ? (
+                          <View style={styles.currentPill}>
+                            <Text style={styles.currentPillText}>
+                              Current
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      {item.old_status ? (
+                        <Text style={styles.timelineTransition}>
+                          From {formatStatus(item.old_status)}
+                        </Text>
+                      ) : (
+                        <Text style={styles.timelineTransition}>
+                          Initial booking status
+                        </Text>
+                      )}
+
+                      <Text style={styles.timelineDate}>
+                        {formatDateTime(item.created_at)}
+                      </Text>
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
+          ) : (
+            <View style={styles.timelineEmpty}>
+              <Text style={styles.timelineEmptyTitle}>
+                No status history yet
+              </Text>
+              <Text style={styles.timelineEmptyMessage}>
+                The current booking status is still available above. New status changes will appear here automatically.
+              </Text>
+            </View>
+          )}
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>
@@ -1163,6 +1296,144 @@ const styles =
       fontWeight: '800',
       color: '#062F52',
       marginBottom: 10,
+    },
+
+    timelineHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 14,
+    },
+
+    timelineSubtitle: {
+      marginTop: -4,
+      color: '#6B7280',
+      fontSize: 12,
+      lineHeight: 18,
+    },
+
+    timelineCount: {
+      minWidth: 32,
+      height: 32,
+      paddingHorizontal: 8,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#E8F7F7',
+    },
+
+    timelineCountText: {
+      color: '#008A88',
+      fontSize: 12,
+      fontWeight: '900',
+    },
+
+    timeline: {
+      marginTop: 2,
+    },
+
+    timelineItem: {
+      flexDirection: 'row',
+    },
+
+    timelineRail: {
+      width: 28,
+      alignItems: 'center',
+    },
+
+    timelineDot: {
+      width: 12,
+      height: 12,
+      marginTop: 4,
+      borderRadius: 6,
+      backgroundColor: '#B8CBD7',
+      borderWidth: 2,
+      borderColor: '#FFFFFF',
+    },
+
+    timelineDotCurrent: {
+      width: 14,
+      height: 14,
+      borderRadius: 7,
+      backgroundColor: '#00A7A7',
+      borderWidth: 3,
+      borderColor: '#D8F5F5',
+    },
+
+    timelineLine: {
+      width: 2,
+      flex: 1,
+      minHeight: 42,
+      marginVertical: 2,
+      backgroundColor: '#DCE7ED',
+    },
+
+    timelineContent: {
+      flex: 1,
+      paddingLeft: 10,
+      paddingBottom: 8,
+    },
+
+    timelineContentSpaced: {
+      minHeight: 76,
+    },
+
+    timelineTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+
+    timelineTitle: {
+      flex: 1,
+      color: '#062F52',
+      fontSize: 15,
+      fontWeight: '800',
+    },
+
+    currentPill: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+      backgroundColor: '#E8F7F7',
+    },
+
+    currentPillText: {
+      color: '#008A88',
+      fontSize: 10,
+      fontWeight: '900',
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+    },
+
+    timelineTransition: {
+      marginTop: 4,
+      color: '#6B7280',
+      fontSize: 12,
+    },
+
+    timelineDate: {
+      marginTop: 4,
+      color: '#8A9AA6',
+      fontSize: 11,
+    },
+
+    timelineEmpty: {
+      padding: 14,
+      borderRadius: 12,
+      backgroundColor: '#EEF5F8',
+    },
+
+    timelineEmptyTitle: {
+      color: '#062F52',
+      fontSize: 14,
+      fontWeight: '800',
+    },
+
+    timelineEmptyMessage: {
+      marginTop: 5,
+      color: '#6B7280',
+      fontSize: 12,
+      lineHeight: 18,
     },
 
     row: {
