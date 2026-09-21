@@ -1,3 +1,5 @@
+import type { Session } from '@supabase/supabase-js'
+
 import { supabase } from '../../lib/supabase'
 
 import type {
@@ -28,11 +30,7 @@ export type WorkerAuthState =
 export type WorkerAuthResult =
   | {
       success: true
-      session: NonNullable<
-        Awaited<
-          ReturnType<typeof supabase.auth.getSession>
-        >['data']['session']
-      >
+      session: Session
     }
   | {
       success: false
@@ -42,7 +40,7 @@ export type WorkerAuthResult =
 export type WorkerRegistrationResult =
   | {
       success: true
-      session: ReturnType<typeof getSessionPlaceholder>
+      session: Session
     }
   | {
       success: false
@@ -70,10 +68,6 @@ type WorkerProfileRow = {
   current_location: unknown
   created_at: string
   updated_at: string
-}
-
-function getSessionPlaceholder() {
-  return null
 }
 
 function normalizeEmail(email: string): string {
@@ -166,7 +160,7 @@ function mapWorkerProfile(
   }
 }
 
-async function getCurrentSession() {
+async function getCurrentSession(): Promise<Session | null> {
   const {
     data: { session },
     error,
@@ -465,7 +459,7 @@ export async function registerWorkerAuth(
   }
 }
 
-export async function refreshWorkerSession() {
+export async function refreshWorkerSession(): Promise<Session | null> {
   const {
     data,
     error,
@@ -488,11 +482,7 @@ export async function signOutWorker(): Promise<void> {
 }
 
 export function subscribeToWorkerAuthChanges(
-  callback: (
-    session: Awaited<
-      ReturnType<typeof getCurrentSession>
-    >,
-  ) => void,
+  callback: (session: Session | null) => void,
 ) {
   return supabase.auth.onAuthStateChange(
     (_event, session) => {
