@@ -1,0 +1,502 @@
+import { supabase } from '../../lib/supabase'
+
+import type {
+  WorkerLocation,
+  WorkerProfile,
+  WorkerStatus,
+} from '../../types/worker'
+
+const MAX_NAME_LENGTH = 100
+
+export type WorkerAuthState =
+  | {
+      authenticated: false
+      needsRegistration: true
+      email: string
+    }
+  | {
+      authenticated: true
+      needsRegistration: true
+      email: string
+    }
+  | {
+      authenticated: true
+      needsRegistration: false
+      email: string
+    }
+
+export type WorkerAuthResult =
+  | {
+      success: true
+      session: NonNullable<
+        Awaited<
+          ReturnType<typeof supabase.auth.getSession>
+        >['data']['session']
+      >
+    }
+  | {
+      success: false
+      error: string
+    }
+
+export type WorkerRegistrationResult =
+  | {
+      success: true
+      session: ReturnType<typeof getSessionPlaceholder>
+    }
+  | {
+      success: false
+      error: string
+      needsEmailConfirmation?: boolean
+    }
+
+type ProfileRow = {
+  id: string
+  full_name: string | null
+  phone: string | null
+  email: string | null
+  role: string
+  is_active: boolean
+}
+
+type WorkerProfileRow = {
+  id: string
+  worker_status: WorkerStatus
+  service_radius_km: number
+  is_verified: boolean
+  is_featured: boolean
+  rating: number
+  total_completed_jobs: number
+  current_location: unknown
+  created_at: string
+  updated_at: string
+}
+
+function getSessionPlaceholder() {
+  return null
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+function normalizePhone(phone: string): string {
+  return phone.replace(/\D/g, '')
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function isValidPhone(phone: string): boolean {
+  const normalizedPhone = normalizePhone(phone)
+
+  return (
+    normalizedPhone.length >= 10 &&
+    normalizedPhone.length <= 15
+  )
+}
+
+function parseWorkerLocation(
+  value: unknown,
+): WorkerLocation | null {
+  if (!value) {
+    return null
+  }
+
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'coordinates' in value
+  ) {
+    const coordinates = (
+      value as {
+        coordinates?: unknown
+      }
+    ).coordinates
+
+    if (
+      Array.isArray(coordinates) &&
+      typeof coordinates[0] === 'number' &&
+      typeof coordinates[1] === 'number'
+    ) {
+      return {
+        longitude: coordinates[0],
+        latitude: coordinates[1],
+        recordedAt: new Date().toISOString(),
+      }
+    }
+  }
+
+  return null
+}
+
+function mapWorkerProfile(
+  profile: ProfileRow,
+  workerProfile: WorkerProfileRow,
+): WorkerProfile {
+  return {
+    id: profile.id,
+    fullName: profile.full_name,
+    email: profile.email,
+    phone: profile.phone,
+
+    isActive: profile.is_active,
+
+    workerStatus: workerProfile.worker_status,
+
+    isVerified: workerProfile.is_verified,
+    isFeatured: workerProfile.is_featured,
+
+    rating: Number(workerProfile.rating ?? 0),
+    totalCompletedJobs: Number(
+      workerProfile.total_completed_jobs ?? 0,
+    ),
+
+    serviceRadiusKm: Number(
+      workerProfile.service_radius_km ?? 0,
+    ),
+
+    currentLocation: parseWorkerLocation(
+      workerProfile.current_location,
+    ),
+
+    createdAt: workerProfile.created_at,
+    updatedAt: workerProfile.updated_at,
+  }
+}
+
+async function getCurrentSession() {
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession()
+
+  if (error) {
+    throw error
+  }
+
+  return session
+}
+
+async function getWorkerProfile(
+  userId: string,
+): Promise<WorkerProfile | null> {
+  const {
+    data: profile,
+    error: profileError,
+  } = await supabase
+    .from('profiles')
+    .select(
+      'id, full_name, phone, email, role, is_active',
+    )
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (profileError) {
+    throw profileError
+  }
+
+  if (!profile) {
+    return null
+  }
+
+  if (profile.role !== 'worker') {
+    throw new Error(
+      'The authenticated account is not a worker account.',
+    )
+  }
+
+  if (!profile.is_active) {
+    throw new Error(
+      'The worker account is inactive.',
+    )
+  }
+
+  const {
+    data: workerProfile,
+    error: workerProfileError,
+  } = await supabase
+    .from('worker_profiles')
+    .select(
+      'id, worker_status, service_radius_km, is_verified, is_featured, rating, total_completed_jobs, current_location, created_at, updated_at',
+    )
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (workerProfileError) {
+    throw workerProfileError
+  }
+
+  if (!workerProfile) {
+    return null
+  }
+
+  return mapWorkerProfile(
+    profile,
+    workerProfile,
+  )
+}
+
+function workerProfileNeedsRegistration(
+  profile: WorkerProfile | null,
+): boolean {
+  if (!profile) {
+    return true
+  }
+
+  return (
+    !profile.fullName ||
+    profile.fullName.trim().length === 0 ||
+    !profile.phone ||
+    !isValidPhone(profile.phone)
+  )
+}
+
+export async function getCurrentWorkerProfile(): Promise<
+  WorkerProfile | null
+> {
+  const session = await getCurrentSession()
+
+  if (!session) {
+    return null
+  }
+
+  return getWorkerProfile(session.user.id)
+}
+
+export async function getWorkerAuthState(): Promise<WorkerAuthState> {
+  const session = await getCurrentSession()
+
+  if (!session) {
+    return {
+      authenticated: false,
+      needsRegistration: true,
+      email: '',
+    }
+  }
+
+  const profile = await getWorkerProfile(
+    session.user.id,
+  )
+
+  const email =
+    typeof session.user.email === 'string'
+      ? normalizeEmail(session.user.email)
+      : ''
+
+  return {
+    authenticated: true,
+    needsRegistration:
+      workerProfileNeedsRegistration(profile),
+    email,
+  }
+}
+
+export async function signInWorker(
+  email: string,
+  password: string,
+): Promise<WorkerAuthResult> {
+  const normalizedEmail = normalizeEmail(email)
+
+  if (!isValidEmail(normalizedEmail)) {
+    return {
+      success: false,
+      error: 'Please enter a valid email address.',
+    }
+  }
+
+  if (!password) {
+    return {
+      success: false,
+      error: 'Password is required.',
+    }
+  }
+
+  try {
+    const { data, error } =
+      await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      })
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message,
+      }
+    }
+
+    if (!data.session) {
+      return {
+        success: false,
+        error:
+          'Authentication succeeded but no session was returned.',
+      }
+    }
+
+    const profile = await getWorkerProfile(
+      data.user.id,
+    )
+
+    if (!profile) {
+      await supabase.auth.signOut()
+
+      return {
+        success: false,
+        error:
+          'This account is not configured as a worker account.',
+      }
+    }
+
+    return {
+      success: true,
+      session: data.session,
+    }
+  } catch (error) {
+    console.error(
+      'Worker sign-in failed:',
+      error,
+    )
+
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Unable to sign in.',
+    }
+  }
+}
+
+export async function registerWorkerAuth(
+  email: string,
+  password: string,
+  fullName: string,
+  phone: string,
+): Promise<WorkerRegistrationResult> {
+  const normalizedEmail = normalizeEmail(email)
+  const normalizedPhone = normalizePhone(phone)
+  const trimmedName = fullName.trim()
+
+  if (!isValidEmail(normalizedEmail)) {
+    return {
+      success: false,
+      error: 'Please enter a valid email address.',
+    }
+  }
+
+  if (password.length < 8) {
+    return {
+      success: false,
+      error:
+        'Password must contain at least 8 characters.',
+    }
+  }
+
+  if (!trimmedName) {
+    return {
+      success: false,
+      error: 'Full name is required.',
+    }
+  }
+
+  if (trimmedName.length > MAX_NAME_LENGTH) {
+    return {
+      success: false,
+      error: `Name must be ${MAX_NAME_LENGTH} characters or fewer.`,
+    }
+  }
+
+  if (!isValidPhone(normalizedPhone)) {
+    return {
+      success: false,
+      error: 'Please enter a valid mobile number.',
+    }
+  }
+
+  try {
+    const { data, error } =
+      await supabase.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: {
+          data: {
+            full_name: trimmedName,
+            phone: normalizedPhone,
+            role: 'worker',
+          },
+        },
+      })
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message,
+      }
+    }
+
+    if (!data.session) {
+      return {
+        success: false,
+        error:
+          'Your account was created. Please verify your email before continuing.',
+        needsEmailConfirmation: true,
+      }
+    }
+
+    return {
+      success: true,
+      session: data.session,
+    }
+  } catch (error) {
+    console.error(
+      'Worker registration failed:',
+      error,
+    )
+
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Unable to create the worker account.',
+    }
+  }
+}
+
+export async function refreshWorkerSession() {
+  const {
+    data,
+    error,
+  } = await supabase.auth.refreshSession()
+
+  if (error) {
+    throw error
+  }
+
+  return data.session
+}
+
+export async function signOutWorker(): Promise<void> {
+  const { error } =
+    await supabase.auth.signOut()
+
+  if (error) {
+    throw error
+  }
+}
+
+export function subscribeToWorkerAuthChanges(
+  callback: (
+    session: Awaited<
+      ReturnType<typeof getCurrentSession>
+    >,
+  ) => void,
+) {
+  return supabase.auth.onAuthStateChange(
+    (_event, session) => {
+      callback(session)
+    },
+  )
+}
