@@ -1186,13 +1186,13 @@ const styles = StyleSheet.create({
   },
 
   heroBackground: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: undefined,
     height: undefined,
   },
 
   heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(245, 251, 253, 0.82)',
   },
 
