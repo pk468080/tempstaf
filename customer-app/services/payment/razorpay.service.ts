@@ -6,6 +6,7 @@ export type RazorpayOrder = {
   amount: number
   currency: string
   alreadyPaid?: boolean
+  paymentPending?: boolean
   paymentId?: string
   status?: string
 }
@@ -411,6 +412,27 @@ export async function createRazorpayOrder(
           : 'paid',
     }
   }
+
+  if (
+  result?.success === true &&
+  result?.paymentPending === true
+) {
+  return {
+    keyId: '',
+    orderId:
+      typeof result.orderId === 'string'
+        ? result.orderId
+        : '',
+    amount: 0,
+    currency: expectedCurrency,
+    alreadyPaid: false,
+    paymentPending: true,
+    status:
+      typeof result.status === 'string'
+        ? result.status
+        : 'authorized',
+  }
+}
 
   const amount =
     Number(result?.amount) / 100

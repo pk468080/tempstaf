@@ -159,6 +159,14 @@ export default function PaymentScreen({
         return
       }
 
+      if (order.paymentPending) {
+  Alert.alert(
+    'Payment is being confirmed',
+    'This payment is still being processed by Razorpay. Please do not make another payment.',
+  )
+  return
+}
+
       if (
         !order.keyId ||
         !order.orderId ||
