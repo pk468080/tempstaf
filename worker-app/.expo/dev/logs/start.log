@@ -59,3 +59,21 @@
 {"_e":"metro:bundling:progress","_t":1790097000813,"id":"6","progress":0,"total":1,"current":0}
 {"_e":"metro:bundling:done","_t":1790097000848,"id":"6","total":1,"ms":34.837041}
 {"_e":"metro:client_log","_t":1790097003541,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
+{"_e":"metro:client_log","_t":1790097080543,"level":"warn","data":["bundle scheme is file - unable to connect to sharedPackageConnection from EXDevLauncherController."]}
+{"_e":"metro:bundling:started","_t":1790097081023,"id":"7","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790097081024,"id":"7","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790097081069,"id":"7","total":1,"ms":45.427708}
+{"_e":"metro:client_log","_t":1790097083578,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
+{"_e":"metro:client_log","_t":1790097102526,"level":"warn","data":["bundle scheme is file - unable to connect to sharedPackageConnection from EXDevLauncherController."]}
+{"_e":"metro:bundling:started","_t":1790097102663,"id":"8","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790097102663,"id":"8","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790097102709,"id":"8","total":1,"ms":46.043833}
+{"_e":"metro:client_log","_t":1790097105218,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
+{"_e":"metro:bundling:started","_t":1790097162897,"id":"9","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790097162897,"id":"9","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790097162945,"id":"9","total":1,"ms":48.348333}
+{"_e":"metro:client_log","_t":1790097165552,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
+{"_e":"metro:client_log","_t":1790097165747,"level":"warn","data":["Sending `onAnimatedValueUpdate` with no listeners registered."]}
+{"_e":"metro:client_log","_t":1790097233078,"level":"warn","data":["WebCrypto API is not supported. Code challenge method will default to use plain instead of sha256."]}
+{"_e":"metro:client_log","_t":1790097755854,"level":"warn","data":["WebCrypto API is not supported. Code challenge method will default to use plain instead of sha256."]}
+{"_e":"metro:client_log","_t":1790097779589,"level":"warn","data":["WebCrypto API is not supported. Code challenge method will default to use plain instead of sha256."]}

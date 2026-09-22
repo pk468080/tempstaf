@@ -1,8 +1,10 @@
 import { useState } from 'react'
+
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,15 +14,13 @@ import {
 import { AppButton } from '../../components/ui/AppButton'
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
 import { UI } from '../../constants/ui'
+
 import {
   registerWorkerAuth,
 } from '../../services/auth/workerAuth.service'
 
 type WorkerRegistrationScreenProps = {
   onRegistered: () => void
-  onEmailConfirmationRequired: (
-    email: string,
-  ) => void
   onBackToLogin: () => void
 }
 
@@ -28,26 +28,47 @@ const MAX_NAME_LENGTH = 100
 
 export default function WorkerRegistrationScreen({
   onRegistered,
-  onEmailConfirmationRequired,
   onBackToLogin,
 }: WorkerRegistrationScreenProps) {
-  const [fullName, setFullName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [fullName, setFullName] =
+    useState('')
+
+  const [phone, setPhone] =
+    useState('')
+
+  const [email, setEmail] =
+    useState('')
+
+  const [password, setPassword] =
+    useState('')
+
   const [confirmPassword, setConfirmPassword] =
     useState('')
 
   const [errorMessage, setErrorMessage] =
     useState('')
+
   const [isSubmitting, setIsSubmitting] =
     useState(false)
 
-  const normalizedName = fullName.trim()
+  const [
+    emailConfirmationRequired,
+    setEmailConfirmationRequired,
+  ] = useState(false)
+
+  const normalizedName =
+    fullName.trim()
+
   const normalizedPhone =
-    phone.replace(/\D/g, '')
+    phone.replace(
+      /\D/g,
+      '',
+    )
+
   const normalizedEmail =
-    email.trim().toLowerCase()
+    email
+      .trim()
+      .toLowerCase()
 
   const isValidEmail =
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
@@ -67,39 +88,48 @@ export default function WorkerRegistrationScreen({
 
   const isValid =
     normalizedName.length > 0 &&
-    normalizedName.length <= MAX_NAME_LENGTH &&
+    normalizedName.length <=
+      MAX_NAME_LENGTH &&
     isValidPhone &&
     isValidEmail &&
     isValidPassword &&
     passwordsMatch
 
   async function handleSubmit() {
-    if (!isValid || isSubmitting) {
+    if (
+      !isValid ||
+      isSubmitting
+    ) {
       return
     }
 
     setErrorMessage('')
     setIsSubmitting(true)
+    setEmailConfirmationRequired(false)
 
     try {
-      const result = await registerWorkerAuth(
-        normalizedEmail,
-        password,
-        normalizedName,
-        normalizedPhone,
-      )
+      const result =
+        await registerWorkerAuth(
+          normalizedEmail,
+          password,
+          normalizedName,
+          normalizedPhone,
+        )
 
       if (!result.success) {
         if (
           result.needsEmailConfirmation
         ) {
-          onEmailConfirmationRequired(
-            normalizedEmail,
+          setEmailConfirmationRequired(
+            true,
           )
           return
         }
 
-        setErrorMessage(result.error)
+        setErrorMessage(
+          result.error,
+        )
+
         return
       }
 
@@ -120,6 +150,118 @@ export default function WorkerRegistrationScreen({
     }
   }
 
+  if (
+    emailConfirmationRequired
+  ) {
+    return (
+      <ScreenContainer>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={
+            styles.confirmationContent
+          }
+          showsVerticalScrollIndicator={
+            false
+        }
+        >
+          <View style={styles.header}>
+            <View style={styles.logoMark}>
+              <Text style={styles.logoText}>
+                TS
+              </Text>
+            </View>
+
+            <View style={styles.headerCopy}>
+              <Text style={styles.brandName}>
+                TempStaff
+              </Text>
+
+              <Text style={styles.brandTagline}>
+                Worker app
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={
+              styles.confirmationCard
+            }
+          >
+            <View
+              style={
+                styles.confirmationIcon
+              }
+            >
+              <Text
+                style={
+                  styles.confirmationIconText
+                }
+              >
+                ✓
+              </Text>
+            </View>
+
+            <Text
+              style={
+                styles.confirmationTitle
+              }
+            >
+              Account created
+            </Text>
+
+            <Text
+              style={
+                styles.confirmationText
+              }
+            >
+              Your TempStaff worker account has
+              been created successfully.
+            </Text>
+
+            <Text
+              style={
+                styles.confirmationText
+              }
+            >
+              We sent a verification email to:
+            </Text>
+
+            <Text
+              style={
+                styles.confirmationEmail
+              }
+            >
+              {normalizedEmail}
+            </Text>
+
+            <Text
+              style={
+                styles.confirmationText
+              }
+            >
+              Verify your email, then return here
+              and sign in to continue worker
+              onboarding.
+            </Text>
+
+            <View
+              style={
+                styles.confirmationAction
+              }
+            >
+              <AppButton
+                title="Back to sign in"
+                onPress={
+                  onBackToLogin
+                }
+              />
+            </View>
+          </View>
+        </ScrollView>
+      </ScreenContainer>
+    )
+  }
+
   return (
     <ScreenContainer>
       <KeyboardAvoidingView
@@ -130,7 +272,21 @@ export default function WorkerRegistrationScreen({
             : undefined
         }
       >
-        <View style={styles.container}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={
+            styles.scrollContent
+          }
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={
+            Platform.OS === 'ios'
+              ? 'interactive'
+              : 'on-drag'
+          }
+          showsVerticalScrollIndicator={
+            false
+          }
+        >
           <View style={styles.header}>
             <View style={styles.logoMark}>
               <Text style={styles.logoText}>
@@ -193,7 +349,9 @@ export default function WorkerRegistrationScreen({
                 autoCapitalize="words"
                 autoCorrect={false}
                 autoComplete="name"
-                maxLength={MAX_NAME_LENGTH}
+                maxLength={
+                  MAX_NAME_LENGTH
+                }
                 editable={!isSubmitting}
                 style={styles.input}
               />
@@ -313,8 +471,8 @@ export default function WorkerRegistrationScreen({
             {password.length > 0 &&
             !isValidPassword ? (
               <Text style={styles.validationText}>
-                Password must contain at least 8
-                characters.
+                Password must contain at least
+                8 characters.
               </Text>
             ) : null}
 
@@ -337,44 +495,83 @@ export default function WorkerRegistrationScreen({
               </View>
             ) : null}
 
-            <AppButton
-              title={
-                isSubmitting
-                  ? 'Creating account...'
-                  : 'Create account'
-              }
-              disabled={!isValid || isSubmitting}
-              onPress={() => {
-                void handleSubmit()
-              }}
-            />
+            <View style={styles.submitButton}>
+              <AppButton
+                title={
+                  isSubmitting
+                    ? 'Creating account...'
+                    : 'Create account'
+                }
+                disabled={
+                  !isValid ||
+                  isSubmitting
+                }
+                onPress={() => {
+                  void handleSubmit()
+                }}
+              />
+            </View>
 
             {isSubmitting ? (
-              <View style={styles.loadingRow}>
+              <View
+                style={
+                  styles.loadingRow
+                }
+              >
                 <ActivityIndicator
                   size="small"
-                  color={UI.colors.secondary}
+                  color={
+                    UI.colors.secondary
+                  }
                 />
 
-                <Text style={styles.loadingText}>
+                <Text
+                  style={
+                    styles.loadingText
+                  }
+                >
                   Creating your worker account...
                 </Text>
               </View>
             ) : null}
 
-            <View style={styles.securityRow}>
-              <View style={styles.securityIcon}>
-                <Text style={styles.securityCheck}>
+            <View
+              style={
+                styles.securityRow
+              }
+            >
+              <View
+                style={
+                  styles.securityIcon
+                }
+              >
+                <Text
+                  style={
+                    styles.securityCheck
+                  }
+                >
                   ✓
                 </Text>
               </View>
 
-              <View style={styles.securityCopy}>
-                <Text style={styles.securityTitle}>
+              <View
+                style={
+                  styles.securityCopy
+                }
+              >
+                <Text
+                  style={
+                    styles.securityTitle
+                  }
+                >
                   Secure registration
                 </Text>
 
-                <Text style={styles.securityText}>
+                <Text
+                  style={
+                    styles.securityText
+                  }
+                >
                   Your account is created through
                   TempStaff authentication.
                 </Text>
@@ -390,11 +587,13 @@ export default function WorkerRegistrationScreen({
             <AppButton
               title="Back to sign in"
               variant="secondary"
-              onPress={onBackToLogin}
+              onPress={
+                onBackToLogin
+              }
               disabled={isSubmitting}
             />
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </ScreenContainer>
   )
@@ -405,11 +604,30 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  container: {
+  scroll: {
     flex: 1,
-    paddingHorizontal: UI.spacing.xl,
-    paddingTop: UI.spacing.xl,
-    paddingBottom: UI.spacing.lg,
+  },
+
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal:
+      UI.spacing.xl,
+    paddingTop:
+      UI.spacing.xl,
+    paddingBottom:
+      UI.spacing.xxxl,
+  },
+
+  confirmationContent: {
+    flexGrow: 1,
+    paddingHorizontal:
+      UI.spacing.xl,
+    paddingTop:
+      UI.spacing.xl,
+    paddingBottom:
+      UI.spacing.xxxl,
+    justifyContent:
+      'center',
   },
 
   header: {
@@ -420,165 +638,229 @@ const styles = StyleSheet.create({
   logoMark: {
     width: 46,
     height: 46,
-    borderRadius: UI.radius.md,
+    borderRadius:
+      UI.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: UI.colors.primary,
+    backgroundColor:
+      UI.colors.primary,
   },
 
   logoText: {
     fontSize: 15,
     fontWeight: '800',
-    color: UI.colors.surface,
+    color:
+      UI.colors.surface,
     letterSpacing: 0.5,
   },
 
   headerCopy: {
-    marginLeft: UI.spacing.md,
+    marginLeft:
+      UI.spacing.md,
   },
 
   brandName: {
     fontSize: 20,
     fontWeight: '800',
-    color: UI.colors.text,
+    color:
+      UI.colors.text,
   },
 
   brandTagline: {
     marginTop: 2,
-    fontSize: UI.typography.small,
+    fontSize:
+      UI.typography.small,
     fontWeight: '600',
-    color: UI.colors.secondary,
+    color:
+      UI.colors.secondary,
   },
 
   hero: {
-    marginTop: UI.spacing.xxl,
+    marginTop:
+      UI.spacing.xxl,
   },
 
   eyebrow: {
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 1.2,
-    color: UI.colors.secondary,
+    color:
+      UI.colors.secondary,
   },
 
   title: {
-    marginTop: UI.spacing.sm,
-    fontSize: UI.typography.largeTitle,
+    marginTop:
+      UI.spacing.sm,
+    fontSize:
+      UI.typography.largeTitle,
     lineHeight: 34,
     fontWeight: '800',
-    color: UI.colors.text,
+    color:
+      UI.colors.text,
   },
 
   subtitle: {
-    marginTop: UI.spacing.sm,
-    fontSize: UI.typography.body,
+    marginTop:
+      UI.spacing.sm,
+    fontSize:
+      UI.typography.body,
     lineHeight: 20,
-    color: UI.colors.textSecondary,
+    color:
+      UI.colors.textSecondary,
   },
 
   formCard: {
-    marginTop: UI.spacing.xl,
-    padding: UI.spacing.xl,
-    borderRadius: UI.radius.xl,
-    backgroundColor: UI.colors.surface,
+    marginTop:
+      UI.spacing.xl,
+    padding:
+      UI.spacing.xl,
+    borderRadius:
+      UI.radius.xl,
+    backgroundColor:
+      UI.colors.surface,
     borderWidth: 1,
-    borderColor: UI.colors.border,
+    borderColor:
+      UI.colors.border,
   },
 
   formTitle: {
-    fontSize: UI.typography.subtitle,
+    fontSize:
+      UI.typography.subtitle,
     fontWeight: '800',
-    color: UI.colors.text,
+    color:
+      UI.colors.text,
   },
 
   formSubtitle: {
-    marginTop: UI.spacing.xs,
-    fontSize: UI.typography.small,
+    marginTop:
+      UI.spacing.xs,
+    fontSize:
+      UI.typography.small,
     lineHeight: 18,
-    color: UI.colors.textSecondary,
+    color:
+      UI.colors.textSecondary,
   },
 
   field: {
-    marginTop: UI.spacing.lg,
+    marginTop:
+      UI.spacing.lg,
   },
 
   label: {
-    marginBottom: UI.spacing.sm,
-    fontSize: UI.typography.small,
+    marginBottom:
+      UI.spacing.sm,
+    fontSize:
+      UI.typography.small,
     fontWeight: '700',
-    color: UI.colors.text,
+    color:
+      UI.colors.text,
   },
 
   input: {
-    height: UI.sizes.inputHeight,
-    paddingHorizontal: UI.spacing.md,
+    height:
+      UI.sizes.inputHeight,
+    paddingHorizontal:
+      UI.spacing.md,
     borderWidth: 1,
-    borderColor: UI.colors.inputBorder,
-    borderRadius: UI.radius.md,
-    backgroundColor: UI.colors.surface,
-    fontSize: UI.typography.bodyLarge,
-    color: UI.colors.text,
+    borderColor:
+      UI.colors.inputBorder,
+    borderRadius:
+      UI.radius.md,
+    backgroundColor:
+      UI.colors.surface,
+    fontSize:
+      UI.typography.bodyLarge,
+    color:
+      UI.colors.text,
   },
 
   inputValid: {
-    borderColor: UI.colors.secondary,
+    borderColor:
+      UI.colors.secondary,
   },
 
   validationText: {
-    marginTop: UI.spacing.sm,
-    fontSize: UI.typography.small,
+    marginTop:
+      UI.spacing.sm,
+    fontSize:
+      UI.typography.small,
     lineHeight: 17,
-    color: UI.colors.warning,
+    color:
+      UI.colors.warning,
   },
 
   errorBox: {
-    marginTop: UI.spacing.lg,
-    padding: UI.spacing.md,
-    borderRadius: UI.radius.md,
-    backgroundColor: UI.colors.errorBackground,
+    marginTop:
+      UI.spacing.lg,
+    padding:
+      UI.spacing.md,
+    borderRadius:
+      UI.radius.md,
+    backgroundColor:
+      UI.colors.errorBackground,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor:
+      '#FECACA',
   },
 
   errorTitle: {
-    fontSize: UI.typography.small,
+    fontSize:
+      UI.typography.small,
     fontWeight: '800',
-    color: UI.colors.error,
+    color:
+      UI.colors.error,
   },
 
   errorText: {
-    marginTop: UI.spacing.xs,
-    fontSize: UI.typography.small,
+    marginTop:
+      UI.spacing.xs,
+    fontSize:
+      UI.typography.small,
     lineHeight: 18,
-    color: UI.colors.error,
+    color:
+      UI.colors.error,
+  },
+
+  submitButton: {
+    marginTop:
+      UI.spacing.lg,
   },
 
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: UI.spacing.md,
+    justifyContent:
+      'center',
+    marginTop:
+      UI.spacing.md,
   },
 
   loadingText: {
-    marginLeft: UI.spacing.sm,
-    fontSize: UI.typography.small,
-    color: UI.colors.textSecondary,
+    marginLeft:
+      UI.spacing.sm,
+    fontSize:
+      UI.typography.small,
+    color:
+      UI.colors.textSecondary,
   },
 
   securityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: UI.spacing.lg,
-    paddingTop: UI.spacing.md,
+    marginTop:
+      UI.spacing.lg,
+    paddingTop:
+      UI.spacing.md,
     borderTopWidth: 1,
-    borderTopColor: UI.colors.border,
+    borderTopColor:
+      UI.colors.border,
   },
 
   securityIcon: {
     width: 28,
     height: 28,
-    borderRadius: UI.radius.pill,
+    borderRadius:
+      UI.radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor:
@@ -588,35 +870,113 @@ const styles = StyleSheet.create({
   securityCheck: {
     fontSize: 15,
     fontWeight: '800',
-    color: UI.colors.success,
+    color:
+      UI.colors.success,
   },
 
   securityCopy: {
     flex: 1,
-    marginLeft: UI.spacing.sm,
+    marginLeft:
+      UI.spacing.sm,
   },
 
   securityTitle: {
-    fontSize: UI.typography.small,
+    fontSize:
+      UI.typography.small,
     fontWeight: '700',
-    color: UI.colors.text,
+    color:
+      UI.colors.text,
   },
 
   securityText: {
     marginTop: 2,
     fontSize: 10,
     lineHeight: 15,
-    color: UI.colors.textMuted,
+    color:
+      UI.colors.textMuted,
   },
 
   footer: {
-    paddingTop: UI.spacing.md,
+    marginTop:
+      UI.spacing.xl,
   },
 
   footerPrompt: {
-    marginBottom: UI.spacing.sm,
+    marginBottom:
+      UI.spacing.sm,
     textAlign: 'center',
-    fontSize: UI.typography.small,
-    color: UI.colors.textSecondary,
+    fontSize:
+      UI.typography.small,
+    color:
+      UI.colors.textSecondary,
+  },
+
+  confirmationCard: {
+    marginTop:
+      UI.spacing.xxl,
+    padding:
+      UI.spacing.xl,
+    borderRadius:
+      UI.radius.xl,
+    backgroundColor:
+      UI.colors.surface,
+    borderWidth: 1,
+    borderColor:
+      UI.colors.border,
+  },
+
+  confirmationIcon: {
+    width: 58,
+    height: 58,
+    borderRadius:
+      UI.radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor:
+      UI.colors.successBackground,
+  },
+
+  confirmationIconText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color:
+      UI.colors.success,
+  },
+
+  confirmationTitle: {
+    marginTop:
+      UI.spacing.lg,
+    fontSize:
+      UI.typography.title,
+    lineHeight: 30,
+    fontWeight: '800',
+    color:
+      UI.colors.text,
+  },
+
+  confirmationText: {
+    marginTop:
+      UI.spacing.md,
+    fontSize:
+      UI.typography.body,
+    lineHeight: 21,
+    color:
+      UI.colors.textSecondary,
+  },
+
+  confirmationEmail: {
+    marginTop:
+      UI.spacing.sm,
+    fontSize:
+      UI.typography.bodyLarge,
+    lineHeight: 22,
+    fontWeight: '800',
+    color:
+      UI.colors.text,
+  },
+
+  confirmationAction: {
+    marginTop:
+      UI.spacing.xl,
   },
 })

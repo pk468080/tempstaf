@@ -83,26 +83,23 @@ export default function RootNavigator() {
 </Stack.Screen>
 
         <Stack.Screen
-          name="WorkerRegistration"
-        >
-          {({ navigation }) => (
-            <WorkerRegistrationScreen
-              onRegistered={() => {
-                navigation.replace(
-                  'WorkerOnboarding',
-                )
-              }}
-              onEmailConfirmationRequired={() => {
-                navigation.replace(
-                  'Login',
-                )
-              }}
-              onBackToLogin={() => {
-                navigation.goBack()
-              }}
-            />
-          )}
-        </Stack.Screen>
+  name="WorkerRegistration"
+>
+  {({ navigation }) => (
+    <WorkerRegistrationScreen
+      onRegistered={() => {
+        navigation.replace(
+          'WorkerOnboarding',
+        )
+      }}
+      onBackToLogin={() => {
+        navigation.replace(
+          'Login',
+        )
+      }}
+    />
+  )}
+</Stack.Screen>
 
         <Stack.Screen
           name="WorkerOnboarding"
