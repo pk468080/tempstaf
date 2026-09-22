@@ -34,9 +34,16 @@ import {
   getRelativeNotificationTime,
 } from '../../lib/notificationUtils'
 
+import type {
+  WorkerNotificationType,
+} from '../../types/notifications'
+
 type NotificationsScreenProps = {
   onBack?: () => void
   onBookingPress?: (
+    bookingId: string,
+  ) => void
+  onBookingOfferPress?: (
     bookingId: string,
   ) => void
 }
@@ -44,6 +51,7 @@ type NotificationsScreenProps = {
 export default function NotificationsScreen({
   onBack,
   onBookingPress,
+  onBookingOfferPress,
 }: NotificationsScreenProps) {
   const {
     notifications,
@@ -65,7 +73,9 @@ export default function NotificationsScreen({
     return (
       <ScreenContainer>
         <View
-          style={styles.loadingContainer}
+          style={
+            styles.loadingContainer
+          }
         >
           <ActivityIndicator
             size="large"
@@ -276,10 +286,21 @@ export default function NotificationsScreen({
                     notification.notificationType,
                   )
 
+                const isBookingOffer =
+                  notification.notificationType ===
+                  'booking_offer'
+
                 const canOpenBooking =
                   Boolean(
                     notification.bookingId &&
                       onBookingPress,
+                  )
+
+                const canOpenOffer =
+                  Boolean(
+                    notification.bookingId &&
+                      isBookingOffer &&
+                      onBookingOfferPress,
                   )
 
                 return (
@@ -353,7 +374,28 @@ export default function NotificationsScreen({
                       {notification.message}
                     </Text>
 
-                    {canOpenBooking ? (
+                    {canOpenOffer ? (
+                      <View
+                        style={
+                          styles.bookingAction
+                        }
+                      >
+                        <AppButton
+                          title="Open booking offer"
+                          variant="secondary"
+                          onPress={() => {
+                            if (
+                              notification.bookingId &&
+                              onBookingOfferPress
+                            ) {
+                              onBookingOfferPress(
+                                notification.bookingId,
+                              )
+                            }
+                          }}
+                        />
+                      </View>
+                    ) : canOpenBooking ? (
                       <View
                         style={
                           styles.bookingAction
