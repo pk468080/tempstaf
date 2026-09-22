@@ -153,64 +153,84 @@ export function useWorkerPresence(
     )
 
   const setOnline =
-    useCallback(
-      async (
-        location?: WorkerLocation,
-      ): Promise<WorkerPresence> => {
-        setUpdating(true)
-        setError(null)
+  useCallback(
+    async (
+      location?: WorkerLocation,
+    ): Promise<WorkerPresence> => {
+      setUpdating(true)
+      setError(null)
 
-        try {
-          const resolvedLocation =
-            await resolveLocation(
-              location,
-            )
+      try {
+        const resolvedLocation =
+          await resolveLocation(
+            location,
+          )
 
-          const nextPresence =
-            await goOnline()
+        const nextPresence =
+          await goOnline()
 
-          const nextHeartbeat =
-            await sendWorkerPresenceHeartbeat(
-              resolvedLocation.latitude,
-              resolvedLocation.longitude,
-            )
+        const nextHeartbeat =
+          await sendWorkerPresenceHeartbeat(
+            resolvedLocation.latitude,
+            resolvedLocation.longitude,
+          )
 
-          if (
-            mountedRef.current
-          ) {
-            setPresence(
-              nextHeartbeat,
-            )
-          }
-
-          return nextHeartbeat
-        } catch (cause) {
-          const message =
-            cause instanceof Error
-              ? cause.message
-              : 'Unable to set worker status to online.'
-
-          if (
-            mountedRef.current
-          ) {
-            setError(
-              message,
-            )
-          }
-
-          throw cause
-        } finally {
-          if (
-            mountedRef.current
-          ) {
-            setUpdating(false)
-          }
+        if (
+          mountedRef.current
+        ) {
+          setPresence(
+            nextHeartbeat,
+          )
         }
-      },
-      [
-        resolveLocation,
-      ],
-    )
+
+        return nextHeartbeat
+      } catch (cause) {
+        try {
+          await goOffline()
+
+          if (
+            mountedRef.current
+          ) {
+            const rolledBackPresence =
+              await getWorkerPresence()
+
+            setPresence(
+              rolledBackPresence,
+            )
+          }
+        } catch (rollbackError) {
+          console.error(
+            'Unable to roll back worker online status:',
+            rollbackError,
+          )
+        }
+
+        const message =
+          cause instanceof Error
+            ? cause.message
+            : 'Unable to set worker status to online.'
+
+        if (
+          mountedRef.current
+        ) {
+          setError(
+            message,
+          )
+        }
+
+        throw cause
+      } finally {
+        if (
+          mountedRef.current
+        ) {
+          setUpdating(false)
+        }
+      }
+    },
+    [
+      resolveLocation,
+    ],
+  )
 
   const setOffline =
     useCallback(
