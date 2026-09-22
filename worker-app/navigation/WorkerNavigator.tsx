@@ -25,6 +25,8 @@ import WorkerHomeScreen from '../screens/home/WorkerHomeScreen'
 
 import WorkerBookingsScreen from '../screens/bookings/WorkerBookingsScreen'
 
+import BookingOfferScreen from '../screens/bookings/BookingOfferScreen'
+
 import BookingDetailsScreen from '../screens/bookings/BookingDetailsScreen'
 
 import BookingOccurrenceScreen from '../screens/bookings/BookingOccurrenceScreen'
@@ -227,10 +229,22 @@ export default function WorkerNavigator() {
       <Stack.Screen
         name="BookingOffer"
       >
-        {({ route }) => (
-          <PlaceholderScreen
-            title="Booking offer"
-            message={`Offer for booking ${route.params.bookingId}.`}
+        {({ navigation, route }) => (
+          <BookingOfferScreen
+            bookingId={
+              route.params.bookingId
+            }
+            onBack={() => {
+              navigation.goBack()
+            }}
+            onAccepted={bookingId => {
+              navigation.replace(
+                'BookingDetails',
+                {
+                  bookingId,
+                },
+              )
+            }}
           />
         )}
       </Stack.Screen>
