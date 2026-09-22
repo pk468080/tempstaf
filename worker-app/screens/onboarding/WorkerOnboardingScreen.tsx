@@ -155,7 +155,7 @@ export default function WorkerOnboardingScreen({
     setStep(nextStep)
   }
 
-  async function handleSubmit() {
+    async function handleSubmit() {
     if (submitting) {
       return
     }
@@ -164,7 +164,18 @@ export default function WorkerOnboardingScreen({
     setSubmitting(true)
 
     try {
-      await submitWorkerApplication()
+      const application =
+        await submitWorkerApplication()
+
+      if (
+        application.status !==
+        'submitted'
+      ) {
+        throw new Error(
+          'Your worker application is not ready for submission.',
+        )
+      }
+
       onCompleted()
     } catch (error) {
       console.error(
