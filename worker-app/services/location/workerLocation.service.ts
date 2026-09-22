@@ -1,6 +1,8 @@
 import * as Location from 'expo-location'
 
-import type { WorkerLocation } from '../../types/worker'
+import type {
+  WorkerLocation,
+} from '../../types/worker'
 
 import {
   WORKER,
@@ -20,6 +22,7 @@ export type WorkerLocationOptions = {
   accuracy?: Location.Accuracy
   maximumAge?: number
   timeout?: number
+  timeInterval?: number
 }
 
 function mapPermissionStatus(
@@ -83,6 +86,70 @@ function mapLocation(
       new Date(
         location.timestamp,
       ).toISOString(),
+  }
+}
+
+function normalizePositiveMilliseconds(
+  value: number | undefined,
+): number | undefined {
+  if (
+    value === undefined ||
+    !Number.isFinite(value) ||
+    value <= 0
+  ) {
+    return undefined
+  }
+
+  return Math.trunc(value)
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number | undefined,
+): Promise<T> {
+  const normalizedTimeout =
+    normalizePositiveMilliseconds(
+      timeoutMs,
+    )
+
+  if (
+    normalizedTimeout ===
+    undefined
+  ) {
+    return promise
+  }
+
+  let timeoutId:
+    | ReturnType<typeof setTimeout>
+    | undefined
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>(
+        (_, reject) => {
+          timeoutId =
+            setTimeout(
+              () => {
+                reject(
+                  new Error(
+                    'Worker location request timed out.',
+                  ),
+                )
+              },
+              normalizedTimeout,
+            )
+        },
+      ),
+    ])
+  } finally {
+    if (
+      timeoutId !== undefined
+    ) {
+      clearTimeout(
+        timeoutId,
+      )
+    }
   }
 }
 
@@ -223,22 +290,62 @@ export async function getCurrentWorkerLocation(
     )
   }
 
-  const location =
-    await Location.getCurrentPositionAsync({
-      accuracy:
-        options.accuracy ??
-        Location.Accuracy.High,
+  const maximumAge =
+    normalizePositiveMilliseconds(
+      options.maximumAge,
+    )
 
-      mayShowUserSettingsDialog:
-        true,
-    })
+  if (
+    maximumAge !==
+    undefined
+  ) {
+    const lastKnownLocation =
+      await Location.getLastKnownPositionAsync(
+        {
+          maxAge:
+            maximumAge,
+          requiredAccuracy: 250,
+        },
+      )
+
+    if (
+      lastKnownLocation
+    ) {
+      return mapLocation(
+        lastKnownLocation,
+      )
+    }
+  }
+
+  const locationPromise =
+    Location.getCurrentPositionAsync(
+      {
+        accuracy:
+          options.accuracy ??
+          Location.Accuracy.High,
+
+        mayShowUserSettingsDialog:
+          true,
+      },
+    )
+
+  const location =
+    await withTimeout(
+      locationPromise,
+      options.timeout,
+    )
 
   return mapLocation(
     location,
   )
 }
 
-export async function getLastKnownWorkerLocation(): Promise<WorkerLocation | null> {
+export async function getLastKnownWorkerLocation(
+  maximumAgeMs =
+    WORKER.location
+      .defaultUpdateIntervalSeconds *
+    1000,
+): Promise<WorkerLocation | null> {
   const permissions =
     await getWorkerLocationPermissions()
 
@@ -249,14 +356,22 @@ export async function getLastKnownWorkerLocation(): Promise<WorkerLocation | nul
     return null
   }
 
+  const safeMaximumAge =
+    normalizePositiveMilliseconds(
+      maximumAgeMs,
+    ) ??
+    WORKER.location
+      .defaultUpdateIntervalSeconds *
+      1000
+
   const location =
-    await Location.getLastKnownPositionAsync({
-      maxAge:
-        WORKER.location
-          .defaultUpdateIntervalSeconds *
-        1000,
-      requiredAccuracy: 250,
-    })
+    await Location.getLastKnownPositionAsync(
+      {
+        maxAge:
+          safeMaximumAge,
+        requiredAccuracy: 250,
+      },
+    )
 
   if (!location) {
     return null
@@ -278,14 +393,23 @@ export async function getWorkerLocationAccuracy(): Promise<number | null> {
     return null
   }
 
-  const location =
-    await Location.getCurrentPositionAsync({
-      accuracy:
-        Location.Accuracy.Balanced,
+  const servicesEnabled =
+    await isWorkerLocationServicesEnabled()
 
-      mayShowUserSettingsDialog:
-        true,
-    })
+  if (!servicesEnabled) {
+    return null
+  }
+
+  const location =
+    await Location.getCurrentPositionAsync(
+      {
+        accuracy:
+          Location.Accuracy.Balanced,
+
+        mayShowUserSettingsDialog:
+          true,
+      },
+    )
 
   return Number.isFinite(
     location.coords.accuracy,
@@ -311,6 +435,14 @@ export async function watchWorkerLocation(
     )
   }
 
+  const interval =
+    normalizePositiveMilliseconds(
+      options.timeInterval,
+    ) ??
+    WORKER.location
+      .defaultUpdateIntervalSeconds *
+    1000
+
   const subscription =
     await Location.watchPositionAsync(
       {
@@ -323,12 +455,9 @@ export async function watchWorkerLocation(
             .minimumDistanceMeters,
 
         timeInterval:
-          options.timeout ??
-          WORKER.location
-            .defaultUpdateIntervalSeconds *
-            1000,
+          interval,
       },
-      (location) => {
+      location => {
         callback(
           mapLocation(
             location,
