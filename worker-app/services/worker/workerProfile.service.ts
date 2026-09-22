@@ -221,23 +221,27 @@ async function fetchLatestWorkerLocation(
   workerId: string,
 ): Promise<WorkerLocationRow | null> {
   const {
-    data,
-    error,
-  } = await supabase
-    .from('worker_locations')
-    .select(
-      'latitude, longitude, recorded_at',
-    )
-    .eq(
-      'worker_id',
-      workerId,
-    )
-    .order(
-      'recorded_at',
-      {
-        ascending: false,
-      },
-    )
+  data,
+  error,
+} = await supabase
+  .from('worker_locations')
+  .select(
+    'latitude, longitude, recorded_at',
+  )
+  .eq(
+    'worker_id',
+    workerId,
+  )
+  .is(
+    'booking_id',
+    null,
+  )
+  .order(
+    'recorded_at',
+    {
+      ascending: false,
+    },
+  )
     .limit(1)
     .maybeSingle()
 
