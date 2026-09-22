@@ -87,66 +87,68 @@ export function useWorkerAuth(): UseWorkerAuthResult {
     null,
   )
 
-  const loadAuth = useCallback(
-  async (
-    nextSession?: Session | null,
-  ): Promise<void> => {
-    setLoading(true)
-    setError(null)
+    const loadAuth = useCallback(
+    async (
+      nextSession?: Session | null,
+    ): Promise<void> => {
+      setLoading(true)
+      setError(null)
 
-    try {
-      const resolvedSession =
-        nextSession !== undefined
-          ? nextSession
-          : await refreshWorkerSession()
+      try {
+        const resolvedSession =
+          nextSession !== undefined
+            ? nextSession
+            : await refreshWorkerSession()
 
-      setSession(
-        resolvedSession,
-      )
+        setSession(
+          resolvedSession,
+        )
 
-      if (!resolvedSession) {
+        if (!resolvedSession) {
+          setWorker(null)
+          setAuthState({
+            authenticated: false,
+            needsRegistration: true,
+            email: '',
+          })
+
+          return
+        }
+
+        const [
+          nextAuthState,
+          nextWorker,
+        ] = await Promise.all([
+          getWorkerAuthState(),
+          getCurrentWorkerProfile(),
+        ])
+
+        setAuthState(
+          nextAuthState,
+        )
+
+        setWorker(
+          nextWorker,
+        )
+      } catch (cause) {
+        const message =
+          cause instanceof Error
+            ? cause.message
+            : 'Unable to load worker authentication state.'
+
+        setError(
+          message,
+        )
+
+        setSession(null)
         setWorker(null)
-        setAuthState({
-          authenticated: false,
-          needsRegistration: true,
-          email: '',
-        })
-
-        return
+        setAuthState(null)
+      } finally {
+        setLoading(false)
       }
-
-      const nextAuthState =
-        await getWorkerAuthState()
-
-      const nextWorker =
-        await getCurrentWorkerProfile()
-
-      setAuthState(
-        nextAuthState,
-      )
-
-      setWorker(
-        nextWorker,
-      )
-    } catch (cause) {
-      const message =
-        cause instanceof Error
-          ? cause.message
-          : 'Unable to load worker authentication state.'
-
-      setError(
-        message,
-      )
-
-      setSession(null)
-      setWorker(null)
-      setAuthState(null)
-    } finally {
-      setLoading(false)
-    }
-  },
-  [],
-)
+    },
+    [],
+  )
 
   useEffect(() => {
     let mounted = true
