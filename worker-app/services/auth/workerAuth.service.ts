@@ -3,7 +3,9 @@ import type {
 } from '@supabase/supabase-js'
 
 import { supabase } from '../../lib/supabase'
-
+import {
+  getCurrentWorkerApplication,
+} from '../../services/onboarding/workerApplication.service'
 import type {
   WorkerLocation,
   WorkerProfile,
@@ -405,6 +407,21 @@ function workerProfileNeedsRegistration(
     )
   )
 }
+async function workerNeedsOnboarding(): Promise<boolean> {
+  const application =
+    await getCurrentWorkerApplication()
+
+  if (!application) {
+    return true
+  }
+
+  return (
+    application.status ===
+      'draft' ||
+    application.status ===
+      'changes_required'
+  )
+}
 
 export async function getCurrentWorkerProfile(): Promise<
   WorkerProfile | null
@@ -446,12 +463,26 @@ export async function getWorkerAuthState(): Promise<WorkerAuthState> {
         )
       : ''
 
+  const needsProfileRegistration =
+    workerProfileNeedsRegistration(
+      profile,
+    )
+
+  if (needsProfileRegistration) {
+    return {
+      authenticated: true,
+      needsRegistration: true,
+      email,
+    }
+  }
+
+  const needsOnboarding =
+    await workerNeedsOnboarding()
+
   return {
     authenticated: true,
     needsRegistration:
-      workerProfileNeedsRegistration(
-        profile,
-      ),
+      needsOnboarding,
     email,
   }
 }
