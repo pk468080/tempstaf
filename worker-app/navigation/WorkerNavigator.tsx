@@ -31,6 +31,8 @@ import BookingOccurrenceScreen from '../screens/bookings/BookingOccurrenceScreen
 
 import WorkerEarningsScreen from '../screens/earnings/WorkerEarningsScreen'
 
+import EarningDetailsScreen from '../screens/earnings/EarningDetailsScreen'
+
 import ProfileScreen from '../screens/profile/ProfileScreen'
 
 import EditProfileScreen from '../screens/profile/EditProfileScreen'
@@ -375,10 +377,14 @@ export default function WorkerNavigator() {
       <Stack.Screen
         name="EarningDetails"
       >
-        {({ route }) => (
-          <PlaceholderScreen
-            title="Earning details"
-            message={`Earning ${route.params.earningId}.`}
+        {({ navigation, route }) => (
+          <EarningDetailsScreen
+            earningId={
+              route.params.earningId
+            }
+            onBack={() => {
+              navigation.goBack()
+            }}
           />
         )}
       </Stack.Screen>
