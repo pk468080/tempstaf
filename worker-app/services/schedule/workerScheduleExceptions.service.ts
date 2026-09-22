@@ -89,17 +89,58 @@ function validateExceptionDate(
     )
   }
 
-  const parsed =
-    new Date(
-      `${exceptionDate}T00:00:00`,
+  const [
+    year,
+    month,
+    day,
+  ] = exceptionDate
+    .split('-')
+    .map(Number)
+
+  const daysInMonth = [
+    31,
+    28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31,
+  ]
+
+  if (
+    month < 1 ||
+    month > 12
+  ) {
+    throw new Error(
+      'Exception date is invalid.',
+    )
+  }
+
+  let maximumDay =
+    daysInMonth[month - 1]
+
+  const isLeapYear =
+    year % 4 === 0 &&
+    (
+      year % 100 !== 0 ||
+      year % 400 === 0
     )
 
   if (
-    Number.isNaN(
-      parsed.getTime(),
-    ) ||
-    parsed.toISOString().slice(0, 10) !==
-      exceptionDate
+    month === 2 &&
+    isLeapYear
+  ) {
+    maximumDay = 29
+  }
+
+  if (
+    day < 1 ||
+    day > maximumDay
   ) {
     throw new Error(
       'Exception date is invalid.',
