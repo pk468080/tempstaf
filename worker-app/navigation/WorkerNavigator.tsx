@@ -29,6 +29,12 @@ import EditProfileScreen from '../screens/profile/EditProfileScreen'
 
 import WorkerScheduleScreen from '../screens/schedule/WorkerScheduleScreen'
 
+import NotificationsScreen from '../screens/notifications/NotificationsScreen'
+
+import SupportScreen from '../screens/support/SupportScreen'
+
+import SettingsScreen from '../screens/settings/SettingsScreen'
+
 const Tab =
   createBottomTabNavigator<
     WorkerTabParamList
@@ -234,19 +240,31 @@ export default function WorkerNavigator() {
       <Stack.Screen
         name="Notifications"
       >
-        {() => (
-          <PlaceholderScreen
-            title="Notifications"
-            message="Your worker notifications will appear here."
+        {({ navigation }) => (
+          <NotificationsScreen
+            onBack={() => {
+              navigation.goBack()
+            }}
+            onBookingPress={(
+              bookingId,
+            ) => {
+              navigation.navigate(
+                'BookingDetails',
+                {
+                  bookingId,
+                },
+              )
+            }}
           />
         )}
       </Stack.Screen>
 
       <Stack.Screen name="Support">
-        {() => (
-          <PlaceholderScreen
-            title="Support"
-            message="Create and track worker support requests."
+        {({ navigation }) => (
+          <SupportScreen
+            onBack={() => {
+              navigation.goBack()
+            }}
           />
         )}
       </Stack.Screen>
@@ -267,10 +285,43 @@ export default function WorkerNavigator() {
       </Stack.Screen>
 
       <Stack.Screen name="Settings">
-        {() => (
-          <PlaceholderScreen
-            title="Settings"
-            message="Manage worker app preferences and account settings."
+        {({ navigation }) => (
+          <SettingsScreen
+            onBack={() => {
+              navigation.goBack()
+            }}
+            onEditProfile={() => {
+              navigation.navigate(
+                'EditProfile',
+              )
+            }}
+            onSchedule={() => {
+              navigation.navigate(
+                'Schedule',
+              )
+            }}
+            onNotifications={() => {
+              navigation.navigate(
+                'Notifications',
+              )
+            }}
+            onSupport={() => {
+              navigation.navigate(
+                'Support',
+              )
+            }}
+            onSignedOut={() => {
+              navigation
+                .getParent()
+                ?.reset({
+                  index: 0,
+                  routes: [
+                    {
+                      name: 'Login',
+                    },
+                  ],
+                })
+            }}
           />
         )}
       </Stack.Screen>
@@ -326,7 +377,8 @@ const styles = StyleSheet.create({
       UI.typography.subtitle,
     lineHeight: 24,
     fontWeight: '800',
-    color: UI.colors.text,
+    color:
+      UI.colors.text,
     textAlign: 'center',
   },
 
