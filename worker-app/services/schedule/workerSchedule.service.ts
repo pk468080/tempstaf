@@ -9,6 +9,10 @@ import type {
   WorkerWeeklyScheduleInput,
 } from '../../types/schedule'
 
+
+import {
+  getWorkerScheduleExceptions,
+} from './workerScheduleExceptions.service'
 import {
   isScheduleDurationValid,
   isSlotIntervalValid,
@@ -305,10 +309,12 @@ export async function getWorkerSchedule(): Promise<
   const [
     workerId,
     weeklySchedules,
+    exceptions,
     settings,
   ] = await Promise.all([
     getCurrentWorkerId(),
     getWorkerWeeklySchedules(),
+    getWorkerScheduleExceptions(),
     getWorkerScheduleSettings(),
   ])
 
@@ -317,7 +323,7 @@ export async function getWorkerSchedule(): Promise<
 
     weeklySchedules,
 
-    exceptions: [],
+    exceptions,
 
     settings,
   }
