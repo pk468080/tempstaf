@@ -26,6 +26,12 @@ type WorkerProfileRow = {
   updated_at: string
 }
 
+type WorkerLocationRow = {
+  latitude: number
+  longitude: number
+  recorded_at: string
+}
+
 export type UpdateWorkerProfileInput = {
   fullName?: string | null
   phone?: string | null
@@ -36,7 +42,10 @@ const MAX_NAME_LENGTH = 100
 function normalizePhone(
   phone: string,
 ): string {
-  return phone.replace(/\D/g, '')
+  return phone.replace(
+    /\D/g,
+    '',
+  )
 }
 
 function normalizeOptionalText(
@@ -49,7 +58,8 @@ function normalizeOptionalText(
     return null
   }
 
-  const trimmed = value.trim()
+  const trimmed =
+    value.trim()
 
   return trimmed.length > 0
     ? trimmed
@@ -59,7 +69,8 @@ function normalizeOptionalText(
 function isValidPhone(
   phone: string,
 ): boolean {
-  const normalized = normalizePhone(phone)
+  const normalized =
+    normalizePhone(phone)
 
   return (
     normalized.length >= 10 &&
@@ -69,7 +80,7 @@ function isValidPhone(
 
 function parseWorkerLocation(
   value: unknown,
-  fallbackRecordedAt: string,
+  recordedAt: string,
 ): WorkerProfile['currentLocation'] {
   if (!value) {
     return null
@@ -87,14 +98,20 @@ function parseWorkerLocation(
     ).coordinates
 
     if (
-      Array.isArray(coordinates) &&
-      typeof coordinates[0] === 'number' &&
-      typeof coordinates[1] === 'number'
+      Array.isArray(
+        coordinates,
+      ) &&
+      typeof coordinates[0] ===
+        'number' &&
+      typeof coordinates[1] ===
+        'number'
     ) {
       return {
-        longitude: coordinates[0],
-        latitude: coordinates[1],
-        recordedAt: fallbackRecordedAt,
+        longitude:
+          coordinates[0],
+        latitude:
+          coordinates[1],
+        recordedAt,
       }
     }
   }
@@ -105,38 +122,72 @@ function parseWorkerLocation(
 function mapWorkerProfile(
   profile: ProfileRow,
   workerProfile: WorkerProfileRow,
+  latestLocation: WorkerLocationRow | null,
 ): WorkerProfile {
+  const currentLocation =
+    latestLocation
+      ? {
+          latitude:
+            Number(
+              latestLocation.latitude,
+            ),
+
+          longitude:
+            Number(
+              latestLocation.longitude,
+            ),
+
+          recordedAt:
+            latestLocation.recorded_at,
+        }
+      : parseWorkerLocation(
+          workerProfile.current_location,
+          workerProfile.updated_at,
+        )
+
   return {
     id: profile.id,
 
-    fullName: profile.full_name,
-    email: profile.email,
-    phone: profile.phone,
+    fullName:
+      profile.full_name,
 
-    isActive: profile.is_active,
+    email:
+      profile.email,
 
-    workerStatus: workerProfile.worker_status,
+    phone:
+      profile.phone,
 
-    isVerified: workerProfile.is_verified,
-    isFeatured: workerProfile.is_featured,
+    isActive:
+      profile.is_active,
 
-    rating: Number(
-      workerProfile.rating ?? 0,
-    ),
+    workerStatus:
+      workerProfile.worker_status,
 
-    totalCompletedJobs: Number(
-      workerProfile.total_completed_jobs ?? 0,
-    ),
+    isVerified:
+      workerProfile.is_verified,
 
-    serviceRadiusKm: Number(
-      workerProfile.service_radius_km ?? 0,
-    ),
+    isFeatured:
+      workerProfile.is_featured,
 
-    currentLocation:
-      parseWorkerLocation(
-        workerProfile.current_location,
-        workerProfile.updated_at,
+    rating:
+      Number(
+        workerProfile.rating ??
+          0,
       ),
+
+    totalCompletedJobs:
+      Number(
+        workerProfile.total_completed_jobs ??
+          0,
+      ),
+
+    serviceRadiusKm:
+      Number(
+        workerProfile.service_radius_km ??
+          0,
+      ),
+
+    currentLocation,
 
     createdAt:
       workerProfile.created_at,
@@ -150,7 +201,8 @@ async function getCurrentWorkerId(): Promise<string> {
   const {
     data: { user },
     error,
-  } = await supabase.auth.getUser()
+  } =
+    await supabase.auth.getUser()
 
   if (error) {
     throw error
@@ -165,19 +217,71 @@ async function getCurrentWorkerId(): Promise<string> {
   return user.id
 }
 
+async function fetchLatestWorkerLocation(
+  workerId: string,
+): Promise<WorkerLocationRow | null> {
+  const {
+    data,
+    error,
+  } = await supabase
+    .from('worker_locations')
+    .select(
+      'latitude, longitude, recorded_at',
+    )
+    .eq(
+      'worker_id',
+      workerId,
+    )
+    .order(
+      'recorded_at',
+      {
+        ascending: false,
+      },
+    )
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  if (!data) {
+    return null
+  }
+
+  return {
+    latitude:
+      Number(
+        data.latitude,
+      ),
+
+    longitude:
+      Number(
+        data.longitude,
+      ),
+
+    recorded_at:
+      data.recorded_at,
+  }
+}
+
 async function fetchWorkerProfile(
   workerId: string,
 ): Promise<WorkerProfile | null> {
   const {
     data: profile,
     error: profileError,
-  } = await supabase
-    .from('profiles')
-    .select(
-      'id, full_name, phone, email, role, is_active',
-    )
-    .eq('id', workerId)
-    .maybeSingle()
+  } =
+    await supabase
+      .from('profiles')
+      .select(
+        'id, full_name, phone, email, role, is_active',
+      )
+      .eq(
+        'id',
+        workerId,
+      )
+      .maybeSingle()
 
   if (profileError) {
     throw profileError
@@ -187,13 +291,18 @@ async function fetchWorkerProfile(
     return null
   }
 
-  if (profile.role !== 'worker') {
+  if (
+    profile.role !==
+    'worker'
+  ) {
     throw new Error(
       'The authenticated account is not a worker account.',
     )
   }
 
-  if (!profile.is_active) {
+  if (
+    !profile.is_active
+  ) {
     throw new Error(
       'The worker account is inactive.',
     )
@@ -201,16 +310,25 @@ async function fetchWorkerProfile(
 
   const {
     data: workerProfile,
-    error: workerProfileError,
-  } = await supabase
-    .from('worker_profiles')
-    .select(
-      'id, worker_status, service_radius_km, current_location, is_verified, rating, total_completed_jobs, is_featured, created_at, updated_at',
-    )
-    .eq('id', workerId)
-    .maybeSingle()
+    error:
+      workerProfileError,
+  } =
+    await supabase
+      .from(
+        'worker_profiles',
+      )
+      .select(
+        'id, worker_status, service_radius_km, current_location, is_verified, rating, total_completed_jobs, is_featured, created_at, updated_at',
+      )
+      .eq(
+        'id',
+        workerId,
+      )
+      .maybeSingle()
 
-  if (workerProfileError) {
+  if (
+    workerProfileError
+  ) {
     throw workerProfileError
   }
 
@@ -218,9 +336,15 @@ async function fetchWorkerProfile(
     return null
   }
 
+  const latestLocation =
+    await fetchLatestWorkerLocation(
+      workerId,
+    )
+
   return mapWorkerProfile(
     profile,
     workerProfile,
+    latestLocation,
   )
 }
 
@@ -246,7 +370,10 @@ export async function updateWorkerProfile(
     phone?: string | null
   } = {}
 
-  if (input.fullName !== undefined) {
+  if (
+    input.fullName !==
+    undefined
+  ) {
     const fullName =
       normalizeOptionalText(
         input.fullName,
@@ -267,26 +394,38 @@ export async function updateWorkerProfile(
       )
     }
 
-    updates.full_name = fullName
+    updates.full_name =
+      fullName
   }
 
-  if (input.phone !== undefined) {
+  if (
+    input.phone !==
+    undefined
+  ) {
     const phone =
       normalizePhone(
-        input.phone ?? '',
+        input.phone ??
+          '',
       )
 
-    if (!isValidPhone(phone)) {
+    if (
+      !isValidPhone(
+        phone,
+      )
+    ) {
       throw new Error(
         'Please enter a valid mobile number.',
       )
     }
 
-    updates.phone = phone
+    updates.phone =
+      phone
   }
 
   if (
-    Object.keys(updates).length === 0
+    Object.keys(
+      updates,
+    ).length === 0
   ) {
     const existing =
       await getWorkerProfile()
@@ -304,8 +443,13 @@ export async function updateWorkerProfile(
     error,
   } = await supabase
     .from('profiles')
-    .update(updates)
-    .eq('id', workerId)
+    .update(
+      updates,
+    )
+    .eq(
+      'id',
+      workerId,
+    )
 
   if (error) {
     throw error
