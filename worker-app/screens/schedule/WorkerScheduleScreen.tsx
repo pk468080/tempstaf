@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useState,
 } from 'react'
@@ -241,8 +242,7 @@ export default function WorkerScheduleScreen({
   const [savingException, setSavingException] =
     useState(false)
 
-  const initializedScheduleId =
-    schedule?.workerId ?? ''
+
 
   const activeDayCount =
     useMemo(
@@ -261,58 +261,58 @@ export default function WorkerScheduleScreen({
     [schedule?.exceptions],
   )
 
-  useMemo(() => {
-    if (!schedule) {
-      return
+useEffect(() => {
+  if (!schedule) {
+    return
+  }
+
+  setTimezone(
+    schedule.settings?.timezone ??
+      SCHEDULE.defaults.timezone,
+  )
+
+  setSlotIntervalMinutes(
+    String(
+      schedule.settings
+        ?.slotIntervalMinutes ??
+        SCHEDULE.defaults
+          .slotIntervalMinutes,
+    ),
+  )
+
+  setDraftDays(current => {
+    const next = {
+      ...current,
     }
 
-    setTimezone(
-      schedule.settings?.timezone ??
-        SCHEDULE.defaults.timezone,
-    )
+    DAY_ORDER.forEach(
+      dayOfWeek => {
+        const saved =
+          getScheduleForDay(
+            schedule.weeklySchedules,
+            dayOfWeek,
+          )
 
-    setSlotIntervalMinutes(
-      String(
-        schedule.settings
-          ?.slotIntervalMinutes ??
-          SCHEDULE.defaults
-            .slotIntervalMinutes,
-      ),
-    )
-
-    setDraftDays(current => {
-      const next = {
-        ...current,
-      }
-
-      DAY_ORDER.forEach(
-        dayOfWeek => {
-          const saved =
-            getScheduleForDay(
-              schedule.weeklySchedules,
-              dayOfWeek,
-            )
-
-          if (saved) {
-            next[dayOfWeek] = {
-              enabled:
-                saved.isActive,
-              startTime:
-                formatTime(
-                  saved.startTime,
-                ),
-              endTime:
-                formatTime(
-                  saved.endTime,
-                ),
-            }
+        if (saved) {
+          next[dayOfWeek] = {
+            enabled:
+              saved.isActive,
+            startTime:
+              formatTime(
+                saved.startTime,
+              ),
+            endTime:
+              formatTime(
+                saved.endTime,
+              ),
           }
-        },
-      )
+        }
+      },
+    )
 
-      return next
-    })
-  }, [initializedScheduleId])
+    return next
+  })
+}, [schedule])
 
   function updateDay(
     dayOfWeek: WorkerDayOfWeek,
