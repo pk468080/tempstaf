@@ -12,15 +12,20 @@ import {
 import { AppButton } from '../../components/ui/AppButton'
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
 import { UI } from '../../constants/ui'
-import { signInWorker } from '../../services/auth/workerAuth.service'
+import {
+  getWorkerAuthState,
+  signInWorker,
+} from '../../services/auth/workerAuth.service'
 
 type LoginScreenProps = {
   onAuthenticated: () => void
+  onOnboardingRequired: () => void
   onRegister: () => void
 }
 
 export default function LoginScreen({
   onAuthenticated,
+  onOnboardingRequired,
   onRegister,
 }: LoginScreenProps) {
   const [email, setEmail] = useState('')
@@ -48,13 +53,25 @@ export default function LoginScreen({
         normalizedEmail,
         password,
       )
+if (!result.success) {
+  setErrorMessage(
+    result.error,
+  )
+  return
+}
 
-      if (!result.success) {
-        setErrorMessage(result.error)
-        return
-      }
+const authState =
+  await getWorkerAuthState()
 
-      onAuthenticated()
+if (
+  authState.needsRegistration
+) {
+  setErrorMessage('')
+  onOnboardingRequired()
+  return
+}
+
+onAuthenticated()
     } catch (error) {
       console.error(
         'Unable to sign in worker:',
