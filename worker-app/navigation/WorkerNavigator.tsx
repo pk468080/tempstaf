@@ -25,6 +25,8 @@ import WorkerHomeScreen from '../screens/home/WorkerHomeScreen'
 
 import WorkerBookingsScreen from '../screens/bookings/WorkerBookingsScreen'
 
+import WorkerEarningsScreen from '../screens/earnings/WorkerEarningsScreen'
+
 import ProfileScreen from '../screens/profile/ProfileScreen'
 
 import EditProfileScreen from '../screens/profile/EditProfileScreen'
@@ -149,10 +151,20 @@ function WorkerTabs() {
       </Tab.Screen>
 
       <Tab.Screen name="Earnings">
-        {() => (
-          <PlaceholderScreen
-            title="Earnings"
-            message="Your earnings and payout history will appear here."
+        {({ navigation }) => (
+          <WorkerEarningsScreen
+            onEarningPress={(
+              earningId,
+            ) => {
+              navigation
+                .getParent()
+                ?.navigate(
+                  'EarningDetails',
+                  {
+                    earningId,
+                  },
+                )
+            }}
           />
         )}
       </Tab.Screen>
