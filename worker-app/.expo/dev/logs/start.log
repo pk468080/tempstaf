@@ -51,3 +51,11 @@
 {"_e":"metro:bundling:progress","_t":1790096931478,"id":"4","progress":0,"total":1,"current":0}
 {"_e":"metro:bundling:done","_t":1790096931517,"id":"4","total":1,"ms":39.307459}
 {"_e":"metro:client_log","_t":1790096931762,"level":"error","data":["[runtime not ready]: Error: Missing EXPO_PUBLIC_SUPABASE_URL"]}
+{"_e":"metro:bundling:started","_t":1790096980360,"id":"5","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790096980360,"id":"5","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790096980394,"id":"5","total":1,"ms":34.189791}
+{"_e":"metro:client_log","_t":1790096980766,"level":"error","data":["[runtime not ready]: Error: Missing EXPO_PUBLIC_SUPABASE_URL"]}
+{"_e":"metro:bundling:started","_t":1790097000813,"id":"6","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790097000813,"id":"6","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790097000848,"id":"6","total":1,"ms":34.837041}
+{"_e":"metro:client_log","_t":1790097003541,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
