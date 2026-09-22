@@ -19,3 +19,35 @@
 {"_e":"metro:bundling:progress","_t":1790096698966,"id":"1","progress":0.6644545973021225,"total":568,"current":463}
 {"_e":"metro:bundling:progress","_t":1790096699066,"id":"1","progress":0.8497235570128329,"total":665,"current":613}
 {"_e":"metro:bundling:failed","_t":1790096699130,"id":"1","message":"Unable to resolve \"./context/WorkerRuntimeContext\" from \"App.tsx\"\n  1 | import {\n  2 |   WorkerRuntimeProvider,\n> 3 | } from './context/WorkerRuntimeContext'\n    |         ^\n  4 |\n  5 | import RootNavigator from './navigation/RootNavigator'\n  6 |","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./context/WorkerRuntimeContext\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.ts\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index.ts\"\u001b[39m\n","filename":null,"targetModuleName":"./context/WorkerRuntimeContext","originModulePath":"App.tsx"}
+{"_e":"metro:bundling:started","_t":1790096791965,"id":"2","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790096791965,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790096791970,"id":"2","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790096792071,"id":"2","progress":0.30742084109401047,"total":303,"current":168}
+{"_e":"metro:bundling:progress","_t":1790096792170,"id":"2","progress":0.5479469299316406,"total":512,"current":379}
+{"_e":"metro:bundling:progress","_t":1790096792270,"id":"2","progress":0.7785467128027681,"total":646,"current":570}
+{"_e":"metro:bundling:progress","_t":1790096792371,"id":"2","progress":0.9920266098818973,"total":751,"current":748}
+{"_e":"metro:bundling:progress","_t":1790096792472,"id":"2","progress":0.9920266098818973,"total":781,"current":773}
+{"_e":"metro:bundling:progress","_t":1790096792607,"id":"2","progress":0.9920266098818973,"total":781,"current":774}
+{"_e":"metro:bundling:progress","_t":1790096792711,"id":"2","progress":0.9920266098818973,"total":785,"current":780}
+{"_e":"metro:bundling:progress","_t":1790096792811,"id":"2","progress":0.9920266098818973,"total":875,"current":805}
+{"_e":"metro:bundling:progress","_t":1790096792911,"id":"2","progress":0.9920266098818973,"total":1060,"current":997}
+{"_e":"metro:bundling:progress","_t":1790096793012,"id":"2","progress":0.9920266098818973,"total":1084,"current":1057}
+{"_e":"metro:bundling:progress","_t":1790096793113,"id":"2","progress":0.9920266098818973,"total":1098,"current":1062}
+{"_e":"metro:bundling:progress","_t":1790096793213,"id":"2","progress":0.9920266098818973,"total":1104,"current":1072}
+{"_e":"metro:bundling:progress","_t":1790096793317,"id":"2","progress":0.9920266098818973,"total":1109,"current":1089}
+{"_e":"metro:bundling:progress","_t":1790096793418,"id":"2","progress":0.9982230123456789,"total":1125,"current":1124}
+{"_e":"metro:bundling:failed","_t":1790096793432,"id":"2","message":"Unable to resolve \"../../assets/splash/tempstaff-worker-splash.png\" from \"screens/auth/SplashScreen.tsx\"\n  103 |     <View style={styles.container}>\n  104 |       <Image\n> 105 |         source={require(\n      |                 ^\n  106 |           '../../assets/splash/tempstaff-worker-splash.png',\n  107 |         )}\n  108 |         style={styles.splashImage}","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mscreens/auth/SplashScreen.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"../../assets/splash/tempstaff-worker-splash.png\"\u001b[39m\n\n\u001b[90m \u001b[39mnavigation/RootNavigator.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"../screens/auth/SplashScreen\"\u001b[39m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./navigation/RootNavigator\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.ts\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index.ts\"\u001b[39m\n","filename":null,"targetModuleName":"../../assets/splash/tempstaff-worker-splash.png","originModulePath":"screens/auth/SplashScreen.tsx"}
+{"_e":"metro:bundling:started","_t":1790096925766,"id":"3","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790096925766,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790096925770,"id":"3","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790096925874,"id":"3","progress":0.059167275383491605,"total":222,"current":54}
+{"_e":"metro:bundling:progress","_t":1790096925976,"id":"3","progress":0.23805820553073298,"total":455,"current":222}
+{"_e":"metro:bundling:progress","_t":1790096926076,"id":"3","progress":0.45710112938719677,"total":778,"current":526}
+{"_e":"metro:bundling:progress","_t":1790096926176,"id":"3","progress":0.7662954735867935,"total":979,"current":857}
+{"_e":"metro:bundling:progress","_t":1790096926276,"id":"3","progress":0.9750677663442145,"total":1116,"current":1102}
+{"_e":"metro:bundling:done","_t":1790096926327,"id":"3","total":1116,"ms":561.379042}
+{"_e":"metro:client_log","_t":1790096926708,"level":"error","data":["[runtime not ready]: Error: Missing EXPO_PUBLIC_SUPABASE_URL"]}
+{"_e":"metro:bundling:started","_t":1790096931478,"id":"4","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790096931478,"id":"4","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790096931517,"id":"4","total":1,"ms":39.307459}
+{"_e":"metro:client_log","_t":1790096931762,"level":"error","data":["[runtime not ready]: Error: Missing EXPO_PUBLIC_SUPABASE_URL"]}

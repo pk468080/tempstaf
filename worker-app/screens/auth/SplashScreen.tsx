@@ -4,8 +4,8 @@ import {
 } from 'react'
 
 import {
-  Image,
   StyleSheet,
+  Text,
   View,
 } from 'react-native'
 
@@ -49,11 +49,6 @@ export default function SplashScreen({
           email: '',
         }
 
-      /*
-       * Restore the worker authentication state
-       * immediately while the minimum splash timer
-       * runs independently.
-       */
       const authStatePromise =
         getWorkerAuthState().catch(
           error => {
@@ -101,13 +96,13 @@ export default function SplashScreen({
 
   return (
     <View style={styles.container}>
-      <Image
-        source={require(
-          '../../assets/splash/tempstaff-worker-splash.png',
-        )}
-        style={styles.splashImage}
-        resizeMode="contain"
-      />
+      <Text style={styles.logo}>
+        TempStaff
+      </Text>
+
+      <Text style={styles.subtitle}>
+        Worker
+      </Text>
     </View>
   )
 }
@@ -127,11 +122,28 @@ const styles =
         UI.colors.background,
     },
 
-    splashImage: {
-      width:
-        '100%',
+    logo: {
+      fontSize: 34,
 
-      height:
-        '100%',
+      fontWeight:
+        '800',
+
+      letterSpacing:
+        0.5,
+
+      color:
+        UI.colors.primary,
+    },
+
+    subtitle: {
+      marginTop: 8,
+
+      fontSize: 16,
+
+      fontWeight:
+        '600',
+
+      color:
+        UI.colors.textSecondary,
     },
   })
