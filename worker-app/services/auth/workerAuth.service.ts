@@ -176,15 +176,19 @@ async function fetchLatestWorkerLocation(
         'latitude, longitude, recorded_at',
       )
       .eq(
-        'worker_id',
-        workerId,
-      )
-      .order(
-        'recorded_at',
-        {
-          ascending: false,
-        },
-      )
+  'worker_id',
+  workerId,
+)
+.is(
+  'booking_id',
+  null,
+)
+.order(
+  'recorded_at',
+  {
+    ascending: false,
+  },
+)
       .limit(1)
       .maybeSingle()
 
