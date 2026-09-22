@@ -31,11 +31,6 @@ type WorkerRuntimeContextValue = {
   realtimeConnected: boolean
 }
 
-const WorkerRuntimeContext =
-  createContext<
-    WorkerRuntimeContextValue | null
-  >(null)
-
 type BookingRealtimeRecord = {
   id?: unknown
   worker_id?: unknown
@@ -47,6 +42,11 @@ type OfferRealtimeRecord = {
   worker_id?: unknown
   status?: unknown
 }
+
+const WorkerRuntimeContext =
+  createContext<
+    WorkerRuntimeContextValue | undefined
+  >(undefined)
 
 export function WorkerRuntimeProvider({
   children,
@@ -86,10 +86,6 @@ export function WorkerRuntimeProvider({
     setRealtimeConnected,
   ] = useState(false)
 
-  /*
-   * Keep Worker Runtime synchronized with
-   * the Supabase authentication session.
-   */
   useEffect(() => {
     let mounted = true
 
@@ -106,20 +102,24 @@ export function WorkerRuntimeProvider({
             throw error
           }
 
-          if (mounted) {
-            setSession(
-              data.session,
-            )
+          if (!mounted) {
+            return
           }
+
+          setSession(
+            data.session,
+          )
         } catch (cause) {
           console.error(
             'Worker runtime session initialization failed:',
             cause,
           )
 
-          if (mounted) {
-            setSession(null)
+          if (!mounted) {
+            return
           }
+
+          setSession(null)
         }
       }
 
@@ -151,10 +151,6 @@ export function WorkerRuntimeProvider({
     }
   }, [])
 
-  /*
-   * Subscribe to all worker-specific realtime
-   * events through one Worker Runtime channel.
-   */
   useEffect(() => {
     const workerId =
       session?.user?.id
@@ -194,8 +190,7 @@ export function WorkerRuntimeProvider({
 
         const record =
           (
-            payload.new ??
-            {}
+            payload.new ?? {}
           ) as BookingRealtimeRecord
 
         const bookingId =
@@ -204,21 +199,21 @@ export function WorkerRuntimeProvider({
             ? record.id
             : null
 
+        const workerIdFromRecord =
+          typeof record.worker_id ===
+          'string'
+            ? record.worker_id
+            : null
+
         const status =
           typeof record.status ===
           'string'
             ? record.status
             : null
 
-        const assignedWorkerId =
-          typeof record.worker_id ===
-          'string'
-            ? record.worker_id
-            : null
-
         if (
           bookingId &&
-          assignedWorkerId ===
+          workerIdFromRecord ===
             workerId &&
           status === 'assigned'
         ) {
@@ -250,8 +245,7 @@ export function WorkerRuntimeProvider({
 
         const record =
           (
-            payload.new ??
-            {}
+            payload.new ?? {}
           ) as OfferRealtimeRecord
 
         const bookingId =
@@ -260,7 +254,7 @@ export function WorkerRuntimeProvider({
             ? record.booking_id
             : null
 
-        const offerWorkerId =
+        const workerIdFromRecord =
           typeof record.worker_id ===
           'string'
             ? record.worker_id
@@ -274,7 +268,8 @@ export function WorkerRuntimeProvider({
 
         if (
           !bookingId ||
-          offerWorkerId !== workerId
+          workerIdFromRecord !==
+            workerId
         ) {
           return
         }
@@ -285,15 +280,9 @@ export function WorkerRuntimeProvider({
           setLatestOfferBookingId(
             bookingId,
           )
-
           return
         }
 
-        /*
-         * Once an offer is accepted, declined,
-         * expired or cancelled, it should no
-         * longer be treated as the active offer.
-         */
         setLatestOfferBookingId(
           current =>
             current === bookingId
@@ -329,32 +318,27 @@ export function WorkerRuntimeProvider({
           return
         }
 
-        if (
-          status ===
-          'SUBSCRIBED'
-        ) {
-          setRealtimeConnected(true)
-          return
-        }
+        switch (status) {
+          case 'SUBSCRIBED':
+            setRealtimeConnected(true)
+            break
 
-        if (
-          status ===
-            'CHANNEL_ERROR' ||
-          status ===
-            'TIMED_OUT' ||
-          status ===
-            'CLOSED'
-        ) {
-          setRealtimeConnected(false)
+          case 'CHANNEL_ERROR':
+          case 'TIMED_OUT':
+          case 'CLOSED':
+            setRealtimeConnected(false)
+            break
+
+          default:
+            break
         }
       },
     )
 
     return () => {
       active = false
-      setRealtimeConnected(
-        false,
-      )
+
+      setRealtimeConnected(false)
 
       void supabase.removeChannel(
         channel,

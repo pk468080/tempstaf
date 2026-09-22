@@ -226,7 +226,7 @@ PODS:
     - ExpoModulesJSI
   - ExpoSQLite (57.0.3):
     - ExpoModulesCore
-  - EXTaskManager (14.0.9):
+  - ExpoTaskManager (57.0.19):
     - ExpoModulesCore
     - UMAppLoader
   - EXUpdatesInterface (57.0.2):
@@ -2171,7 +2171,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - UMAppLoader (6.0.8)
+  - UMAppLoader (57.0.2)
   - Yoga (0.0.0)
 
 DEPENDENCIES:
@@ -2195,7 +2195,7 @@ DEPENDENCIES:
   - ExpoModulesJSI (from `../node_modules/expo-modules-jsi/apple`)
   - ExpoModulesWorklets (from `../node_modules/expo-modules-core/ExpoModulesWorklets.podspec`)
   - ExpoSQLite (from `../node_modules/expo-sqlite/ios`)
-  - EXTaskManager (from `../node_modules/expo-task-manager/ios`)
+  - ExpoTaskManager (from `../node_modules/expo-task-manager/ios`)
   - EXUpdatesInterface (from `../node_modules/expo-updates-interface/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
@@ -2318,7 +2318,7 @@ EXTERNAL SOURCES:
     :podspec: "../node_modules/expo-modules-core/ExpoModulesWorklets.podspec"
   ExpoSQLite:
     :path: "../node_modules/expo-sqlite/ios"
-  EXTaskManager:
+  ExpoTaskManager:
     :path: "../node_modules/expo-task-manager/ios"
   EXUpdatesInterface:
     :path: "../node_modules/expo-updates-interface/ios"
@@ -2501,7 +2501,7 @@ SPEC CHECKSUMS:
   ExpoModulesJSI: 9df8e7c9719f59e8c001ec33611774137fc1484a
   ExpoModulesWorklets: 986cf72c18400743869b4642d243115f831e404d
   ExpoSQLite: 72e6ada0504a27cd043eb1bf172db70485a761b6
-  EXTaskManager: 6f1a66e4c8cc6df6e24c3d90928704bc3013eae5
+  ExpoTaskManager: 9266452008c4394380ae09baae1eb5a984d32035
   EXUpdatesInterface: 4c96533f11c8cefe879bd506564cc2d537f56804
   FBLazyVector: 2138c6c2ab66c31bf5754dc18097fbc498a49c7f
   hermes-engine: 63c5db7d529c36335fada6582fd293ae2a105d77
@@ -2579,7 +2579,7 @@ SPEC CHECKSUMS:
   ReactCommon: 02f6a489d5eb4ab79d7deba5cd4434e0ba351a07
   ReactNativeDependencies: 6738e602b46fd24aa453cd58267ec3bb8bf29d27
   RNScreens: 7118cd7715c226856125b5bece3c4d9abec90356
-  UMAppLoader: 145337733539f9af9b3dd97eeaa7f3bd97cacb23
+  UMAppLoader: d69910810f31d2e2cfd49706e89ad372161b0561
   Yoga: 18b74b3ade30bebc1904004dfaceae1dd02a330a
 
 PODFILE CHECKSUM: ffcaa3d4907b77c6b9ebd961c276494dc9c4bdc9
