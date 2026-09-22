@@ -23,6 +23,8 @@ import type {
 
 import WorkerHomeScreen from '../screens/home/WorkerHomeScreen'
 
+import WorkerBookingsScreen from '../screens/bookings/WorkerBookingsScreen'
+
 import ProfileScreen from '../screens/profile/ProfileScreen'
 
 import EditProfileScreen from '../screens/profile/EditProfileScreen'
@@ -128,10 +130,20 @@ function WorkerTabs() {
       </Tab.Screen>
 
       <Tab.Screen name="Bookings">
-        {() => (
-          <PlaceholderScreen
-            title="My bookings"
-            message="Your assigned and upcoming jobs will appear here."
+        {({ navigation }) => (
+          <WorkerBookingsScreen
+            onBookingPress={(
+              bookingId,
+            ) => {
+              navigation
+                .getParent()
+                ?.navigate(
+                  'BookingDetails',
+                  {
+                    bookingId,
+                  },
+                )
+            }}
           />
         )}
       </Tab.Screen>
