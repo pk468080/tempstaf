@@ -26,7 +26,6 @@ import {
 import {
   createWorkerScheduleException,
   deleteWorkerScheduleException,
-  getWorkerScheduleExceptions,
   updateWorkerScheduleException,
 } from '../services/schedule/workerScheduleExceptions.service'
 
