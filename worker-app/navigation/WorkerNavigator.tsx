@@ -1,7 +1,5 @@
 import {
   StyleSheet,
-  Text,
-  View,
 } from 'react-native'
 
 import {
@@ -57,41 +55,7 @@ const Stack =
     WorkerStackParamList
   >()
 
-type PlaceholderScreenProps = {
-  title: string
-  message?: string
-}
 
-function PlaceholderScreen({
-  title,
-  message = 'This worker screen is being connected to the live worker services.',
-}: PlaceholderScreenProps) {
-  return (
-    <View
-      style={
-        styles.container
-      }
-    >
-      <View style={styles.icon}>
-        <Text
-          style={
-            styles.iconText
-          }
-        >
-          TS
-        </Text>
-      </View>
-
-      <Text style={styles.title}>
-        {title}
-      </Text>
-
-      <Text style={styles.message}>
-        {message}
-      </Text>
-    </View>
-  )
-}
 
 function WorkerTabs() {
   return (
@@ -417,57 +381,7 @@ export default function WorkerNavigator() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal:
-      UI.spacing.xxl,
-    backgroundColor:
-      UI.colors.background,
-  },
-
-  icon: {
-    width: 56,
-    height: 56,
-    borderRadius:
-      UI.radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor:
-      UI.colors.primary,
-  },
-
-  iconText: {
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    color:
-      UI.colors.surface,
-  },
-
-  title: {
-    marginTop:
-      UI.spacing.lg,
-    fontSize:
-      UI.typography.subtitle,
-    lineHeight: 24,
-    fontWeight: '800',
-    color:
-      UI.colors.text,
-    textAlign: 'center',
-  },
-
-  message: {
-    marginTop:
-      UI.spacing.sm,
-    fontSize:
-      UI.typography.body,
-    lineHeight: 21,
-    color:
-      UI.colors.textSecondary,
-    textAlign: 'center',
-  },
+  
 
   tabBar: {
     height:
