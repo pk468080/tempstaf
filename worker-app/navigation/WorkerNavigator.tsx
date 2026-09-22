@@ -25,6 +25,10 @@ import WorkerHomeScreen from '../screens/home/WorkerHomeScreen'
 
 import WorkerBookingsScreen from '../screens/bookings/WorkerBookingsScreen'
 
+import BookingDetailsScreen from '../screens/bookings/BookingDetailsScreen'
+
+import BookingOccurrenceScreen from '../screens/bookings/BookingOccurrenceScreen'
+
 import WorkerEarningsScreen from '../screens/earnings/WorkerEarningsScreen'
 
 import ProfileScreen from '../screens/profile/ProfileScreen'
@@ -232,10 +236,24 @@ export default function WorkerNavigator() {
       <Stack.Screen
         name="BookingDetails"
       >
-        {({ route }) => (
-          <PlaceholderScreen
-            title="Booking details"
-            message={`Details for booking ${route.params.bookingId}.`}
+        {({ navigation, route }) => (
+          <BookingDetailsScreen
+            bookingId={
+              route.params.bookingId
+            }
+            onBack={() => {
+              navigation.goBack()
+            }}
+            onOccurrencePress={(
+              occurrenceId,
+            ) => {
+              navigation.navigate(
+                'BookingOccurrence',
+                {
+                  occurrenceId,
+                },
+              )
+            }}
           />
         )}
       </Stack.Screen>
@@ -243,10 +261,14 @@ export default function WorkerNavigator() {
       <Stack.Screen
         name="BookingOccurrence"
       >
-        {({ route }) => (
-          <PlaceholderScreen
-            title="Booking occurrence"
-            message={`Occurrence ${route.params.occurrenceId}.`}
+        {({ navigation, route }) => (
+          <BookingOccurrenceScreen
+            occurrenceId={
+              route.params.occurrenceId
+            }
+            onBack={() => {
+              navigation.goBack()
+            }}
           />
         )}
       </Stack.Screen>
