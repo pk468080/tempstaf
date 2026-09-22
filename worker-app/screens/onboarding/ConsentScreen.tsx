@@ -266,24 +266,25 @@ export default function ConsentScreen({
           ]}
         >
           <AppButton
-            title={
-              accepted
-                ? 'Consent confirmed'
-                : 'I confirm these statements'
-            }
-            variant={
-              accepted
-                ? 'secondary'
-                : 'primary'
-            }
-            onPress={() => {
-              setAccepted(
-                current => !current,
-              )
-              setErrorMessage('')
-            }}
-            disabled={saving}
-          />
+  title={
+    accepted
+      ? 'Consent confirmed'
+      : 'I confirm these statements'
+  }
+  variant={
+    accepted
+      ? 'secondary'
+      : 'primary'
+  }
+  onPress={() => {
+    setAccepted(true)
+    setErrorMessage('')
+  }}
+  disabled={
+    saving ||
+    accepted
+  }
+/>
 
           <Text style={styles.confirmText}>
             {accepted
