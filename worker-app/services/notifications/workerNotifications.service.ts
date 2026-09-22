@@ -268,18 +268,19 @@ export async function getWorkerNotification(
 export async function getWorkerNotificationList(
   limit = 50,
 ): Promise<WorkerNotificationList> {
-  const notifications =
-    await getWorkerNotifications(
+  const [
+    notifications,
+    unreadCount,
+  ] = await Promise.all([
+    getWorkerNotifications(
       limit,
-    )
+    ),
+    getWorkerUnreadNotificationCount(),
+  ])
 
   return {
     notifications,
-
-    unreadCount:
-      getUnreadNotificationCount(
-        notifications,
-      ),
+    unreadCount,
   }
 }
 
