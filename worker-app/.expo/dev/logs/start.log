@@ -5,3 +5,17 @@
 {"_e":"metro:config","_t":1790095178329,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
 {"_e":"expo:dev-tools-plugin:load","_t":1790095178452,"plugins":[{"packageName":"expo-sqlite","bannerTitle":"expo-sqlite","cliBanner":false,"webpageEndpoint":"/_expo/plugins/expo-sqlite"}]}
 {"_e":"metro:instantiate","_t":1790095178710,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"root:init","_t":1790096679990,"format":"v0-jsonl","version":"57.0.26"}
+{"_e":"devserver:start","_t":1790096680001,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../../../app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1790096680260,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"expo:dev-tools-plugin:load","_t":1790096680358,"plugins":[{"packageName":"expo-sqlite","bannerTitle":"expo-sqlite","cliBanner":false,"webpageEndpoint":"/_expo/plugins/expo-sqlite"}]}
+{"_e":"metro:instantiate","_t":1790096680622,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1790096698153,"id":"1","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790096698153,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790096698162,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790096698666,"id":"1","progress":0.010000000000000002,"total":1,"current":1}
+{"_e":"metro:bundling:progress","_t":1790096698766,"id":"1","progress":0.09132351165318198,"total":182,"current":55}
+{"_e":"metro:bundling:progress","_t":1790096698866,"id":"1","progress":0.4444444444444444,"total":432,"current":288}
+{"_e":"metro:bundling:progress","_t":1790096698966,"id":"1","progress":0.6644545973021225,"total":568,"current":463}
+{"_e":"metro:bundling:progress","_t":1790096699066,"id":"1","progress":0.8497235570128329,"total":665,"current":613}
+{"_e":"metro:bundling:failed","_t":1790096699130,"id":"1","message":"Unable to resolve \"./context/WorkerRuntimeContext\" from \"App.tsx\"\n  1 | import {\n  2 |   WorkerRuntimeProvider,\n> 3 | } from './context/WorkerRuntimeContext'\n    |         ^\n  4 |\n  5 | import RootNavigator from './navigation/RootNavigator'\n  6 |","importStack":"\u001b[1mImport stack:\u001b[22m\n\n\u001b[90m \u001b[39mApp.tsx\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./context/WorkerRuntimeContext\"\u001b[39m\n\n\u001b[90m \u001b[39mindex.ts\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./App\"\u001b[39m\n\n\u001b[90m \u001b[39m\n\u001b[90m |\u001b[39m \u001b[36mimport\u001b[39m \u001b[32m\"./index.ts\"\u001b[39m\n","filename":null,"targetModuleName":"./context/WorkerRuntimeContext","originModulePath":"App.tsx"}

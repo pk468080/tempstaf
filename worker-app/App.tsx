@@ -1,6 +1,6 @@
 import {
   WorkerRuntimeProvider,
-} from './context/WorkerRuntimeContext'
+} from './constants/WorkerRuntimeContext'
 
 import RootNavigator from './navigation/RootNavigator'
 
