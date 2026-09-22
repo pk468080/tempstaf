@@ -1,0 +1,7 @@
+** BUILD FAILED **
+
+
+The following build commands failed:
+	ScanDependencies /Users/princerajput/Library/Developer/Xcode/DerivedData/workerapp-bbdpmgaqqznxhoalolgcghhxnvtz/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/EXTaskManager.build/Objects-normal/arm64/EXTaskManager.o /Users/princerajput/tempstaff/worker-app/node_modules/expo-task-manager/ios/EXTaskManager/EXTaskManager.m normal arm64 objective-c com.apple.compilers.llvm.clang.1_0.compiler (in target 'EXTaskManager' from project 'Pods')
+	Building workspace workerapp with scheme workerapp and configuration Debug
+(2 failures)
