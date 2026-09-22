@@ -17,8 +17,7 @@ import {
   createWorkerWeeklySchedule,
   deleteWorkerScheduleSettings,
   deleteWorkerWeeklySchedule,
-  getWorkerScheduleSettings,
-  getWorkerWeeklySchedules,
+  getWorkerSchedule,
   setWorkerScheduleSettings,
   updateWorkerWeeklySchedule,
   replaceWorkerWeeklySchedules,
@@ -110,52 +109,33 @@ export function useWorkerSchedule(
   )
 
   const refresh =
-    useCallback(
-      async (): Promise<void> => {
-        setLoading(true)
-        setError(null)
+  useCallback(
+    async (): Promise<void> => {
+      setLoading(true)
+      setError(null)
 
-        try {
-          const [
-            weeklySchedules,
-            exceptions,
-            settings,
-          ] = await Promise.all([
-            getWorkerWeeklySchedules(),
-            getWorkerScheduleExceptions(),
-            getWorkerScheduleSettings(),
-          ])
+      try {
+        const currentSchedule =
+          await getWorkerSchedule()
 
-          const workerId =
-            weeklySchedules[0]?.workerId ??
-            exceptions[0]?.workerId ??
-            settings?.workerId ??
-            ''
+        setSchedule(
+          currentSchedule,
+        )
+      } catch (cause) {
+        const message =
+          cause instanceof Error
+            ? cause.message
+            : 'Unable to load worker schedule.'
 
-          setSchedule({
-            workerId,
-
-            weeklySchedules,
-
-            exceptions,
-
-            settings,
-          })
-        } catch (cause) {
-          const message =
-            cause instanceof Error
-              ? cause.message
-              : 'Unable to load worker schedule.'
-
-          setError(
-            message,
-          )
-        } finally {
-          setLoading(false)
-        }
-      },
-      [],
-    )
+        setError(
+          message,
+        )
+      } finally {
+        setLoading(false)
+      }
+    },
+    [],
+  )
 
   useEffect(() => {
     if (!autoLoad) {
