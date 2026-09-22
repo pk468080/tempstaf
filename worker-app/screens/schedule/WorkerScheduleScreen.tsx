@@ -45,6 +45,10 @@ import type {
   WorkerWeeklySchedule,
 } from '../../types/schedule'
 
+import {
+  isValidTimeString,
+} from '../../lib/workerScheduleUtils'
+
 const DAY_ORDER: WorkerDayOfWeek[] = [
   0,
   1,
@@ -78,7 +82,7 @@ function formatTime(
 function validateTime(
   value: string,
 ): boolean {
-  return /^\d{2}:\d{2}$/.test(value)
+  return isValidTimeString(value)
 }
 
 function validateDate(
