@@ -300,26 +300,36 @@ export default function WorkerNavigator() {
       </Stack.Screen>
 
       <Stack.Screen
-        name="Notifications"
-      >
-        {({ navigation }) => (
-          <NotificationsScreen
-            onBack={() => {
-              navigation.goBack()
-            }}
-            onBookingPress={(
-              bookingId,
-            ) => {
-              navigation.navigate(
-                'BookingDetails',
-                {
-                  bookingId,
-                },
-              )
-            }}
-          />
-        )}
-      </Stack.Screen>
+  name="Notifications"
+>
+  {({ navigation }) => (
+    <NotificationsScreen
+      onBack={() => {
+        navigation.goBack()
+      }}
+      onBookingPress={(
+        bookingId,
+      ) => {
+        navigation.navigate(
+          'BookingDetails',
+          {
+            bookingId,
+          },
+        )
+      }}
+      onBookingOfferPress={(
+        bookingId,
+      ) => {
+        navigation.navigate(
+          'BookingOffer',
+          {
+            bookingId,
+          },
+        )
+      }}
+    />
+  )}
+</Stack.Screen>
 
       <Stack.Screen name="Support">
         {({ navigation }) => (
