@@ -193,6 +193,55 @@ function validateScheduleSettingsInput(
   }
 }
 
+async function validateNoScheduleOverlap(
+  workerId: string,
+  input: WorkerWeeklyScheduleInput,
+  excludeScheduleId?: string,
+): Promise<void> {
+  if (!input.isActive) {
+    return
+  }
+
+  let query = supabase
+    .from('worker_weekly_schedules')
+    .select(
+      'id, day_of_week, start_time, end_time, is_active',
+    )
+    .eq('worker_id', workerId)
+    .eq('day_of_week', input.dayOfWeek)
+    .eq('is_active', true)
+
+  if (excludeScheduleId) {
+    query = query.neq(
+      'id',
+      excludeScheduleId,
+    )
+  }
+
+  const {
+    data,
+    error,
+  } = await query
+
+  if (error) {
+    throw error
+  }
+
+  const overlaps = (data ?? []).some(
+    schedule =>
+      input.startTime <
+        schedule.end_time &&
+      input.endTime >
+        schedule.start_time,
+  )
+
+  if (overlaps) {
+    throw new Error(
+      'Worker schedule windows cannot overlap on the same day.',
+    )
+  }
+}
+
 export async function getWorkerWeeklySchedules(): Promise<
   WorkerWeeklySchedule[]
 > {
@@ -284,6 +333,11 @@ export async function createWorkerWeeklySchedule(
   const workerId =
     await getCurrentWorkerId()
 
+  await validateNoScheduleOverlap(
+    workerId,
+    input,
+  )
+
   const {
     data,
     error,
@@ -335,6 +389,12 @@ export async function updateWorkerWeeklySchedule(
 
   const workerId =
     await getCurrentWorkerId()
+
+  await validateNoScheduleOverlap(
+    workerId,
+    input,
+    scheduleId,
+  )
 
   const {
     data,
@@ -471,7 +531,7 @@ export async function replaceWorkerWeeklySchedules(
 
   const activeSchedules =
     schedules.filter(
-      (schedule) =>
+      schedule =>
         schedule.isActive,
     )
 
@@ -532,7 +592,7 @@ export async function replaceWorkerWeeklySchedules(
       .from('worker_weekly_schedules')
       .insert(
         schedules.map(
-          (schedule) => ({
+          schedule => ({
             worker_id:
               workerId,
 
