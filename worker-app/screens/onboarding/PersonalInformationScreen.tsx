@@ -62,6 +62,46 @@ const GENDER_OPTIONS: GenderOption[] = [
 
 const MAX_ADDRESS_LENGTH = 200
 const MAX_SUMMARY_LENGTH = 500
+function isValidDateOfBirth(
+  value: string,
+): boolean {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      value,
+    )
+  ) {
+    return false
+  }
+
+  const [
+    year,
+    month,
+    day,
+  ] = value
+    .split('-')
+    .map(Number)
+
+  const timestamp =
+    Date.UTC(
+      year,
+      month - 1,
+      day,
+    )
+
+  const date =
+    new Date(
+      timestamp,
+    )
+
+  return (
+    date.getUTCFullYear() ===
+      year &&
+    date.getUTCMonth() ===
+      month - 1 &&
+    date.getUTCDate() ===
+      day
+  )
+}
 
 export default function PersonalInformationScreen({
   onContinue,
@@ -270,12 +310,12 @@ export default function PersonalInformationScreen({
       experienceYears.trim()
 
     if (
-      !/^\d{4}-\d{2}-\d{2}$/.test(
-        normalizedDob,
-      )
-    ) {
-      return 'Enter your date of birth in YYYY-MM-DD format.'
-    }
+  !isValidDateOfBirth(
+    normalizedDob,
+  )
+) {
+  return 'Enter a valid date of birth in YYYY-MM-DD format.'
+}
 
     if (!gender) {
       return 'Please select your gender.'
