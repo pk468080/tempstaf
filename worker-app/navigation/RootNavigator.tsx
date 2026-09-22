@@ -61,21 +61,26 @@ export default function RootNavigator() {
         </Stack.Screen>
 
         <Stack.Screen name="Login">
-          {({ navigation }) => (
-            <LoginScreen
-              onAuthenticated={() => {
-                navigation.replace(
-                  'Worker',
-                )
-              }}
-              onRegister={() => {
-                navigation.navigate(
-                  'WorkerRegistration',
-                )
-              }}
-            />
-          )}
-        </Stack.Screen>
+  {({ navigation }) => (
+    <LoginScreen
+      onAuthenticated={() => {
+        navigation.replace(
+          'Worker',
+        )
+      }}
+      onOnboardingRequired={() => {
+        navigation.replace(
+          'WorkerOnboarding',
+        )
+      }}
+      onRegister={() => {
+        navigation.navigate(
+          'WorkerRegistration',
+        )
+      }}
+    />
+  )}
+</Stack.Screen>
 
         <Stack.Screen
           name="WorkerRegistration"
