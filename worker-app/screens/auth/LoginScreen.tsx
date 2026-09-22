@@ -41,52 +41,55 @@ export default function LoginScreen({
   const isValid = isValidEmail && password.length > 0
 
   async function handleSubmit() {
-    if (!isValid || isSubmitting) {
+  if (!isValid || isSubmitting) {
+    return
+  }
+
+  setErrorMessage('')
+  setIsSubmitting(true)
+
+  try {
+    const result =
+      await signInWorker(
+        normalizedEmail,
+        password,
+      )
+
+    if (!result.success) {
+      setErrorMessage(
+        result.error,
+      )
+      return
+    }
+
+    const authState =
+      await getWorkerAuthState()
+
+    if (
+      authState.needsRegistration
+    ) {
+      setErrorMessage('')
+      onOnboardingRequired()
       return
     }
 
     setErrorMessage('')
-    setIsSubmitting(true)
+    onAuthenticated()
+  } catch (error) {
+    console.error(
+      'Unable to sign in worker:',
+      error,
+    )
 
-    try {
-      const result = await signInWorker(
-        normalizedEmail,
-        password,
-      )
-if (!result.success) {
-  setErrorMessage(
-    result.error,
-  )
-  return
-}
-
-const authState =
-  await getWorkerAuthState()
-
-if (
-  authState.needsRegistration
-) {
-  setErrorMessage('')
-  onOnboardingRequired()
-  return
-}
-
-onAuthenticated()
-    } catch (error) {
-      console.error(
-        'Unable to sign in worker:',
-        error,
-      )
-
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'Unable to sign in. Please try again.',
-      )
-    } finally {
-      setIsSubmitting(false)
-    }
+    setErrorMessage(
+      error instanceof Error
+        ? error.message
+        : 'Unable to sign in. Please try again.',
+    )
+  } finally {
+    setIsSubmitting(false)
   }
+}
 
   return (
     <ScreenContainer>
