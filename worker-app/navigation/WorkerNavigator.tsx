@@ -12,12 +12,22 @@ import {
   createNativeStackNavigator,
 } from '@react-navigation/native-stack'
 
-import { UI } from '../constants/ui'
+import {
+  UI,
+} from '../constants/ui'
 
 import type {
   WorkerStackParamList,
   WorkerTabParamList,
 } from '../types/navigation'
+
+import WorkerHomeScreen from '../screens/home/WorkerHomeScreen'
+
+import ProfileScreen from '../screens/profile/ProfileScreen'
+
+import EditProfileScreen from '../screens/profile/EditProfileScreen'
+
+import WorkerScheduleScreen from '../screens/schedule/WorkerScheduleScreen'
 
 const Tab =
   createBottomTabNavigator<
@@ -39,9 +49,17 @@ function PlaceholderScreen({
   message = 'This worker screen is being connected to the live worker services.',
 }: PlaceholderScreenProps) {
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       <View style={styles.icon}>
-        <Text style={styles.iconText}>
+        <Text
+          style={
+            styles.iconText
+          }
+        >
           TS
         </Text>
       </View>
@@ -62,16 +80,43 @@ function WorkerTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle:
+          styles.tabBar,
         tabBarLabelStyle:
           styles.tabBarLabel,
+        tabBarActiveTintColor:
+          UI.colors.secondary,
+        tabBarInactiveTintColor:
+          UI.colors.textMuted,
       }}
     >
       <Tab.Screen name="Home">
-        {() => (
-          <PlaceholderScreen
-            title="Worker home"
-            message="Your worker dashboard will appear here."
+        {({ navigation }) => (
+          <WorkerHomeScreen
+            onBookings={() => {
+              navigation.navigate(
+                'Bookings',
+              )
+            }}
+            onSchedule={() => {
+              navigation
+                .getParent()
+                ?.navigate(
+                  'Schedule',
+                )
+            }}
+            onNotifications={() => {
+              navigation
+                .getParent()
+                ?.navigate(
+                  'Notifications',
+                )
+            }}
+            onProfile={() => {
+              navigation.navigate(
+                'Profile',
+              )
+            }}
           />
         )}
       </Tab.Screen>
@@ -95,10 +140,35 @@ function WorkerTabs() {
       </Tab.Screen>
 
       <Tab.Screen name="Profile">
-        {() => (
-          <PlaceholderScreen
-            title="Profile"
-            message="Your worker profile and account settings will appear here."
+        {({ navigation }) => (
+          <ProfileScreen
+            onEditProfile={() => {
+              navigation
+                .getParent()
+                ?.navigate(
+                  'EditProfile',
+                )
+            }}
+            onSettings={() => {
+              navigation
+                .getParent()
+                ?.navigate(
+                  'Settings',
+                )
+            }}
+            onSignedOut={() => {
+              navigation
+                .getParent()
+                ?.getParent()
+                ?.reset({
+                  index: 0,
+                  routes: [
+                    {
+                      name: 'Login',
+                    },
+                  ],
+                })
+            }}
           />
         )}
       </Tab.Screen>
@@ -109,6 +179,7 @@ function WorkerTabs() {
 export default function WorkerNavigator() {
   return (
     <Stack.Navigator
+      initialRouteName="Tabs"
       screenOptions={{
         headerShown: false,
       }}
@@ -117,7 +188,9 @@ export default function WorkerNavigator() {
         {() => <WorkerTabs />}
       </Stack.Screen>
 
-      <Stack.Screen name="BookingOffer">
+      <Stack.Screen
+        name="BookingOffer"
+      >
         {({ route }) => (
           <PlaceholderScreen
             title="Booking offer"
@@ -126,7 +199,9 @@ export default function WorkerNavigator() {
         )}
       </Stack.Screen>
 
-      <Stack.Screen name="BookingDetails">
+      <Stack.Screen
+        name="BookingDetails"
+      >
         {({ route }) => (
           <PlaceholderScreen
             title="Booking details"
@@ -135,7 +210,9 @@ export default function WorkerNavigator() {
         )}
       </Stack.Screen>
 
-      <Stack.Screen name="BookingOccurrence">
+      <Stack.Screen
+        name="BookingOccurrence"
+      >
         {({ route }) => (
           <PlaceholderScreen
             title="Booking occurrence"
@@ -145,15 +222,18 @@ export default function WorkerNavigator() {
       </Stack.Screen>
 
       <Stack.Screen name="Schedule">
-        {() => (
-          <PlaceholderScreen
-            title="Schedule"
-            message="Manage your weekly worker schedule and exceptions."
+        {({ navigation }) => (
+          <WorkerScheduleScreen
+            onBack={() => {
+              navigation.goBack()
+            }}
           />
         )}
       </Stack.Screen>
 
-      <Stack.Screen name="Notifications">
+      <Stack.Screen
+        name="Notifications"
+      >
         {() => (
           <PlaceholderScreen
             title="Notifications"
@@ -171,11 +251,17 @@ export default function WorkerNavigator() {
         )}
       </Stack.Screen>
 
-      <Stack.Screen name="EditProfile">
-        {() => (
-          <PlaceholderScreen
-            title="Edit profile"
-            message="Update your worker profile information."
+      <Stack.Screen
+        name="EditProfile"
+      >
+        {({ navigation }) => (
+          <EditProfileScreen
+            onSaved={() => {
+              navigation.goBack()
+            }}
+            onBack={() => {
+              navigation.goBack()
+            }}
           />
         )}
       </Stack.Screen>
@@ -189,7 +275,9 @@ export default function WorkerNavigator() {
         )}
       </Stack.Screen>
 
-      <Stack.Screen name="EarningDetails">
+      <Stack.Screen
+        name="EarningDetails"
+      >
         {({ route }) => (
           <PlaceholderScreen
             title="Earning details"
@@ -206,29 +294,36 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: UI.spacing.xxl,
-    backgroundColor: UI.colors.background,
+    paddingHorizontal:
+      UI.spacing.xxl,
+    backgroundColor:
+      UI.colors.background,
   },
 
   icon: {
     width: 56,
     height: 56,
-    borderRadius: UI.radius.md,
+    borderRadius:
+      UI.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: UI.colors.primary,
+    backgroundColor:
+      UI.colors.primary,
   },
 
   iconText: {
     fontSize: 16,
     fontWeight: '800',
     letterSpacing: 0.5,
-    color: UI.colors.surface,
+    color:
+      UI.colors.surface,
   },
 
   title: {
-    marginTop: UI.spacing.lg,
-    fontSize: UI.typography.subtitle,
+    marginTop:
+      UI.spacing.lg,
+    fontSize:
+      UI.typography.subtitle,
     lineHeight: 24,
     fontWeight: '800',
     color: UI.colors.text,
@@ -236,20 +331,33 @@ const styles = StyleSheet.create({
   },
 
   message: {
-    marginTop: UI.spacing.sm,
-    fontSize: UI.typography.body,
+    marginTop:
+      UI.spacing.sm,
+    fontSize:
+      UI.typography.body,
     lineHeight: 21,
-    color: UI.colors.textSecondary,
+    color:
+      UI.colors.textSecondary,
     textAlign: 'center',
   },
 
   tabBar: {
-    height: UI.sizes.tabBarHeight,
-    paddingTop: UI.spacing.sm,
-    paddingBottom: UI.spacing.sm,
+    height:
+      UI.sizes.tabBarHeight,
+    paddingTop:
+      UI.spacing.sm,
+    paddingBottom:
+      UI.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor:
+      UI.colors.border,
+    backgroundColor:
+      UI.colors.surface,
   },
 
   tabBarLabel: {
-    fontSize: UI.typography.small,
+    fontSize:
+      UI.typography.small,
+    fontWeight: '600',
   },
 })
