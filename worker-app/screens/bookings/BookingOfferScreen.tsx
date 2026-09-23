@@ -29,6 +29,10 @@ import {
 } from '../../constants/ui'
 
 import {
+  useWorkerRuntime,
+} from '../../context/WorkerRuntimeContext'
+
+import {
   getWorkerBookingOffers,
   getWorkerBookingOfferRemainingSeconds,
   isWorkerBookingOfferPending,
@@ -118,6 +122,10 @@ export default function BookingOfferScreen({
   onBack,
   onAccepted,
 }: BookingOfferScreenProps) {
+  const {
+    offerRevision,
+  } = useWorkerRuntime()
+
   const [
     offer,
     setOffer,
@@ -212,6 +220,24 @@ export default function BookingOfferScreen({
   ])
 
   useEffect(() => {
+    if (
+      offerRevision === 0
+    ) {
+      return
+    }
+
+    if (responding) {
+      return
+    }
+
+    void loadOffer(true)
+  }, [
+    offerRevision,
+    responding,
+    loadOffer,
+  ])
+
+  useEffect(() => {
     if (!offer) {
       return
     }
@@ -290,6 +316,9 @@ export default function BookingOfferScreen({
               ? 'accepted'
               : 'declined'
 
+          const respondedAt =
+            new Date().toISOString()
+
           setOffer(
             current =>
               current
@@ -297,10 +326,9 @@ export default function BookingOfferScreen({
                     ...current,
                     status:
                       nextStatus,
-                    respondedAt:
-                      new Date().toISOString(),
+                    respondedAt,
                     updatedAt:
-                      new Date().toISOString(),
+                      respondedAt,
                   }
                 : current,
           )

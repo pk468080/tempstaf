@@ -4,6 +4,10 @@ import {
   useState,
 } from 'react'
 
+import {
+  useWorkerRuntime,
+} from '../context/WorkerRuntimeContext'
+
 import type {
   WorkerBookingOccurrence,
 } from '../types/booking'
@@ -50,6 +54,10 @@ export type UseWorkerOccurrencesResult = {
 export function useWorkerOccurrences(
   autoLoad = true,
 ): UseWorkerOccurrencesResult {
+  const {
+    occurrenceRevision,
+  } = useWorkerRuntime()
+
   const [
     occurrences,
     setOccurrences,
@@ -150,6 +158,19 @@ export function useWorkerOccurrences(
     void refresh()
   }, [
     autoLoad,
+    refresh,
+  ])
+
+  useEffect(() => {
+    if (
+      occurrenceRevision === 0
+    ) {
+      return
+    }
+
+    void refresh()
+  }, [
+    occurrenceRevision,
     refresh,
   ])
 

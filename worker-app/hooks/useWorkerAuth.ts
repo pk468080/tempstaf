@@ -4,81 +4,97 @@ import {
   useState,
 } from 'react'
 
-import type { Session } from '@supabase/supabase-js'
+import {
+  useWorkerRuntime,
+} from '../context/WorkerRuntimeContext'
+
+import type {
+  BookingStatus,
+  WorkerBooking,
+} from '../types/booking'
 
 import {
-  getWorkerAuthState,
-  getCurrentWorkerProfile,
-  registerWorkerAuth,
-  refreshWorkerSession,
-  signInWorker,
-  signOutWorker,
-  subscribeToWorkerAuthChanges,
-} from '../services/auth/workerAuth.service'
+  getActiveWorkerBookings,
+  getCompletedWorkerBookings,
+  getUpcomingWorkerBookings,
+  getWorkerBooking,
+  getWorkerBookings,
+  getWorkerBookingsByStatus,
+} from '../services/bookings/workerBookings.service'
 
-import type {
-  WorkerAuthState,
-  WorkerAuthResult,
-  WorkerRegistrationResult,
-} from '../services/auth/workerAuth.service'
-
-import type {
-  WorkerProfile,
-} from '../types/worker'
-
-export type UseWorkerAuthResult = {
-  session: Session | null
-  worker: WorkerProfile | null
-
-  authState: WorkerAuthState | null
+export type UseWorkerBookingsResult = {
+  bookings: WorkerBooking[]
+  activeBookings: WorkerBooking[]
+  upcomingBookings: WorkerBooking[]
+  completedBookings: WorkerBooking[]
 
   loading: boolean
   error: string | null
 
-  isAuthenticated: boolean
-  needsRegistration: boolean
-
   refresh: () => Promise<void>
 
-  signIn: (
-    email: string,
-    password: string,
-  ) => Promise<WorkerAuthResult>
+  refreshActive: () => Promise<void>
 
-  register: (
-    email: string,
-    password: string,
-    fullName: string,
-    phone: string,
-  ) => Promise<WorkerRegistrationResult>
+  refreshUpcoming: (
+    limit?: number,
+  ) => Promise<void>
 
-  signOut: () => Promise<void>
+  refreshCompleted: (
+    limit?: number,
+  ) => Promise<void>
+
+  getBooking: (
+    bookingId: string,
+  ) => Promise<WorkerBooking | null>
+
+  getByStatus: (
+    status: BookingStatus,
+  ) => Promise<WorkerBooking[]>
 
   clearError: () => void
 }
 
-export function useWorkerAuth(): UseWorkerAuthResult {
-  const [
-    session,
-    setSession,
-  ] = useState<Session | null>(null)
+export function useWorkerBookings(
+  autoLoad = true,
+): UseWorkerBookingsResult {
+  const {
+    bookingRevision,
+  } = useWorkerRuntime()
 
   const [
-    worker,
-    setWorker,
-  ] = useState<WorkerProfile | null>(null)
+    bookings,
+    setBookings,
+  ] = useState<WorkerBooking[]>(
+    [],
+  )
 
   const [
-    authState,
-    setAuthState,
-  ] = useState<WorkerAuthState | null>(
-    null,
+    activeBookings,
+    setActiveBookings,
+  ] = useState<WorkerBooking[]>(
+    [],
+  )
+
+  const [
+    upcomingBookings,
+    setUpcomingBookings,
+  ] = useState<WorkerBooking[]>(
+    [],
+  )
+
+  const [
+    completedBookings,
+    setCompletedBookings,
+  ] = useState<WorkerBooking[]>(
+    [],
   )
 
   const [
     loading,
     setLoading,
-  ] = useState(true)
+  ] = useState(
+    autoLoad,
+  )
 
   const [
     error,
@@ -87,256 +103,215 @@ export function useWorkerAuth(): UseWorkerAuthResult {
     null,
   )
 
-    const loadAuth = useCallback(
-    async (
-      nextSession?: Session | null,
-    ): Promise<void> => {
-      setLoading(true)
-      setError(null)
-
-      try {
-        const resolvedSession =
-          nextSession !== undefined
-            ? nextSession
-            : await refreshWorkerSession()
-
-        setSession(
-          resolvedSession,
-        )
-
-        if (!resolvedSession) {
-          setWorker(null)
-          setAuthState({
-            authenticated: false,
-            needsRegistration: true,
-            email: '',
-          })
-
-          return
-        }
-
-        const [
-          nextAuthState,
-          nextWorker,
-        ] = await Promise.all([
-          getWorkerAuthState(),
-          getCurrentWorkerProfile(),
-        ])
-
-        setAuthState(
-          nextAuthState,
-        )
-
-        setWorker(
-          nextWorker,
-        )
-      } catch (cause) {
-        const message =
-          cause instanceof Error
-            ? cause.message
-            : 'Unable to load worker authentication state.'
-
-        setError(
-          message,
-        )
-
-        setSession(null)
-        setWorker(null)
-        setAuthState(null)
-      } finally {
-        setLoading(false)
-      }
-    },
-    [],
-  )
-
-  useEffect(() => {
-    let mounted = true
-
-    const initialize =
-      async (): Promise<void> => {
-        if (!mounted) {
-          return
-        }
-
-        await loadAuth()
-      }
-
-    void initialize()
-
-    const {
-  data: {
-    subscription,
-  },
-} =
-  subscribeToWorkerAuthChanges(
-    (
-      nextSession,
-    ) => {
-      if (!mounted) {
-        return
-      }
-
-      void loadAuth(
-        nextSession,
-      )
-    },
-  )
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
-    }
-  }, [
-    loadAuth,
-  ])
-
   const refresh =
     useCallback(
       async (): Promise<void> => {
-        await loadAuth()
-      },
-      [
-        loadAuth,
-      ],
-    )
-
-  const signIn =
-    useCallback(
-      async (
-        email: string,
-        password: string,
-      ): Promise<WorkerAuthResult> => {
         setLoading(true)
         setError(null)
 
         try {
-          const result =
-            await signInWorker(
-              email,
-              password,
-            )
+          const [
+            nextBookings,
+            nextActiveBookings,
+            nextUpcomingBookings,
+            nextCompletedBookings,
+          ] = await Promise.all([
+            getWorkerBookings(),
+            getActiveWorkerBookings(),
+            getUpcomingWorkerBookings(),
+            getCompletedWorkerBookings(),
+          ])
 
-          if (!result.success) {
-            setError(
-              result.error,
-            )
-            return result
-          }
-
-          await loadAuth(
-            result.session,
+          setBookings(
+            nextBookings,
           )
 
-          return result
+          setActiveBookings(
+            nextActiveBookings,
+          )
+
+          setUpcomingBookings(
+            nextUpcomingBookings,
+          )
+
+          setCompletedBookings(
+            nextCompletedBookings,
+          )
         } catch (cause) {
           const message =
             cause instanceof Error
               ? cause.message
-              : 'Unable to sign in.'
+              : 'Unable to load worker bookings.'
 
           setError(
             message,
           )
-
-          return {
-            success: false,
-            error: message,
-          }
         } finally {
           setLoading(false)
         }
       },
-      [
-        loadAuth,
-      ],
+      [],
     )
 
-  const register =
-    useCallback(
-      async (
-        email: string,
-        password: string,
-        fullName: string,
-        phone: string,
-      ): Promise<WorkerRegistrationResult> => {
-        setLoading(true)
-        setError(null)
+  useEffect(() => {
+    if (!autoLoad) {
+      return
+    }
 
-        try {
-          const result =
-            await registerWorkerAuth(
-              email,
-              password,
-              fullName,
-              phone,
-            )
+    void refresh()
+  }, [
+    autoLoad,
+    refresh,
+  ])
 
-          if (!result.success) {
-            setError(
-              result.error,
-            )
-            return result
-          }
+  useEffect(() => {
+    if (
+      bookingRevision === 0
+    ) {
+      return
+    }
 
-          await loadAuth(
-            result.session,
-          )
+    void refresh()
+  }, [
+    bookingRevision,
+    refresh,
+  ])
 
-          return result
-        } catch (cause) {
-          const message =
-            cause instanceof Error
-              ? cause.message
-              : 'Unable to create the worker account.'
-
-          setError(
-            message,
-          )
-
-          return {
-            success: false,
-            error: message,
-          }
-        } finally {
-          setLoading(false)
-        }
-      },
-      [
-        loadAuth,
-      ],
-    )
-
-  const signOut =
+  const refreshActive =
     useCallback(
       async (): Promise<void> => {
-        setLoading(true)
         setError(null)
 
         try {
-          await signOutWorker()
+          const nextActiveBookings =
+            await getActiveWorkerBookings()
 
-          setSession(null)
-          setWorker(null)
-          setAuthState({
-            authenticated:
-              false,
-            needsRegistration:
-              true,
-            email: '',
-          })
+          setActiveBookings(
+            nextActiveBookings,
+          )
         } catch (cause) {
           const message =
             cause instanceof Error
               ? cause.message
-              : 'Unable to sign out.'
+              : 'Unable to load active worker bookings.'
+
+          setError(
+            message,
+          )
+        }
+      },
+      [],
+    )
+
+  const refreshUpcoming =
+    useCallback(
+      async (
+        limit = 10,
+      ): Promise<void> => {
+        setError(null)
+
+        try {
+          const nextUpcomingBookings =
+            await getUpcomingWorkerBookings(
+              limit,
+            )
+
+          setUpcomingBookings(
+            nextUpcomingBookings,
+          )
+        } catch (cause) {
+          const message =
+            cause instanceof Error
+              ? cause.message
+              : 'Unable to load upcoming worker bookings.'
+
+          setError(
+            message,
+          )
+        }
+      },
+      [],
+    )
+
+  const refreshCompleted =
+    useCallback(
+      async (
+        limit = 25,
+      ): Promise<void> => {
+        setError(null)
+
+        try {
+          const nextCompletedBookings =
+            await getCompletedWorkerBookings(
+              limit,
+            )
+
+          setCompletedBookings(
+            nextCompletedBookings,
+          )
+        } catch (cause) {
+          const message =
+            cause instanceof Error
+              ? cause.message
+              : 'Unable to load completed worker bookings.'
+
+          setError(
+            message,
+          )
+        }
+      },
+      [],
+    )
+
+  const getBooking =
+    useCallback(
+      async (
+        bookingId: string,
+      ): Promise<WorkerBooking | null> => {
+        setError(null)
+
+        try {
+          return await getWorkerBooking(
+            bookingId,
+          )
+        } catch (cause) {
+          const message =
+            cause instanceof Error
+              ? cause.message
+              : 'Unable to load worker booking.'
 
           setError(
             message,
           )
 
           throw cause
-        } finally {
-          setLoading(false)
+        }
+      },
+      [],
+    )
+
+  const getByStatus =
+    useCallback(
+      async (
+        status: BookingStatus,
+      ): Promise<WorkerBooking[]> => {
+        setError(null)
+
+        try {
+          return await getWorkerBookingsByStatus(
+            status,
+          )
+        } catch (cause) {
+          const message =
+            cause instanceof Error
+              ? cause.message
+              : 'Unable to load worker bookings by status.'
+
+          setError(
+            message,
+          )
+
+          throw cause
         }
       },
       [],
@@ -351,27 +326,29 @@ export function useWorkerAuth(): UseWorkerAuthResult {
     )
 
   return {
-    session,
-    worker,
+    bookings,
 
-    authState,
+    activeBookings,
+
+    upcomingBookings,
+
+    completedBookings,
 
     loading,
+
     error,
-
-    isAuthenticated:
-      authState?.authenticated ===
-      true,
-
-    needsRegistration:
-      authState?.needsRegistration ===
-      true,
 
     refresh,
 
-    signIn,
-    register,
-    signOut,
+    refreshActive,
+
+    refreshUpcoming,
+
+    refreshCompleted,
+
+    getBooking,
+
+    getByStatus,
 
     clearError,
   }

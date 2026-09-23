@@ -4,6 +4,10 @@ import {
   useState,
 } from 'react'
 
+import {
+  useWorkerRuntime,
+} from '../context/WorkerRuntimeContext'
+
 import type {
   WorkerNotification,
   WorkerNotificationList,
@@ -75,6 +79,10 @@ export type UseWorkerNotificationsResult = {
 export function useWorkerNotifications(
   autoLoad = true,
 ): UseWorkerNotificationsResult {
+  const {
+    notificationRevision,
+  } = useWorkerRuntime()
+
   const [
     notifications,
     setNotifications,
@@ -167,6 +175,19 @@ export function useWorkerNotifications(
     void refresh()
   }, [
     autoLoad,
+    refresh,
+  ])
+
+  useEffect(() => {
+    if (
+      notificationRevision === 0
+    ) {
+      return
+    }
+
+    void refresh()
+  }, [
+    notificationRevision,
     refresh,
   ])
 
@@ -451,7 +472,7 @@ export function useWorkerNotifications(
               : 'Unable to deactivate worker push token.'
 
           setError(
-            message,
+            message
           )
 
           throw cause
