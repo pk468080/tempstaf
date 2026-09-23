@@ -3,7 +3,9 @@ import {
   useEffect,
   useState,
 } from 'react'
-
+import {
+  useWorkerRuntime,
+} from '../context/WorkerRuntimeContext'
 import type {
   BookingStatus,
   WorkerBooking,
@@ -66,6 +68,7 @@ export function useWorkerBookings(
   ] = useState<WorkerBooking[]>(
     [],
   )
+  
 
   const [
     upcomingBookings,
@@ -144,6 +147,18 @@ export function useWorkerBookings(
       },
       [],
     )
+      useEffect(() => {
+    if (
+      bookingRevision === 0
+    ) {
+      return
+    }
+
+    void refresh()
+  }, [
+    bookingRevision,
+    refresh,
+  ])
 
   useEffect(() => {
     if (!autoLoad) {
@@ -332,3 +347,4 @@ export function useWorkerBookings(
     clearError,
   }
 }
+
