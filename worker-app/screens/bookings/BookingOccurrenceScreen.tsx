@@ -176,13 +176,29 @@ function getPrimaryAction(
 ): {
   action: WorkerOccurrenceAction
   title: string
+  disabled?: boolean
 } | null {
   switch (occurrence.status) {
-    case 'assigned':
+    case 'assigned': {
+      const scheduledStart =
+        new Date(
+          occurrence.scheduledStart,
+        ).getTime()
+
+      const hasStarted =
+        Number.isFinite(
+          scheduledStart,
+        ) &&
+        Date.now() >=
+          scheduledStart
+
       return {
         action: 'on_the_way',
         title: 'Start Journey',
+        disabled:
+          !hasStarted,
       }
+    }
 
     case 'on_the_way':
       return {
@@ -692,29 +708,34 @@ export default function BookingOccurrenceScreen({
             </Text>
 
             <Text
-              style={
-                styles.actionDescription
-              }
-            >
-              {primaryAction.action ===
-              'on_the_way'
-                ? 'Start your journey to the customer location.'
-                : 'Mark that you have arrived at the customer location.'}
-            </Text>
+  style={
+    styles.actionDescription
+  }
+>
+  {primaryAction.disabled
+    ? `This shift starts at ${formatDateTime(
+        occurrence.scheduledStart,
+      )}. Start Journey will become available at the scheduled start time.`
+    : primaryAction.action ===
+        'on_the_way'
+      ? 'Start your journey to the customer location.'
+      : 'Mark that you have arrived at the customer location.'}
+</Text>
 
             <AppButton
-              title={
-                primaryAction.title
-              }
-              disabled={
-                actionLoading
-              }
-              onPress={() => {
-                void runAction(
-                  primaryAction.action,
-                )
-              }}
-            />
+  title={
+    primaryAction.title
+  }
+  disabled={
+    actionLoading ||
+    primaryAction.disabled === true
+  }
+  onPress={() => {
+    void runAction(
+      primaryAction.action,
+    )
+  }}
+/>
           </View>
         ) : null}
 

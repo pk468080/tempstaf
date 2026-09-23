@@ -134,6 +134,13 @@ function getPrimaryAction(
   action: WorkerBookingAction
   title: string
 } | null {
+  if (
+    booking.bookingType ===
+    'recurring'
+  ) {
+    return null
+  }
+
   switch (booking.status) {
     case 'assigned':
       return {
