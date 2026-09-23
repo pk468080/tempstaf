@@ -150,6 +150,61 @@ export async function getCustomerBookingStatusHistory(
   )
 }
 
+export async function getCustomerActiveBookingOccurrence(
+  bookingId: string,
+): Promise<CustomerBookingOccurrence | null> {
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      'booking_schedule_occurrences',
+    )
+    .select(
+      `
+        id,
+        booking_id,
+        worker_id,
+        occurrence_index,
+        occurrence_date,
+        scheduled_start,
+        scheduled_end,
+        status,
+        journey_started_at,
+        arrived_at,
+        started_at,
+        completed_at,
+        start_otp_verified_at,
+        end_otp_verified_at,
+        created_at,
+        updated_at
+      `,
+    )
+    .eq(
+      'booking_id',
+      bookingId,
+    )
+    .not(
+      'status',
+      'in',
+      '("completed","cancelled")',
+    )
+    .order(
+      'scheduled_start',
+      {
+        ascending: true,
+      },
+    )
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  return data as CustomerBookingOccurrence | null
+}
+
 export async function getLatestWorkerLocation(
   bookingId: string,
 ): Promise<WorkerLocation | null> {
@@ -225,15 +280,30 @@ export function getWorkerLocationAgeSeconds(
 export async function requestBookingOtp(
   bookingId: string,
   otpType: 'start' | 'end',
+  occurrenceId?: string,
 ) {
-  const { data, error } =
+  const body: {
+    bookingId: string
+    otpType: 'start' | 'end'
+    occurrenceId?: string
+  } = {
+    bookingId,
+    otpType,
+  }
+
+  if (occurrenceId) {
+    body.occurrenceId =
+      occurrenceId
+  }
+
+  const {
+    data,
+    error,
+  } =
     await supabase.functions.invoke(
       'create-booking-otp',
       {
-        body: {
-          bookingId,
-          otpType,
-        },
+        body,
       },
     )
 
@@ -241,13 +311,17 @@ export async function requestBookingOtp(
     throw error
   }
 
-  const result = data as {
-    success?: boolean
-    otp?: string
-    expiresAt?: string
-  }
+  const result =
+    data as {
+      success?: boolean
+      otp?: string
+      expiresAt?: string
+      occurrence_id?: string | null
+    }
 
-  if (result.success !== true) {
+  if (
+    result.success !== true
+  ) {
     throw new Error(
       'Unable to generate the booking OTP.',
     )
