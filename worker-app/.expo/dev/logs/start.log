@@ -116,3 +116,79 @@
 {"_e":"metro:bundling:failed","_t":1790145103197,"id":null,"message":"SyntaxError: /Users/princerajput/tempstaff/worker-app/screens/bookings/BookingDetailsScreen.tsx: Expected corresponding JSX closing tag for <View>. (1101:6)\n\n  1099 |           Booking data is loaded for the authenticated worker assignment only.\n  1100 |         </Text>\n> 1101 |       </ScrollView>\n       |       ^\n  1102 |     </ScreenContainer>\n  1103 |   )\n  1104 | }","importStack":null,"filename":"screens/bookings/BookingDetailsScreen.tsx","targetModuleName":null,"originModulePath":null}
 {"_e":"metro:client_log","_t":1790145219864,"level":"error","data":["[ReferenceError: Property 'isStartOtpRequired' doesn't exist]"]}
 {"_e":"metro:client_log","_t":1790145421815,"level":"error","data":["[Error: Cannot find native module 'ExpoCrypto']"]}
+{"_e":"root:init","_t":1790145462611,"format":"v0-jsonl","version":"57.0.26"}
+{"_e":"env:mode","_t":1790145462611,"nodeEnv":"development","babelEnv":"development","mode":"development"}
+{"_e":"env:load","_t":1790145462613,"mode":"development","files":["../../../.env"],"env":{"EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY":"sb_publishable_j4T7RyebRjwG9C882LE7Og_YqvXCDHN","EXPO_PUBLIC_SUPABASE_URL":"https://gfzlsxlevzezfjoaaghb.supabase.co","GOOGLE_MAPS_API_KEY":"AIzaSyAfn9KzR71B8srXheLTiU-2-RM4a3rwUYc"}}
+{"_e":"devserver:start","_t":1790145462897,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../../../app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1790145463121,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"expo:dev-tools-plugin:load","_t":1790145463257,"plugins":[{"packageName":"expo-sqlite","bannerTitle":"expo-sqlite","cliBanner":false,"webpageEndpoint":"/_expo/plugins/expo-sqlite"}]}
+{"_e":"metro:instantiate","_t":1790145463755,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1790145467447,"id":"1","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790145467447,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790145467449,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790145467795,"id":"1","progress":0.010000000000000002,"total":1,"current":1}
+{"_e":"metro:bundling:progress","_t":1790145467899,"id":"1","progress":0.0214158239143367,"total":41,"current":6}
+{"_e":"metro:bundling:progress","_t":1790145468000,"id":"1","progress":0.03160493827160494,"total":45,"current":8}
+{"_e":"metro:bundling:progress","_t":1790145468023,"id":"1","progress":0.04000000000000001,"total":45,"current":9}
+{"_e":"metro:bundling:progress","_t":1790145468122,"id":"1","progress":0.04000000000000001,"total":153,"current":19}
+{"_e":"metro:bundling:progress","_t":1790145468225,"id":"1","progress":0.0625,"total":172,"current":43}
+{"_e":"metro:bundling:progress","_t":1790145468325,"id":"1","progress":0.08686980609418281,"total":190,"current":56}
+{"_e":"metro:bundling:progress","_t":1790145468428,"id":"1","progress":0.10800326213934626,"total":213,"current":70}
+{"_e":"metro:bundling:progress","_t":1790145468527,"id":"1","progress":0.16000000000000003,"total":240,"current":96}
+{"_e":"metro:bundling:progress","_t":1790145468628,"id":"1","progress":0.22842776816608998,"total":272,"current":130}
+{"_e":"metro:bundling:progress","_t":1790145468728,"id":"1","progress":0.31861501292962163,"total":287,"current":162}
+{"_e":"metro:bundling:progress","_t":1790145468829,"id":"1","progress":0.3628543000290573,"total":337,"current":203}
+{"_e":"metro:bundling:progress","_t":1790145468928,"id":"1","progress":0.42283685468066257,"total":386,"current":251}
+{"_e":"metro:bundling:progress","_t":1790145469028,"id":"1","progress":0.4260789759690859,"total":455,"current":297}
+{"_e":"metro:bundling:progress","_t":1790145469128,"id":"1","progress":0.4260789759690859,"total":527,"current":321}
+{"_e":"metro:bundling:progress","_t":1790145469228,"id":"1","progress":0.4260789759690859,"total":538,"current":329}
+{"_e":"metro:bundling:progress","_t":1790145469379,"id":"1","progress":0.4260789759690859,"total":546,"current":344}
+{"_e":"metro:bundling:progress","_t":1790145469434,"id":"1","progress":0.4260789759690859,"total":546,"current":345}
+{"_e":"metro:bundling:progress","_t":1790145469534,"id":"1","progress":0.4260789759690859,"total":559,"current":362}
+{"_e":"metro:bundling:progress","_t":1790145469634,"id":"1","progress":0.489021468042447,"total":572,"current":400}
+{"_e":"metro:bundling:progress","_t":1790145469734,"id":"1","progress":0.4996233381786544,"total":614,"current":434}
+{"_e":"metro:bundling:progress","_t":1790145469835,"id":"1","progress":0.5343795064893446,"total":632,"current":462}
+{"_e":"metro:bundling:progress","_t":1790145469935,"id":"1","progress":0.5343795064893446,"total":688,"current":498}
+{"_e":"metro:bundling:progress","_t":1790145470035,"id":"1","progress":0.5343795064893446,"total":713,"current":510}
+{"_e":"metro:bundling:progress","_t":1790145470136,"id":"1","progress":0.5343795064893446,"total":728,"current":516}
+{"_e":"metro:bundling:progress","_t":1790145470236,"id":"1","progress":0.5343795064893446,"total":748,"current":544}
+{"_e":"metro:bundling:progress","_t":1790145470337,"id":"1","progress":0.5711648275456073,"total":782,"current":591}
+{"_e":"metro:bundling:progress","_t":1790145470438,"id":"1","progress":0.5968469672916403,"total":809,"current":625}
+{"_e":"metro:bundling:progress","_t":1790145470547,"id":"1","progress":0.5968469672916403,"total":867,"current":646}
+{"_e":"metro:bundling:progress","_t":1790145470647,"id":"1","progress":0.5968469672916403,"total":890,"current":663}
+{"_e":"metro:bundling:progress","_t":1790145470747,"id":"1","progress":0.5968469672916403,"total":902,"current":683}
+{"_e":"metro:bundling:progress","_t":1790145470847,"id":"1","progress":0.5968469672916403,"total":923,"current":708}
+{"_e":"metro:bundling:progress","_t":1790145470947,"id":"1","progress":0.6121846456417026,"total":933,"current":730}
+{"_e":"metro:bundling:progress","_t":1790145471047,"id":"1","progress":0.6335890742818321,"total":946,"current":753}
+{"_e":"metro:bundling:progress","_t":1790145471147,"id":"1","progress":0.6537252536758775,"total":961,"current":777}
+{"_e":"metro:bundling:progress","_t":1790145471247,"id":"1","progress":0.6700350728026357,"total":970,"current":794}
+{"_e":"metro:bundling:progress","_t":1790145471350,"id":"1","progress":0.6830835817497228,"total":974,"current":805}
+{"_e":"metro:bundling:progress","_t":1790145471450,"id":"1","progress":0.7153288284943443,"total":1005,"current":850}
+{"_e":"metro:bundling:progress","_t":1790145471550,"id":"1","progress":0.7660548245529389,"total":1018,"current":891}
+{"_e":"metro:bundling:progress","_t":1790145471651,"id":"1","progress":0.7713867732848912,"total":1027,"current":902}
+{"_e":"metro:bundling:progress","_t":1790145471755,"id":"1","progress":0.801629728743682,"total":1051,"current":941}
+{"_e":"metro:bundling:progress","_t":1790145471853,"id":"1","progress":0.8378362592248106,"total":1063,"current":973}
+{"_e":"metro:bundling:progress","_t":1790145471955,"id":"1","progress":0.8911923591000223,"total":1072,"current":1012}
+{"_e":"metro:bundling:progress","_t":1790145472056,"id":"1","progress":0.9457607069255074,"total":1091,"current":1061}
+{"_e":"metro:bundling:progress","_t":1790145472155,"id":"1","progress":0.9786672800063251,"total":1119,"current":1107}
+{"_e":"metro:bundling:progress","_t":1790145472259,"id":"1","progress":0.999,"total":1133,"current":1133}
+{"_e":"metro:bundling:done","_t":1790145472401,"id":"1","total":1133,"ms":4954.23025}
+{"_e":"metro:client_log","_t":1790145473200,"level":"error","data":["[runtime not ready]: Error: Cannot find native module 'ExpoCrypto'"]}
+{"_e":"root:init","_t":1790145596710,"format":"v0-jsonl","version":"57.0.26"}
+{"_e":"devserver:start","_t":1790145596725,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../../../app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1790145596981,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"expo:dev-tools-plugin:load","_t":1790145597137,"plugins":[{"packageName":"expo-sqlite","bannerTitle":"expo-sqlite","cliBanner":false,"webpageEndpoint":"/_expo/plugins/expo-sqlite"}]}
+{"_e":"metro:instantiate","_t":1790145597624,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1790145613973,"id":"1","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790145613974,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790145613984,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790145614083,"id":"1","progress":0.013755525072397499,"total":162,"current":19}
+{"_e":"metro:bundling:progress","_t":1790145614183,"id":"1","progress":0.2433777777777778,"total":450,"current":222}
+{"_e":"metro:bundling:progress","_t":1790145614283,"id":"1","progress":0.3942224484004794,"total":653,"current":410}
+{"_e":"metro:bundling:progress","_t":1790145614383,"id":"1","progress":0.5711906621449842,"total":823,"current":622}
+{"_e":"metro:bundling:progress","_t":1790145614486,"id":"1","progress":0.78227329724925,"total":1004,"current":888}
+{"_e":"metro:bundling:progress","_t":1790145614585,"id":"1","progress":0.9088560740435055,"total":1093,"current":1042}
+{"_e":"metro:bundling:done","_t":1790145614644,"id":"1","total":1093,"ms":671.011042}
+{"_e":"metro:client_log","_t":1790145617842,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
+{"_e":"metro:server_log","_t":1790146035151,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}
+{"_e":"metro:server_log","_t":1790146362851,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}

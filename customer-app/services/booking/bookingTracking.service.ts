@@ -29,6 +29,27 @@ export type CustomerBooking = {
   arrived_at: string | null
   created_at?: string | null
 }
+export type CustomerBookingOccurrence = {
+  id: string
+  booking_id: string
+  worker_id: string | null
+  occurrence_index: number
+  occurrence_date: string
+  scheduled_start: string
+  scheduled_end: string
+  status: string
+
+  journey_started_at: string | null
+  arrived_at: string | null
+  started_at: string | null
+  completed_at: string | null
+
+  start_otp_verified_at: string | null
+  end_otp_verified_at: string | null
+
+  created_at: string
+  updated_at: string
+}
 
 export type BookingStatusHistoryItem = {
   id: string
