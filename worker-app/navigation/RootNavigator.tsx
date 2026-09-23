@@ -16,6 +16,8 @@ import WorkerOnboardingScreen from '../screens/onboarding/WorkerOnboardingScreen
 
 import WorkerPushRegistration from '../components/runtime/WorkerPushRegistration'
 
+import WorkerPresenceRuntime from '../components/runtime/WorkerPresenceRuntime'
+
 import WorkerNavigator from './WorkerNavigator'
 
 import type {
@@ -135,6 +137,8 @@ export default function RootNavigator() {
           {() => (
             <>
               <WorkerPushRegistration />
+
+              <WorkerPresenceRuntime />
 
               <WorkerNavigator />
             </>

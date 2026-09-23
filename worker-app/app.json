@@ -6,19 +6,23 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "plugins": [
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow TempStaff Worker to use your location while the app is in use.",
+          "locationAlwaysAndWhenInUsePermission": "Allow TempStaff Worker to use your location while you are available for work, including in the background.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ]
     ],
     "ios": {
       "bundleIdentifier": "com.princerajput.workerapp"
     },
     "android": {
       "package": "com.princerajput.workerapp"
-    },
-    "extra": {
-      "eas": {
-        "projectId": "caf2c89e-2337-40c2-b962-dd34c394c174"
-      }
-    },
-    "owner": "pk468080"
+    }
   }
 }
