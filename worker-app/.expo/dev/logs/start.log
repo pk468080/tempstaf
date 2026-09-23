@@ -298,3 +298,18 @@
 {"_e":"metro:bundling:done","_t":1790153598248,"id":"1","total":1193,"ms":8456.926291}
 {"_e":"metro:client_log","_t":1790153602302,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
 {"_e":"metro:client_log","_t":1790153606163,"level":"warn","data":["Worker push token registration skipped because the Expo/EAS projectId is not configured."]}
+{"_e":"root:init","_t":1790153931390,"format":"v0-jsonl","version":"57.0.26"}
+{"_e":"devserver:start","_t":1790153931405,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../../../app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1790153931683,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"expo:dev-tools-plugin:load","_t":1790153931801,"plugins":[{"packageName":"expo-sqlite","bannerTitle":"expo-sqlite","cliBanner":false,"webpageEndpoint":"/_expo/plugins/expo-sqlite"}]}
+{"_e":"metro:instantiate","_t":1790153932451,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1790153939785,"id":"1","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790153939785,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790153939791,"id":"1","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:progress","_t":1790153939892,"id":"1","progress":0.09167438271604937,"total":360,"current":109}
+{"_e":"metro:bundling:progress","_t":1790153939991,"id":"1","progress":0.357860331632653,"total":672,"current":402}
+{"_e":"metro:bundling:progress","_t":1790153940091,"id":"1","progress":0.5797710440723381,"total":897,"current":683}
+{"_e":"metro:bundling:progress","_t":1790153940192,"id":"1","progress":0.8021347503624073,"total":1073,"current":961}
+{"_e":"metro:bundling:done","_t":1790153940310,"id":"1","total":1073,"ms":525.617}
+{"_e":"metro:client_log","_t":1790153943583,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
+{"_e":"metro:client_log","_t":1790153945376,"level":"log","data":["Worker push token registered successfully."]}
