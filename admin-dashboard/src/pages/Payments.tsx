@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { adminAction } from '../lib/adminAction'
-
+import { supabase } from '../lib/supabase'
 type PaymentStatus =
   | 'pending'
   | 'paid'
@@ -26,6 +26,7 @@ type Payment = {
 type Refund = {
   id: string
   payment_id: string
+  refund_request_id: string | null
   booking_id: string
   amount: number | string
   currency: string
@@ -462,6 +463,77 @@ const safePage = Math.min(page, totalPages)
 
     await loadPaymentsData()
   }
+  async function processRefund(refund: Refund) {
+  if (!refund.id) {
+    setError('Refund ID is missing.')
+    return
+  }
+
+  if (
+    refund.status !== 'pending' &&
+    refund.status !== 'processing'
+  ) {
+    setError(
+      `Refund cannot be processed from status "${refund.status}".`,
+    )
+    return
+  }
+
+  if (refund.status === 'processing') {
+    setError(
+      'This refund is already being processed. Refresh the page before retrying.',
+    )
+    return
+  }
+
+  const confirmed = window.confirm(
+    `Process refund of ${formatMoney(
+      refund.amount,
+      refund.currency,
+    )} for payment ${shortId(refund.payment_id)} through Razorpay?`,
+  )
+
+  if (!confirmed) {
+    return
+  }
+
+  setActionLoading(true)
+  setError(null)
+  setSuccess(null)
+
+  const { data, error } =
+    await supabase.functions.invoke(
+      'process-razorpay-refund',
+      {
+        body: {
+          refundId: refund.id,
+        },
+      },
+    )
+
+  setActionLoading(false)
+
+  if (error) {
+    setError(error.message)
+    return
+  }
+
+  if (!data?.success) {
+    setError(
+      data?.error ||
+        'Unable to process the refund.',
+    )
+    return
+  }
+
+  setSuccess(
+    data?.alreadyProcessed
+      ? 'This refund had already been processed.'
+      : 'Refund processed successfully.',
+  )
+
+  await loadPaymentsData()
+}
 
   async function issueInvoice(bookingId: string) {
     if (!bookingId) return
@@ -970,30 +1042,42 @@ const safePage = Math.min(page, totalPages)
                 <table className="bookings-table">
                   <thead>
                     <tr>
-                      <th>Refund</th>
-                      <th>Payment</th>
-                      <th>Booking</th>
-                      <th>Amount</th>
-                      <th>Status</th>
-                      <th>Provider Refund</th>
-                      <th>Requested</th>
-                    </tr>
+  <th>Refund</th>
+  <th>Payment</th>
+  <th>Booking</th>
+  <th>Amount</th>
+  <th>Status</th>
+  <th>Provider Refund</th>
+  <th>Requested</th>
+  <th>Actions</th>
+</tr>
                   </thead>
 
                   <tbody>
                     {paginate(filteredRefunds, safePage).map(refund => (
                       <tr key={refund.id}>
-                        <td>
-                          <strong>{shortId(refund.id)}</strong>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: '#64748b',
-                            }}
-                          >
-                            {refund.reason || 'No reason'}
-                          </div>
-                        </td>
+                        
+                          <td>
+  <strong>{shortId(refund.id)}</strong>
+
+  <div
+    style={{
+      fontSize: 12,
+      color: '#64748b',
+    }}
+  >
+    Request: {shortId(refund.refund_request_id)}
+  </div>
+
+  <div
+    style={{
+      fontSize: 12,
+      color: '#64748b',
+    }}
+  >
+    {refund.reason || 'No reason'}
+  </div>
+</td>
 
                         <td>{shortId(refund.payment_id)}</td>
                         <td>{shortId(refund.booking_id)}</td>
@@ -1016,6 +1100,56 @@ const safePage = Math.min(page, totalPages)
                         <td>
                           {formatDate(refund.requested_at)}
                         </td>
+                        <td>
+  {refund.status === 'pending' && (
+    <button
+      className="dashboard-refresh"
+      onClick={() => processRefund(refund)}
+      disabled={actionLoading}
+    >
+      {actionLoading
+        ? 'Processing...'
+        : 'Process Refund'}
+    </button>
+  )}
+
+  {refund.status === 'processing' && (
+    <span
+      style={{
+        fontSize: 13,
+        color: '#92400e',
+        fontWeight: 600,
+      }}
+    >
+      Processing...
+    </span>
+  )}
+
+  {refund.status === 'succeeded' && (
+    <span
+      style={{
+        fontSize: 13,
+        color: '#166534',
+        fontWeight: 600,
+      }}
+    >
+      Completed
+    </span>
+  )}
+
+  {refund.status === 'failed' && (
+    <span
+      style={{
+        fontSize: 13,
+        color: '#991b1b',
+        fontWeight: 600,
+      }}
+      title={refund.failure_reason || undefined}
+    >
+      Failed
+    </span>
+  )}
+</td>
                       </tr>
                     ))}
                   </tbody>
