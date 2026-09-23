@@ -1,8 +1,11 @@
-import { supabase } from '../../lib/supabase'
+import * as Crypto from 'expo-crypto'
+
+import {
+  supabase,
+} from '../../lib/supabase'
 
 import type {
   WorkerBooking,
-  WorkerBookingActionResponse,
   WorkerBookingOccurrence,
   WorkerOtpType,
   WorkerOtpVerificationResponse,
@@ -13,26 +16,14 @@ const OTP_LENGTH = 6
 async function sha256(
   value: string,
 ): Promise<string> {
-  const data =
-    new TextEncoder().encode(
-      value,
-    )
-
-  const hash =
-    await crypto.subtle.digest(
-      'SHA-256',
-      data,
-    )
-
-  return Array.from(
-    new Uint8Array(hash),
+  return Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    value,
+    {
+      encoding:
+        Crypto.CryptoEncoding.HEX,
+    },
   )
-    .map((byte) =>
-      byte
-        .toString(16)
-        .padStart(2, '0'),
-    )
-    .join('')
 }
 
 function validateOtp(
@@ -89,29 +80,19 @@ function validateOccurrenceId(
 
 type BookingOtpRpcResult = {
   success?: boolean
-
   booking_id?: string
-
   otp_type?: string
-
   status?: string
-
   error?: string
 }
 
 type OccurrenceOtpRpcResult = {
   success?: boolean
-
   occurrence_id?: string
-
   booking_id?: string
-
   otp_type?: string
-
   status?: string
-
   booking_completed?: boolean
-
   error?: string
 }
 
@@ -194,19 +175,20 @@ async function verifyBookingOtp(
   const {
     data,
     error,
-  } = await supabase.rpc(
-    'verify_booking_otp_atomic',
-    {
-      p_booking_id:
-        bookingId,
+  } =
+    await supabase.rpc(
+      'verify_booking_otp_atomic',
+      {
+        p_booking_id:
+          bookingId,
 
-      p_otp_type:
-        otpType,
+        p_otp_type:
+          otpType,
 
-      p_otp_hash:
-        otpHash,
-    },
-  )
+        p_otp_hash:
+          otpHash,
+      },
+    )
 
   if (error) {
     throw error
@@ -274,19 +256,20 @@ async function verifyOccurrenceOtp(
   const {
     data,
     error,
-  } = await supabase.rpc(
-    'verify_booking_occurrence_otp_atomic',
-    {
-      p_occurrence_id:
-        occurrenceId,
+  } =
+    await supabase.rpc(
+      'verify_booking_occurrence_otp_atomic',
+      {
+        p_occurrence_id:
+          occurrenceId,
 
-      p_otp_type:
-        otpType,
+        p_otp_type:
+          otpType,
 
-      p_otp_hash:
-        otpHash,
-    },
-  )
+        p_otp_hash:
+          otpHash,
+      },
+    )
 
   if (error) {
     throw error
@@ -402,7 +385,8 @@ export function canVerifyBookingStartOtp(
   booking: WorkerBooking,
 ): boolean {
   return (
-    booking.status === 'arrived' &&
+    booking.status ===
+      'arrived' &&
     booking.startedAt === null &&
     booking.startOtpVerifiedAt === null
   )
@@ -412,7 +396,8 @@ export function canVerifyBookingEndOtp(
   booking: WorkerBooking,
 ): boolean {
   return (
-    booking.status === 'in_progress' &&
+    booking.status ===
+      'in_progress' &&
     booking.completedAt === null &&
     booking.endOtpVerifiedAt === null
   )
@@ -422,7 +407,8 @@ export function canVerifyOccurrenceStartOtp(
   occurrence: WorkerBookingOccurrence,
 ): boolean {
   return (
-    occurrence.status === 'arrived' &&
+    occurrence.status ===
+      'arrived' &&
     occurrence.startedAt === null &&
     occurrence.startOtpVerifiedAt === null
   )
@@ -432,7 +418,8 @@ export function canVerifyOccurrenceEndOtp(
   occurrence: WorkerBookingOccurrence,
 ): boolean {
   return (
-    occurrence.status === 'in_progress' &&
+    occurrence.status ===
+      'in_progress' &&
     occurrence.completedAt === null &&
     occurrence.endOtpVerifiedAt === null
   )
