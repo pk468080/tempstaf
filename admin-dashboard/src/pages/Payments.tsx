@@ -194,6 +194,7 @@ export default function Payments() {
 
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [processingRefundId, setProcessingRefundId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -479,60 +480,96 @@ const safePage = Math.min(page, totalPages)
     return
   }
 
-  if (refund.status === 'processing') {
-    setError(
-      'This refund is already being processed. Refresh the page before retrying.',
-    )
-    return
-  }
+  const isReconciliation = refund.status === 'processing'
 
   const confirmed = window.confirm(
-    `Process refund of ${formatMoney(
-      refund.amount,
-      refund.currency,
-    )} for payment ${shortId(refund.payment_id)} through Razorpay?`,
+    isReconciliation
+      ? `This refund is already marked as processing. Check Razorpay for the existing refund and reconcile it? No new refund will be created if Razorpay already has one.`
+      : `Process refund of ${formatMoney(
+          refund.amount,
+          refund.currency,
+        )} for payment ${shortId(
+          refund.payment_id,
+        )} through Razorpay?`,
   )
 
   if (!confirmed) {
     return
   }
 
-  setActionLoading(true)
+  setProcessingRefundId(refund.id)
   setError(null)
   setSuccess(null)
 
-  const { data, error } =
-    await supabase.functions.invoke(
-      'process-razorpay-refund',
-      {
-        body: {
-          refundId: refund.id,
+  try {
+    const { data, error } =
+      await supabase.functions.invoke(
+        'process-razorpay-refund',
+        {
+          body: {
+            refundId: refund.id,
+          },
         },
-      },
-    )
+      )
 
-  setActionLoading(false)
+    if (error) {
+      let detailedMessage = error.message
 
-  if (error) {
-    setError(error.message)
-    return
-  }
+      try {
+        const context = (error as {
+          context?: Response
+        }).context
 
-  if (!data?.success) {
+        if (context) {
+          const body = await context.json()
+
+          if (
+            body &&
+            typeof body.error === 'string'
+          ) {
+            detailedMessage = body.error
+          }
+        }
+      } catch {
+        // Keep the original Supabase error message.
+      }
+
+      setError(detailedMessage)
+      return
+    }
+
+    if (!data?.success) {
+      setError(
+        data?.error ||
+          'Unable to process the refund.',
+      )
+      return
+    }
+
+    if (data?.reconciled) {
+      setSuccess(
+        'The existing Razorpay refund was found and reconciled successfully.',
+      )
+    } else if (data?.alreadyProcessed) {
+      setSuccess(
+        'This refund had already been processed.',
+      )
+    } else {
+      setSuccess(
+        'Refund processed successfully.',
+      )
+    }
+
+    await loadPaymentsData()
+  } catch (caughtError) {
     setError(
-      data?.error ||
-        'Unable to process the refund.',
+      caughtError instanceof Error
+        ? caughtError.message
+        : 'Unexpected refund processing error.',
     )
-    return
+  } finally {
+    setProcessingRefundId(null)
   }
-
-  setSuccess(
-    data?.alreadyProcessed
-      ? 'This refund had already been processed.'
-      : 'Refund processed successfully.',
-  )
-
-  await loadPaymentsData()
 }
 
   async function issueInvoice(bookingId: string) {
@@ -1102,18 +1139,26 @@ const safePage = Math.min(page, totalPages)
                         </td>
                         <td>
   {refund.status === 'pending' && (
-    <button
-      className="dashboard-refresh"
-      onClick={() => processRefund(refund)}
-      disabled={actionLoading}
-    >
-      {actionLoading
-        ? 'Processing...'
-        : 'Process Refund'}
-    </button>
-  )}
+  <button
+    className="dashboard-refresh"
+    onClick={() => processRefund(refund)}
+    disabled={processingRefundId !== null}
+  >
+    {processingRefundId === refund.id
+      ? 'Processing...'
+      : 'Process Refund'}
+  </button>
+)}
 
   {refund.status === 'processing' && (
+  <div
+    style={{
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+    }}
+  >
     <span
       style={{
         fontSize: 13,
@@ -1121,9 +1166,20 @@ const safePage = Math.min(page, totalPages)
         fontWeight: 600,
       }}
     >
-      Processing...
+      Processing
     </span>
-  )}
+
+    <button
+      className="dashboard-refresh"
+      onClick={() => processRefund(refund)}
+      disabled={processingRefundId !== null}
+    >
+      {processingRefundId === refund.id
+        ? 'Checking...'
+        : 'Reconcile'}
+    </button>
+  </div>
+)}
 
   {refund.status === 'succeeded' && (
     <span
