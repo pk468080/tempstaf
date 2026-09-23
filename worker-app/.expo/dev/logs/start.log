@@ -77,3 +77,9 @@
 {"_e":"metro:client_log","_t":1790097233078,"level":"warn","data":["WebCrypto API is not supported. Code challenge method will default to use plain instead of sha256."]}
 {"_e":"metro:client_log","_t":1790097755854,"level":"warn","data":["WebCrypto API is not supported. Code challenge method will default to use plain instead of sha256."]}
 {"_e":"metro:client_log","_t":1790097779589,"level":"warn","data":["WebCrypto API is not supported. Code challenge method will default to use plain instead of sha256."]}
+{"_e":"metro:client_log","_t":1790097943162,"level":"warn","data":["WebCrypto API is not supported. Code challenge method will default to use plain instead of sha256."]}
+{"_e":"metro:server_log","_t":1790098206811,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}
+{"_e":"metro:server_log","_t":1790098361663,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}
+{"_e":"metro:client_log","_t":1790098444706,"level":"error","data":["Unable to upload worker document:","[AuthRetryableFetchError: fetch failed: UnexpectedException: A TLS error caused the secure connection to fail. (at ExpoModulesCore/Promise.swift:56)]"]}
+{"_e":"metro:server_log","_t":1790099074736,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}
+{"_e":"metro:server_log","_t":1790099421302,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}
