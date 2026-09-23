@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native'
 
+import WorkerBookingOtpPanel from '../../components/bookings/WorkerBookingOtpPanel'
 import {
   AppButton,
 } from '../../components/ui/AppButton'
@@ -50,8 +51,7 @@ import {
   getBookingTypeLabel,
   getNextPendingOccurrence,
   isActiveBookingStatus,
-  isEndOtpRequired,
-  isStartOtpRequired,
+
 } from '../../lib/workerBookingUtils'
 
 import type {
@@ -917,56 +917,13 @@ export default function BookingDetailsScreen({
               />
             </View>
 
-            {isStartOtpRequired(
-              booking,
-            ) ? (
-              <View
-                style={
-                  styles.otpBox
-                }
-              >
-                <Text
-                  style={
-                    styles.otpTitle
-                  }
-                >
-                  Start OTP required
-                </Text>
-
-                <Text
-                  style={
-                    styles.otpText
-                  }
-                >
-                  The service cannot start until the customer's start OTP is verified.
-                </Text>
-              </View>
-            ) : null}
-
-            {isEndOtpRequired(
-              booking,
-            ) ? (
-              <View
-                style={
-                  styles.otpBox
-                }
-              >
-                <Text
-                  style={
-                    styles.otpTitle
-                  }
-                >
-                  End OTP required
-                </Text>
-
-                <Text
-                  style={
-                    styles.otpText
-                  }
-                >
-                  Complete the service by verifying the customer's end OTP.
-                </Text>
-              </View>
+                        {booking.bookingType !== 'recurring' ? (
+              <WorkerBookingOtpPanel
+                booking={booking}
+                onVerified={() => {
+                  void loadBooking(true)
+                }}
+              />
             ) : null}
           </View>
         ) : null}
