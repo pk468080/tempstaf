@@ -8,20 +8,23 @@ import {
 
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import Bookings from './pages/Bookings'
 import Workers from './pages/Workers'
 import WorkerDetail from './pages/WorkerDetail'
-import Placeholder from './pages/Placeholder'
-import AdminLayout from './layouts/AdminLayout'
-import AdminGuard from './components/AdminGuard'
 import Customers from './pages/Customers'
 import Services from './pages/Services'
 import ServiceAreas from './pages/ServiceAreas'
-import Bookings from './pages/Bookings'
+import Payments from './pages/Payments'
+import Reviews from './pages/Reviews'
+import Notifications from './pages/Notifications'
+
+import AdminLayout from './layouts/AdminLayout'
+import AdminGuard from './components/AdminGuard'
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-
         {/* Authentication */}
         <Route
           path="/login"
@@ -32,16 +35,19 @@ export default function App() {
         <Route element={<AdminGuard />}>
           <Route element={<AdminLayout />}>
 
+            {/* Dashboard */}
             <Route
               path="/dashboard"
               element={<Dashboard />}
             />
 
+            {/* Operations */}
             <Route
               path="/bookings"
               element={<Bookings />}
             />
 
+            {/* Workforce */}
             <Route
               path="/workers"
               element={<Workers />}
@@ -52,32 +58,39 @@ export default function App() {
               element={<WorkerDetail />}
             />
 
-           <Route
-  path="/customers"
-  element={<Customers />}
-/>
+            {/* Customers */}
+            <Route
+              path="/customers"
+              element={<Customers />}
+            />
 
+            {/* Catalog */}
             <Route
               path="/services"
               element={<Services />}
             />
 
             <Route
-              path="/payments"
-              element={<Placeholder />}
+              path="/service-areas"
+              element={<ServiceAreas />}
             />
 
+            {/* Finance */}
+            <Route
+              path="/payments"
+              element={<Payments />}
+            />
+
+            {/* Reviews */}
             <Route
               path="/reviews"
-              element={<Placeholder />}
+              element={<Reviews />}
             />
-          <Route
-  path="/service-areas"
-  element={<ServiceAreas />}
-/>
+
+            {/* Notifications */}
             <Route
               path="/notifications"
-              element={<Placeholder />}
+              element={<Notifications />}
             />
 
           </Route>
@@ -104,7 +117,6 @@ export default function App() {
             />
           }
         />
-
       </Routes>
     </BrowserRouter>
   )
