@@ -93,11 +93,11 @@ function mapBooking(
 
 const OCCURRENCE_LIFECYCLE_STATUSES:
   BookingStatus[] = [
-    'assigned',
-    'on_the_way',
-    'arrived',
-    'in_progress',
-  ]
+  'assigned',
+  'on_the_way',
+  'arrived',
+  'in_progress',
+]
 
 function applyActiveOccurrenceToBooking(
   booking: CustomerBooking,
@@ -109,15 +109,6 @@ function applyActiveOccurrenceToBooking(
     return booking
   }
 
-  /*
-   * Scheduled and recurring bookings keep the parent
-   * booking lifecycle separately from the occurrence
-   * lifecycle.
-   *
-   * Only let the occurrence override the customer-facing
-   * status once the occurrence has actually entered the
-   * worker lifecycle and belongs to the assigned worker.
-   */
   if (
     !booking.worker_id ||
     occurrence.worker_id !==
@@ -136,25 +127,18 @@ function applyActiveOccurrenceToBooking(
 
   return {
     ...booking,
-
     status:
       occurrence.status as BookingStatus,
-
     scheduled_start:
       occurrence.scheduled_start,
-
     scheduled_end:
       occurrence.scheduled_end,
-
     journey_started_at:
       occurrence.journey_started_at,
-
     arrived_at:
       occurrence.arrived_at,
-
     started_at:
       occurrence.started_at,
-
     completed_at:
       occurrence.completed_at,
   }
@@ -183,10 +167,6 @@ export async function getCustomerBooking(
       data as unknown as BookingRow,
     )
 
-  /*
-   * Instant bookings use the parent booking status
-   * directly.
-   */
   if (
     booking.booking_type !==
       'scheduled' &&
@@ -196,10 +176,6 @@ export async function getCustomerBooking(
     return booking
   }
 
-  /*
-   * There is no occurrence lifecycle to display until
-   * a worker has actually been assigned.
-   */
   if (!booking.worker_id) {
     return booking
   }
@@ -325,6 +301,57 @@ export async function getCustomerActiveBookingOccurrence(
   return data as
     | CustomerBookingOccurrence
     | null
+}
+
+export async function getCustomerBookingOccurrences(
+  bookingId: string,
+): Promise<CustomerBookingOccurrence[]> {
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      'booking_schedule_occurrences',
+    )
+    .select(
+      `
+        id,
+        booking_id,
+        worker_id,
+        occurrence_index,
+        occurrence_date,
+        scheduled_start,
+        scheduled_end,
+        status,
+        journey_started_at,
+        arrived_at,
+        started_at,
+        completed_at,
+        start_otp_verified_at,
+        end_otp_verified_at,
+        created_at,
+        updated_at
+      `,
+    )
+    .eq(
+      'booking_id',
+      bookingId,
+    )
+    .order(
+      'occurrence_index',
+      {
+        ascending: true,
+      },
+    )
+
+  if (error) {
+    throw error
+  }
+
+  return (
+    (data ?? []) as unknown as
+      CustomerBookingOccurrence[]
+  )
 }
 
 export async function getLatestWorkerLocation(
@@ -473,12 +500,6 @@ export async function requestBookingOtp(
   let resolvedOccurrenceId =
     occurrenceId
 
-  /*
-   * Scheduled and recurring bookings automatically
-   * target the current worker-assigned occurrence.
-   *
-   * Instant bookings continue using the parent booking.
-   */
   if (
     !resolvedOccurrenceId
   ) {

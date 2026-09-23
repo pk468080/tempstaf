@@ -193,3 +193,4 @@
 {"_e":"metro:server_log","_t":1790146035151,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}
 {"_e":"metro:server_log","_t":1790146362851,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}
 {"_e":"metro:server_log","_t":1790147492751,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}
+{"_e":"metro:server_log","_t":1790148689719,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}

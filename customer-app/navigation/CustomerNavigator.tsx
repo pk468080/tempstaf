@@ -12,7 +12,7 @@ import BookingDetailsScreen from '../screens/bookings/BookingDetailsScreen'
 import BookingScreen from '../screens/bookings/BookingScreen'
 import HomeScreen from '../screens/home/HomeScreen'
 import PaymentScreen from '../screens/payment/PaymentScreen'
-import ActiveBookingScreen from '../screens/bookings/ActiveBookingScreen'
+import CustomerBookingRouter from '../screens/bookings/CustomerBookingRouter'
 import MyBookingsScreen from '../screens/bookings/MyBookingsScreen'
 import MyProfileScreen from '../screens/profile/MyProfileScreen'
 
@@ -519,26 +519,28 @@ export default function CustomerNavigator({
       </Stack.Screen>
 
       <Stack.Screen name="ActiveBooking">
-  {({ route, navigation }) => (
-    <ActiveBookingScreen
-      bookingId={route.params.bookingId}
-      onReschedule={(
-        bookingId,
-        currentStart,
-        currentEnd,
-      ) =>
-        navigation.navigate(
-          'RescheduleBooking',
-          {
-            bookingId,
-            currentStart,
-            currentEnd,
-          },
-        )
-      }
-    />
-  )}
-</Stack.Screen>
+        {({ route, navigation }) => (
+          <CustomerBookingRouter
+            bookingId={
+              route.params.bookingId
+            }
+            onReschedule={(
+              bookingId,
+              currentStart,
+              currentEnd,
+            ) => {
+              navigation.navigate(
+                'RescheduleBooking',
+                {
+                  bookingId,
+                  currentStart,
+                  currentEnd,
+                },
+              )
+            }}
+          />
+        )}
+      </Stack.Screen>
 <Stack.Screen name="RescheduleBooking">
   {({ route, navigation }) => (
     <RescheduleBookingScreen
