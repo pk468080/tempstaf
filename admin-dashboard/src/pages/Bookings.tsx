@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { adminAction } from '../lib/adminAction'
-import { Link } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 type Booking = {
   id: string
