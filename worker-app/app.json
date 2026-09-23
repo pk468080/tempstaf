@@ -13,6 +13,12 @@
     },
     "android": {
       "package": "com.princerajput.workerapp"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "caf2c89e-2337-40c2-b962-dd34c394c174"
+      }
+    },
+    "owner": "pk468080"
   }
 }
