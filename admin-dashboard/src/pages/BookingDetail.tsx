@@ -118,6 +118,8 @@ type Refund = {
   refund_request_id: string | null
 }
 
+
+
 type RefundRequest = {
   id: string
   booking_id: string
@@ -159,6 +161,24 @@ type Occurrence = {
   last_modified_at: string | null
   last_modified_by: string | null
 }
+type StatusHistory = {
+  id: string
+  booking_id: string
+  old_status: string
+  new_status: string
+  changed_by: string | null
+  created_at: string
+}
+
+type AuditLog = {
+  id: string
+  admin_id: string | null
+  action: string
+  entity_type: string
+  entity_id: string
+  metadata: Record<string, unknown> | null
+  created_at: string
+}
 
 type EligibleWorker = {
   worker_id: string
@@ -179,6 +199,8 @@ type BookingDetailPayload = {
   refunds: Refund[]
   refund_requests: RefundRequest[]
   occurrences: Occurrence[]
+  status_history: StatusHistory[]
+  audit_logs: AuditLog[]
 }
 
 export default function BookingDetail() {
@@ -468,17 +490,19 @@ export default function BookingDetail() {
   }
 
   const {
-    booking,
-    customer,
-    worker,
-    service,
-    variant,
-    address,
-    payment,
-    refunds,
-    refund_requests: refundRequests,
-    occurrences,
-  } = detail
+  booking,
+  customer,
+  worker,
+  service,
+  variant,
+  address,
+  payment,
+  refunds,
+  refund_requests: refundRequests,
+  occurrences,
+  status_history: statusHistory,
+  audit_logs: auditLogs,
+} = detail
 
   const isCancelled =
     booking.status === 'cancelled'
@@ -1180,6 +1204,106 @@ export default function BookingDetail() {
           value={booking.updated_at}
         />
       </Panel>
+      <Panel title="Status history">
+  {statusHistory.length === 0 ? (
+    <div style={styles.empty}>
+      No status history recorded.
+    </div>
+  ) : (
+    <div>
+      {statusHistory.map(entry => (
+        <div
+          key={entry.id}
+          style={styles.historyRow}
+        >
+          <div style={styles.historyStatus}>
+            <StatusBadge
+              status={entry.old_status}
+            />
+
+            <span style={styles.historyArrow}>
+              →
+            </span>
+
+            <StatusBadge
+              status={entry.new_status}
+            />
+          </div>
+
+          <div style={styles.historyMeta}>
+            <strong>
+              {formatDate(entry.created_at)}
+            </strong>
+
+            <span style={styles.muted}>
+              Changed by:{' '}
+              {entry.changed_by
+                ? `${entry.changed_by.slice(
+                    0,
+                    8
+                  )}...`
+                : 'System'}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</Panel>
+
+<Panel title="Admin audit trail">
+  {auditLogs.length === 0 ? (
+    <div style={styles.empty}>
+      No administrative actions recorded.
+    </div>
+  ) : (
+    <div>
+      {auditLogs.map(log => (
+        <div
+          key={log.id}
+          style={styles.auditRow}
+        >
+          <div>
+            <strong>
+              {formatStatus(log.action)}
+            </strong>
+
+            <div style={styles.muted}>
+              {formatDate(log.created_at)}
+            </div>
+          </div>
+
+          <div style={styles.auditAdmin}>
+            <span style={styles.muted}>
+              Admin
+            </span>
+
+            <span style={styles.mono}>
+              {log.admin_id
+                ? `${log.admin_id.slice(
+                    0,
+                    8
+                  )}...`
+                : '—'}
+            </span>
+          </div>
+
+          {log.metadata &&
+            Object.keys(log.metadata).length >
+              0 && (
+              <pre style={styles.auditMetadata}>
+                {JSON.stringify(
+                  log.metadata,
+                  null,
+                  2
+                )}
+              </pre>
+            )}
+        </div>
+      ))}
+    </div>
+  )}
+</Panel>
 
       {occurrences.length > 0 && (
         <Panel title="Recurring booking occurrences">
@@ -1545,6 +1669,61 @@ const styles: Record<
     gap: 12,
     marginBottom: 18,
   },
+
+  historyRow: {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 20,
+  padding: '14px 0',
+  borderBottom: '1px solid #f1f5f9',
+  alignItems: 'center',
+},
+
+historyStatus: {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+},
+
+historyArrow: {
+  color: '#94a3b8',
+  fontWeight: 700,
+},
+
+historyMeta: {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-end',
+  gap: 4,
+},
+
+auditRow: {
+  display: 'grid',
+  gridTemplateColumns:
+    'minmax(180px, 1fr) 160px minmax(250px, 2fr)',
+  gap: 18,
+  padding: '14px 0',
+  borderBottom: '1px solid #f1f5f9',
+  alignItems: 'start',
+},
+
+auditAdmin: {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+},
+
+auditMetadata: {
+  margin: 0,
+  padding: 10,
+  background: '#f8fafc',
+  border: '1px solid #e2e8f0',
+  borderRadius: 7,
+  fontSize: 11,
+  overflowX: 'auto',
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+},
 
   summary: {
     background: '#fff',
