@@ -86,9 +86,7 @@ export function useWorkerNotifications(
   const [
     notifications,
     setNotifications,
-  ] = useState<WorkerNotification[]>(
-    [],
-  )
+  ] = useState<WorkerNotification[]>([])
 
   const [
     unreadCount,
@@ -98,16 +96,12 @@ export function useWorkerNotifications(
   const [
     pushTokens,
     setPushTokens,
-  ] = useState<WorkerPushToken[]>(
-    [],
-  )
+  ] = useState<WorkerPushToken[]>([])
 
   const [
     loading,
     setLoading,
-  ] = useState(
-    autoLoad,
-  )
+  ] = useState(autoLoad)
 
   const [
     updating,
@@ -117,9 +111,7 @@ export function useWorkerNotifications(
   const [
     error,
     setError,
-  ] = useState<string | null>(
-    null,
-  )
+  ] = useState<string | null>(null)
 
   const refresh =
     useCallback(
@@ -152,13 +144,10 @@ export function useWorkerNotifications(
             nextPushTokens,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load worker notifications.'
-
-          setError(
-            message,
+              : 'Unable to load worker notifications.',
           )
         } finally {
           setLoading(false)
@@ -179,9 +168,7 @@ export function useWorkerNotifications(
   ])
 
   useEffect(() => {
-    if (
-      notificationRevision === 0
-    ) {
+    if (notificationRevision === 0) {
       return
     }
 
@@ -202,13 +189,10 @@ export function useWorkerNotifications(
             count,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load unread notification count.'
-
-          setError(
-            message,
+              : 'Unable to load unread notification count.',
           )
         }
       },
@@ -229,13 +213,10 @@ export function useWorkerNotifications(
             nextPushTokens,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load worker push tokens.'
-
-          setError(
-            message,
+              : 'Unable to load worker push tokens.',
           )
         } finally {
           setUpdating(false)
@@ -256,13 +237,10 @@ export function useWorkerNotifications(
             notificationId,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load worker notification.'
-
-          setError(
-            message,
+              : 'Unable to load worker notification.',
           )
 
           throw cause
@@ -285,13 +263,10 @@ export function useWorkerNotifications(
             limit,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load booking notifications.'
-
-          setError(
-            message,
+              : 'Unable to load booking notifications.',
           )
 
           throw cause
@@ -323,13 +298,10 @@ export function useWorkerNotifications(
 
           return notificationList
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load worker notification list.'
-
-          setError(
-            message,
+              : 'Unable to load worker notification list.',
           )
 
           throw cause
@@ -355,14 +327,14 @@ export function useWorkerNotifications(
             )
 
           setPushTokens(
-            (current) => {
+            current => {
               const withoutDuplicate =
                 current.filter(
-                  (item) =>
+                  item =>
                     item.id !==
-                    registered.id &&
+                      registered.id &&
                     item.token !==
-                    registered.token,
+                      registered.token,
                 )
 
               return [
@@ -374,13 +346,10 @@ export function useWorkerNotifications(
 
           return registered
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to register worker push token.'
-
-          setError(
-            message,
+              : 'Unable to register worker push token.',
           )
 
           throw cause
@@ -407,9 +376,9 @@ export function useWorkerNotifications(
 
           if (deactivated) {
             setPushTokens(
-              (current) =>
+              current =>
                 current.map(
-                  (item) =>
+                  item =>
                     item.id ===
                     deactivated.id
                       ? deactivated
@@ -420,13 +389,10 @@ export function useWorkerNotifications(
 
           return deactivated
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to deactivate worker push token.'
-
-          setError(
-            message,
+              : 'Unable to deactivate worker push token.',
           )
 
           throw cause
@@ -453,9 +419,9 @@ export function useWorkerNotifications(
 
           if (deactivated) {
             setPushTokens(
-              (current) =>
+              current =>
                 current.map(
-                  (item) =>
+                  item =>
                     item.id ===
                     deactivated.id
                       ? deactivated
@@ -466,13 +432,10 @@ export function useWorkerNotifications(
 
           return deactivated
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to deactivate worker push token.'
-
-          setError(
-            message
+              : 'Unable to deactivate worker push token.',
           )
 
           throw cause

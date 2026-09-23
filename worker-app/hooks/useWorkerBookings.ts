@@ -3,9 +3,11 @@ import {
   useEffect,
   useState,
 } from 'react'
+
 import {
   useWorkerRuntime,
 } from '../context/WorkerRuntimeContext'
+
 import type {
   BookingStatus,
   WorkerBooking,
@@ -55,48 +57,39 @@ export type UseWorkerBookingsResult = {
 export function useWorkerBookings(
   autoLoad = true,
 ): UseWorkerBookingsResult {
+  const {
+    bookingRevision,
+  } = useWorkerRuntime()
+
   const [
     bookings,
     setBookings,
-  ] = useState<WorkerBooking[]>(
-    [],
-  )
+  ] = useState<WorkerBooking[]>([])
 
   const [
     activeBookings,
     setActiveBookings,
-  ] = useState<WorkerBooking[]>(
-    [],
-  )
-  
+  ] = useState<WorkerBooking[]>([])
 
   const [
     upcomingBookings,
     setUpcomingBookings,
-  ] = useState<WorkerBooking[]>(
-    [],
-  )
+  ] = useState<WorkerBooking[]>([])
 
   const [
     completedBookings,
     setCompletedBookings,
-  ] = useState<WorkerBooking[]>(
-    [],
-  )
+  ] = useState<WorkerBooking[]>([])
 
   const [
     loading,
     setLoading,
-  ] = useState(
-    autoLoad,
-  )
+  ] = useState(autoLoad)
 
   const [
     error,
     setError,
-  ] = useState<string | null>(
-    null,
-  )
+  ] = useState<string | null>(null)
 
   const refresh =
     useCallback(
@@ -133,13 +126,10 @@ export function useWorkerBookings(
             nextCompletedBookings,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load worker bookings.'
-
-          setError(
-            message,
+              : 'Unable to load worker bookings.',
           )
         } finally {
           setLoading(false)
@@ -147,18 +137,6 @@ export function useWorkerBookings(
       },
       [],
     )
-      useEffect(() => {
-    if (
-      bookingRevision === 0
-    ) {
-      return
-    }
-
-    void refresh()
-  }, [
-    bookingRevision,
-    refresh,
-  ])
 
   useEffect(() => {
     if (!autoLoad) {
@@ -168,6 +146,17 @@ export function useWorkerBookings(
     void refresh()
   }, [
     autoLoad,
+    refresh,
+  ])
+
+  useEffect(() => {
+    if (bookingRevision === 0) {
+      return
+    }
+
+    void refresh()
+  }, [
+    bookingRevision,
     refresh,
   ])
 
@@ -184,13 +173,10 @@ export function useWorkerBookings(
             nextActiveBookings,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load active worker bookings.'
-
-          setError(
-            message,
+              : 'Unable to load active worker bookings.',
           )
         }
       },
@@ -214,13 +200,10 @@ export function useWorkerBookings(
             nextUpcomingBookings,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load upcoming worker bookings.'
-
-          setError(
-            message,
+              : 'Unable to load upcoming worker bookings.',
           )
         }
       },
@@ -244,13 +227,10 @@ export function useWorkerBookings(
             nextCompletedBookings,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load completed worker bookings.'
-
-          setError(
-            message,
+              : 'Unable to load completed worker bookings.',
           )
         }
       },
@@ -269,13 +249,10 @@ export function useWorkerBookings(
             bookingId,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load worker booking.'
-
-          setError(
-            message,
+              : 'Unable to load worker booking.',
           )
 
           throw cause
@@ -296,13 +273,10 @@ export function useWorkerBookings(
             status,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load worker bookings by status.'
-
-          setError(
-            message,
+              : 'Unable to load worker bookings by status.',
           )
 
           throw cause
@@ -329,7 +303,6 @@ export function useWorkerBookings(
     completedBookings,
 
     loading,
-
     error,
 
     refresh,
@@ -347,4 +320,3 @@ export function useWorkerBookings(
     clearError,
   }
 }
-

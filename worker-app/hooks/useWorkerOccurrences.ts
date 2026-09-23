@@ -61,44 +61,32 @@ export function useWorkerOccurrences(
   const [
     occurrences,
     setOccurrences,
-  ] = useState<WorkerBookingOccurrence[]>(
-    [],
-  )
+  ] = useState<WorkerBookingOccurrence[]>([])
 
   const [
     activeOccurrences,
     setActiveOccurrences,
-  ] = useState<WorkerBookingOccurrence[]>(
-    [],
-  )
+  ] = useState<WorkerBookingOccurrence[]>([])
 
   const [
     upcomingOccurrences,
     setUpcomingOccurrences,
-  ] = useState<WorkerBookingOccurrence[]>(
-    [],
-  )
+  ] = useState<WorkerBookingOccurrence[]>([])
 
   const [
     pendingOccurrences,
     setPendingOccurrences,
-  ] = useState<WorkerBookingOccurrence[]>(
-    [],
-  )
+  ] = useState<WorkerBookingOccurrence[]>([])
 
   const [
     loading,
     setLoading,
-  ] = useState(
-    autoLoad,
-  )
+  ] = useState(autoLoad)
 
   const [
     error,
     setError,
-  ] = useState<string | null>(
-    null,
-  )
+  ] = useState<string | null>(null)
 
   const refresh =
     useCallback(
@@ -135,13 +123,10 @@ export function useWorkerOccurrences(
             nextPendingOccurrences,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load worker booking occurrences.'
-
-          setError(
-            message,
+              : 'Unable to load worker booking occurrences.',
           )
         } finally {
           setLoading(false)
@@ -162,9 +147,7 @@ export function useWorkerOccurrences(
   ])
 
   useEffect(() => {
-    if (
-      occurrenceRevision === 0
-    ) {
+    if (occurrenceRevision === 0) {
       return
     }
 
@@ -187,13 +170,10 @@ export function useWorkerOccurrences(
             nextActiveOccurrences,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load active worker occurrences.'
-
-          setError(
-            message,
+              : 'Unable to load active worker occurrences.',
           )
         }
       },
@@ -217,13 +197,10 @@ export function useWorkerOccurrences(
             nextUpcomingOccurrences,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load upcoming worker occurrences.'
-
-          setError(
-            message,
+              : 'Unable to load upcoming worker occurrences.',
           )
         }
       },
@@ -243,13 +220,10 @@ export function useWorkerOccurrences(
             nextPendingOccurrences,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load pending worker occurrences.'
-
-          setError(
-            message,
+              : 'Unable to load pending worker occurrences.',
           )
         }
       },
@@ -268,13 +242,10 @@ export function useWorkerOccurrences(
             occurrenceId,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load worker booking occurrence.'
-
-          setError(
-            message,
+              : 'Unable to load worker booking occurrence.',
           )
 
           throw cause
@@ -295,13 +266,10 @@ export function useWorkerOccurrences(
             bookingId,
           )
         } catch (cause) {
-          const message =
+          setError(
             cause instanceof Error
               ? cause.message
-              : 'Unable to load booking occurrences.'
-
-          setError(
-            message,
+              : 'Unable to load booking occurrences.',
           )
 
           throw cause
@@ -328,7 +296,6 @@ export function useWorkerOccurrences(
     pendingOccurrences,
 
     loading,
-
     error,
 
     refresh,
