@@ -101,7 +101,17 @@ type PaymentFilter =
   | 'refunded'
   | 'partially_refunded'
 
-const PAGE_SIZE = 10
+  const PAGE_SIZE = 10
+
+  function paginate<T>(
+  rows: T[],
+  pageNumber: number,
+): T[] {
+  return rows.slice(
+    (pageNumber - 1) * PAGE_SIZE,
+    pageNumber * PAGE_SIZE,
+  )
+}
 
 const currency = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -306,15 +316,6 @@ export default function Payments() {
     [payments],
   )
 
-  const refundedPayments = useMemo(
-    () =>
-      payments.filter(
-        payment =>
-          payment.status === 'refunded' ||
-          payment.status === 'partially_refunded',
-      ),
-    [payments],
-  )
 
   const failedPayments = useMemo(
     () => payments.filter(payment => payment.status === 'failed'),
@@ -408,26 +409,21 @@ export default function Payments() {
     })
   }, [webhooks, search])
 
-  const activeRows =
-    tab === 'payments'
-      ? filteredPayments
-      : tab === 'refunds'
-        ? filteredRefunds
-        : tab === 'invoices'
-          ? filteredInvoices
-          : filteredWebhooks
+  const activeRowCount =
+  tab === 'payments'
+    ? filteredPayments.length
+    : tab === 'refunds'
+      ? filteredRefunds.length
+      : tab === 'invoices'
+        ? filteredInvoices.length
+        : filteredWebhooks.length
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(activeRows.length / PAGE_SIZE),
-  )
+const totalPages = Math.max(
+  1,
+  Math.ceil(activeRowCount / PAGE_SIZE),
+)
 
-  const safePage = Math.min(page, totalPages)
-
-  const paginatedRows = activeRows.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
-  )
+const safePage = Math.min(page, totalPages)
 
   async function requestRefund(payment: Payment) {
     if (payment.status !== 'paid') {
@@ -896,7 +892,7 @@ export default function Payments() {
                   </thead>
 
                   <tbody>
-                    {paginatedRows.map(payment => (
+                    {paginate(filteredPayments, safePage).map(payment => (
                       <tr key={payment.id}>
                         <td>
                           <strong>{shortId(payment.id)}</strong>
@@ -998,7 +994,7 @@ export default function Payments() {
                   </thead>
 
                   <tbody>
-                    {paginatedRows.map(refund => (
+                    {paginate(filteredRefunds, safePage).map(refund => (
                       <tr key={refund.id}>
                         <td>
                           <strong>{shortId(refund.id)}</strong>
@@ -1068,7 +1064,7 @@ export default function Payments() {
                   </thead>
 
                   <tbody>
-                    {paginatedRows.map(invoice => (
+                    {paginate(filteredInvoices, safePage).map(invoice => (
                       <tr
                         key={invoice.id}
                         onClick={() => openInvoice(invoice)}
@@ -1156,7 +1152,7 @@ export default function Payments() {
                 </thead>
 
                 <tbody>
-                  {paginatedRows.map(webhook => (
+                  {paginate(filteredWebhooks, safePage).map(webhook => (
                     <tr key={webhook.id}>
                       <td>{webhook.provider}</td>
 
