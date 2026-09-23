@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { adminAction } from '../lib/adminAction'
 
 type PaymentStatus =
@@ -219,90 +218,78 @@ export default function Payments() {
   const [paymentDetailOpen, setPaymentDetailOpen] = useState(false)
 
   async function loadPaymentsData() {
-    setLoading(true)
-    setError(null)
+  setLoading(true)
+  setError(null)
 
-    const [
-      paymentsResult,
-      refundsResult,
-      refundRequestsResult,
-      invoicesResult,
-      webhookResult,
-      razorpayWebhookResult,
-    ] = await Promise.all([
-      supabase
-        .from('payments')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(500),
+  const [
+    paymentsResult,
+    refundsResult,
+    refundRequestsResult,
+    invoicesResult,
+    webhookResult,
+    razorpayWebhookResult,
+  ] = await Promise.all([
+    adminAction<Payment[]>('admin_list_payments'),
 
-      supabase
-        .from('payment_refunds')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(500),
+    adminAction<Refund[]>('admin_list_payment_refunds'),
 
-      supabase
-        .from('refund_requests')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(500),
+    adminAction<RefundRequest[]>('admin_list_refund_requests'),
 
-      supabase
-        .from('invoices')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(500),
+    adminAction<Invoice[]>('admin_list_invoices'),
 
-      supabase
-        .from('payment_webhook_events')
-        .select(
-          'id,provider,event_id,event_name,signature_verified,status,received_at,processed_at,error_message',
-        )
-        .order('received_at', { ascending: false })
-        .limit(500),
+    adminAction<WebhookEvent[]>(
+      'admin_list_payment_webhook_events',
+    ),
 
-      supabase
-        .from('razorpay_webhook_events')
-        .select(
-          'event_id,event_type,order_id,payment_id,received_at',
-        )
-        .order('received_at', { ascending: false })
-        .limit(500),
-    ])
+    adminAction<RazorpayWebhookEvent[]>(
+      'admin_list_razorpay_webhook_events',
+    ),
+  ])
 
-    const errors = [
-      paymentsResult.error,
-      refundsResult.error,
-      refundRequestsResult.error,
-      invoicesResult.error,
-      webhookResult.error,
-      razorpayWebhookResult.error,
-    ].filter(Boolean)
+  const errors = [
+    paymentsResult.error,
+    refundsResult.error,
+    refundRequestsResult.error,
+    invoicesResult.error,
+    webhookResult.error,
+    razorpayWebhookResult.error,
+  ].filter(Boolean)
 
-    if (errors.length > 0) {
-      setError(
-        errors
-          .map(item => item?.message)
-          .filter(Boolean)
-          .join(' | '),
-      )
-    }
-
-    setPayments((paymentsResult.data || []) as Payment[])
-    setRefunds((refundsResult.data || []) as Refund[])
-    setRefundRequests(
-      (refundRequestsResult.data || []) as RefundRequest[],
+  if (errors.length > 0) {
+    setError(
+      errors
+        .map(item => item?.message)
+        .filter(Boolean)
+        .join(' | '),
     )
-    setInvoices((invoicesResult.data || []) as Invoice[])
-    setWebhooks((webhookResult.data || []) as WebhookEvent[])
-    setRazorpayWebhooks(
-      (razorpayWebhookResult.data || []) as RazorpayWebhookEvent[],
-    )
-
-    setLoading(false)
   }
 
+  setPayments(
+    (paymentsResult.data || []) as Payment[],
+  )
+
+  setRefunds(
+    (refundsResult.data || []) as Refund[],
+  )
+
+  setRefundRequests(
+    (refundRequestsResult.data || []) as RefundRequest[],
+  )
+
+  setInvoices(
+    (invoicesResult.data || []) as Invoice[],
+  )
+
+  setWebhooks(
+    (webhookResult.data || []) as WebhookEvent[],
+  )
+
+  setRazorpayWebhooks(
+    (razorpayWebhookResult.data || []) as RazorpayWebhookEvent[],
+  )
+
+  setLoading(false)
+}
   useEffect(() => {
     loadPaymentsData()
   }, [])
