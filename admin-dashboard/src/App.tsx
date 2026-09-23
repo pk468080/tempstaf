@@ -6,6 +6,7 @@ import {
   Routes,
 } from 'react-router-dom'
 
+import BookingDetail from './pages/BookingDetail'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Bookings from './pages/Bookings'
@@ -46,6 +47,10 @@ export default function App() {
               path="/bookings"
               element={<Bookings />}
             />
+            <Route
+  path="/bookings/:bookingId"
+  element={<BookingDetail />}
+/>
 
             {/* Workforce */}
             <Route

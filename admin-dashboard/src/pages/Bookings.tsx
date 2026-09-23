@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { adminAction } from '../lib/adminAction'
+import { Link } from 'lucide-react'
 
 type Booking = {
   id: string
@@ -1014,13 +1015,17 @@ export default function Bookings() {
                         key={booking.id}
                       >
                         <td>
-                          <strong>
-                            #
-                            {booking.id.slice(
-                              0,
-                              8
-                            )}
-                          </strong>
+                          <Link
+  to={`/bookings/${booking.id}`}
+  style={{
+    color: '#0f766e',
+    fontWeight: 800,
+    textDecoration: 'none',
+  }}
+>
+  #
+  {booking.id.slice(0, 8)}
+</Link>
                         </td>
 
                         <td>
