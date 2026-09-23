@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Component, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { adminAction } from '../lib/adminAction'
 
@@ -203,7 +203,7 @@ type BookingDetailPayload = {
   audit_logs: AuditLog[]
 }
 
-export default function BookingDetail() {
+function BookingDetail() {
   const { bookingId } = useParams()
 
   const [detail, setDetail] =
@@ -230,34 +230,80 @@ export default function BookingDetail() {
     setError('')
     setSuccess('')
 
-    const { data, error: rpcError } =
-      await adminAction<BookingDetailPayload>(
-        'admin_get_booking_detail',
-        {
-          p_booking_id: bookingId,
-        }
-      )
+    try {
+      const { data, error: rpcError } =
+        await adminAction<BookingDetailPayload>(
+          'admin_get_booking_detail',
+          {
+            p_booking_id: bookingId,
+          }
+        )
 
-    if (rpcError) {
+      if (rpcError) {
+        console.error(
+          'Failed to load booking detail:',
+          rpcError
+        )
+
+        setError(rpcError.message)
+        setDetail(null)
+        return
+      }
+
+      if (!data || !data.booking) {
+        setError('Booking not found.')
+        setDetail(null)
+        return
+      }
+
+      // The admin RPC returns JSON assembled from several tables.
+      // Normalize nullable/missing nested collections before rendering so
+      // one missing relation cannot crash the entire detail route.
+      const normalized: BookingDetailPayload = {
+        ...data,
+        worker: data.worker || ({} as Worker),
+        service: data.service || ({} as Service),
+        variant: data.variant || ({} as Variant),
+        address: data.address || ({} as Address),
+        payment: data.payment || ({} as Payment),
+        refunds: Array.isArray(data.refunds)
+          ? data.refunds
+          : [],
+        refund_requests: Array.isArray(
+          data.refund_requests
+        )
+          ? data.refund_requests
+          : [],
+        occurrences: Array.isArray(data.occurrences)
+          ? data.occurrences
+          : [],
+        status_history: Array.isArray(
+          data.status_history
+        )
+          ? data.status_history
+          : [],
+        audit_logs: Array.isArray(data.audit_logs)
+          ? data.audit_logs
+          : [],
+      }
+
+      setDetail(normalized)
+      setEligibleWorkers([])
+    } catch (caught) {
       console.error(
-        'Failed to load booking detail:',
-        rpcError
+        'Unexpected booking detail error:',
+        caught
       )
 
-      setError(rpcError.message)
+      setDetail(null)
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Unexpected error while loading booking detail.'
+      )
+    } finally {
       setLoading(false)
-      return
     }
-
-    if (!data?.booking) {
-      setError('Booking not found.')
-      setLoading(false)
-      return
-    }
-
-    setDetail(data)
-    setEligibleWorkers([])
-    setLoading(false)
   }
 
   useEffect(() => {
@@ -614,7 +660,7 @@ export default function BookingDetail() {
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>
-            Booking #{booking.id.slice(0, 8)}
+            Booking #{shortId(booking.id)}
           </h1>
 
           <p style={styles.subtitle}>
@@ -1105,7 +1151,6 @@ export default function BookingDetail() {
                 <tr>
                   <th>Refund</th>
                   <th>Amount</th>
-<th>Actions</th>
                   <th>Status</th>
                   <th>Provider refund</th>
                   <th>Requested</th>
@@ -1118,11 +1163,7 @@ export default function BookingDetail() {
                   <tr key={refund.id}>
                     <td>
                       <strong>
-                        {refund.id.slice(
-                          0,
-                          8
-                        )}
-                        ...
+                        {shortId(refund.id)}
                       </strong>
 
                       {refund.reason && (
@@ -1192,11 +1233,7 @@ export default function BookingDetail() {
                   request => (
                     <tr key={request.id}>
                       <td style={styles.mono}>
-                        {request.id.slice(
-                          0,
-                          8
-                        )}
-                        ...
+                        {shortId(request.id)}
                       </td>
 
                       <td>
@@ -1329,10 +1366,7 @@ export default function BookingDetail() {
             <span style={styles.muted}>
               Changed by:{' '}
               {entry.changed_by
-                ? `${entry.changed_by.slice(
-                    0,
-                    8
-                  )}...`
+                ? shortId(entry.changed_by)
                 : 'System'}
             </span>
           </div>
@@ -1371,10 +1405,7 @@ export default function BookingDetail() {
 
             <span style={styles.mono}>
               {log.admin_id
-                ? `${log.admin_id.slice(
-                    0,
-                    8
-                  )}...`
+                ? shortId(log.admin_id)
                 : '—'}
             </span>
           </div>
@@ -1408,6 +1439,7 @@ export default function BookingDetail() {
                   <th>Status</th>
                   <th>Worker</th>
                   <th>Amount</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
 
@@ -1449,10 +1481,7 @@ export default function BookingDetail() {
 
                       <td>
                         {occurrence.worker_id
-                          ? occurrence.worker_id.slice(
-                              0,
-                              8
-                            ) + '...'
+                          ? shortId(occurrence.worker_id)
                           : 'Unassigned'}
                       </td>
 
@@ -1508,7 +1537,7 @@ function Panel({
   children,
 }: {
   title: string
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <section style={styles.panel}>
@@ -1674,16 +1703,20 @@ function workerLabel(
           worker.distance_km
         ).toFixed(1)} km`
 
-  return `${worker.worker_id.slice(
-    0,
-    8
-  )}... — ${distance} — ${rating} — ${jobs} jobs`
+  return `${shortId(worker.worker_id)} — ${distance} — ${rating} — ${jobs} jobs`
+}
+
+function shortId(value: unknown) {
+  const text = String(value || '')
+  return text ? `${text.slice(0, 8)}...` : '—'
 }
 
 function formatStatus(
-  value: string
+  value: unknown
 ) {
-  return value
+  const text = String(value || 'unknown')
+
+  return text
     .replace(/_/g, ' ')
     .replace(
       /\b\w/g,
@@ -1693,9 +1726,11 @@ function formatStatus(
 }
 
 function formatDate(
-  value: string
+  value: unknown
 ) {
-  const date = new Date(value)
+  if (!value) return '—'
+
+  const date = new Date(String(value))
 
   if (
     Number.isNaN(
@@ -1715,8 +1750,8 @@ function formatDate(
 }
 
 function formatMoney(
-  value: number | string,
-  currency: string
+  value: number | string | null | undefined,
+  currency: string | null | undefined
 ) {
   const amount = Number(value || 0)
 
@@ -1737,7 +1772,7 @@ function formatMoney(
 
 const styles: Record<
   string,
-  React.CSSProperties
+  CSSProperties
 > = {
   page: {
     padding: 32,
@@ -2000,4 +2035,76 @@ auditMetadata: {
     marginTop: 5,
     flexShrink: 0,
   },
+}
+
+class BookingDetailErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; message: string }
+> {
+  state = {
+    hasError: false,
+    message: '',
+  }
+
+  static getDerivedStateFromError(error: unknown) {
+    return {
+      hasError: true,
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Unknown render error.',
+    }
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error(
+      'Booking detail render error:',
+      error
+    )
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={styles.page}>
+          <Link to="/bookings" style={styles.back}>
+            ← Back to bookings
+          </Link>
+
+          <div style={styles.error}>
+            <strong>
+              Booking detail failed to render.
+            </strong>
+
+            <div style={{ marginTop: 8 }}>
+              {this.state.message}
+            </div>
+
+            <button
+              type="button"
+              style={{
+                ...styles.secondaryButton,
+                marginTop: 14,
+              }}
+              onClick={() =>
+                window.location.reload()
+              }
+            >
+              Reload page
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
+
+export default function BookingDetailRoute() {
+  return (
+    <BookingDetailErrorBoundary>
+      <BookingDetail />
+    </BookingDetailErrorBoundary>
+  )
 }
