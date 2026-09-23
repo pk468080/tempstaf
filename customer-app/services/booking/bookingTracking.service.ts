@@ -29,6 +29,7 @@ export type CustomerBooking = {
   arrived_at: string | null
   created_at?: string | null
 }
+
 export type CustomerBookingOccurrence = {
   id: string
   booking_id: string
@@ -79,18 +80,93 @@ type BookingRow = CustomerBooking & {
   } | null
 }
 
-function mapBooking(row: BookingRow): CustomerBooking {
+function mapBooking(
+  row: BookingRow,
+): CustomerBooking {
   return {
     ...row,
     service_name:
-      row.service_variant?.service?.name ?? null,
+      row.service_variant?.service?.name ??
+      null,
+  }
+}
+
+const OCCURRENCE_LIFECYCLE_STATUSES:
+  BookingStatus[] = [
+    'assigned',
+    'on_the_way',
+    'arrived',
+    'in_progress',
+  ]
+
+function applyActiveOccurrenceToBooking(
+  booking: CustomerBooking,
+  occurrence:
+    | CustomerBookingOccurrence
+    | null,
+): CustomerBooking {
+  if (!occurrence) {
+    return booking
+  }
+
+  /*
+   * Scheduled and recurring bookings keep the parent
+   * booking lifecycle separately from the occurrence
+   * lifecycle.
+   *
+   * Only let the occurrence override the customer-facing
+   * status once the occurrence has actually entered the
+   * worker lifecycle and belongs to the assigned worker.
+   */
+  if (
+    !booking.worker_id ||
+    occurrence.worker_id !==
+      booking.worker_id
+  ) {
+    return booking
+  }
+
+  if (
+    !OCCURRENCE_LIFECYCLE_STATUSES.includes(
+      occurrence.status as BookingStatus,
+    )
+  ) {
+    return booking
+  }
+
+  return {
+    ...booking,
+
+    status:
+      occurrence.status as BookingStatus,
+
+    scheduled_start:
+      occurrence.scheduled_start,
+
+    scheduled_end:
+      occurrence.scheduled_end,
+
+    journey_started_at:
+      occurrence.journey_started_at,
+
+    arrived_at:
+      occurrence.arrived_at,
+
+    started_at:
+      occurrence.started_at,
+
+    completed_at:
+      occurrence.completed_at,
   }
 }
 
 export async function getCustomerBooking(
   bookingId: string,
 ): Promise<CustomerBooking> {
-  const { data, error } = await supabase
+  const {
+    data,
+    error,
+  } = await supabase
     .from('bookings')
     .select(
       'id, status, booking_type:fulfillment_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name))',
@@ -102,15 +178,50 @@ export async function getCustomerBooking(
     throw error
   }
 
-  return mapBooking(
-    data as unknown as BookingRow,
+  const booking =
+    mapBooking(
+      data as unknown as BookingRow,
+    )
+
+  /*
+   * Instant bookings use the parent booking status
+   * directly.
+   */
+  if (
+    booking.booking_type !==
+      'scheduled' &&
+    booking.booking_type !==
+      'recurring'
+  ) {
+    return booking
+  }
+
+  /*
+   * There is no occurrence lifecycle to display until
+   * a worker has actually been assigned.
+   */
+  if (!booking.worker_id) {
+    return booking
+  }
+
+  const occurrence =
+    await getCustomerActiveBookingOccurrence(
+      bookingId,
+    )
+
+  return applyActiveOccurrenceToBooking(
+    booking,
+    occurrence,
   )
 }
 
 export async function getCustomerBookings(): Promise<
   CustomerBooking[]
 > {
-  const { data, error } = await supabase
+  const {
+    data,
+    error,
+  } = await supabase
     .from('bookings')
     .select(
       'id, status, booking_type:fulfillment_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name))',
@@ -125,18 +236,26 @@ export async function getCustomerBookings(): Promise<
 
   return (
     (data ?? []) as unknown as BookingRow[]
-  ).map(mapBooking)
+  ).map(
+    mapBooking,
+  )
 }
 
 export async function getCustomerBookingStatusHistory(
   bookingId: string,
 ): Promise<BookingStatusHistoryItem[]> {
-  const { data, error } = await supabase
+  const {
+    data,
+    error,
+  } = await supabase
     .from('booking_status_history')
     .select(
       'id, booking_id, old_status, new_status, changed_by, created_at',
     )
-    .eq('booking_id', bookingId)
+    .eq(
+      'booking_id',
+      bookingId,
+    )
     .order('created_at', {
       ascending: true,
     })
@@ -146,7 +265,8 @@ export async function getCustomerBookingStatusHistory(
   }
 
   return (
-    (data ?? []) as unknown as BookingStatusHistoryItem[]
+    (data ?? []) as unknown as
+      BookingStatusHistoryItem[]
   )
 }
 
@@ -202,18 +322,26 @@ export async function getCustomerActiveBookingOccurrence(
     throw error
   }
 
-  return data as CustomerBookingOccurrence | null
+  return data as
+    | CustomerBookingOccurrence
+    | null
 }
 
 export async function getLatestWorkerLocation(
   bookingId: string,
 ): Promise<WorkerLocation | null> {
-  const { data, error } = await supabase
+  const {
+    data,
+    error,
+  } = await supabase
     .from('worker_locations')
     .select(
       'latitude, longitude, recorded_at',
     )
-    .eq('booking_id', bookingId)
+    .eq(
+      'booking_id',
+      bookingId,
+    )
     .order('recorded_at', {
       ascending: false,
     })
@@ -235,18 +363,20 @@ export function getWorkerLocationFreshness(
     return 'unavailable'
   }
 
-  const recordedAt = Date.parse(
-    location.recorded_at,
-  )
+  const recordedAt =
+    Date.parse(
+      location.recorded_at,
+    )
 
   if (!Number.isFinite(recordedAt)) {
     return 'stale'
   }
 
-  const ageMs = Math.max(
-    0,
-    nowMs - recordedAt,
-  )
+  const ageMs =
+    Math.max(
+      0,
+      nowMs - recordedAt,
+    )
 
   return ageMs <= 60_000
     ? 'fresh'
@@ -261,9 +391,10 @@ export function getWorkerLocationAgeSeconds(
     return null
   }
 
-  const recordedAt = Date.parse(
-    location.recorded_at,
-  )
+  const recordedAt =
+    Date.parse(
+      location.recorded_at,
+    )
 
   if (!Number.isFinite(recordedAt)) {
     return null
@@ -272,9 +403,66 @@ export function getWorkerLocationAgeSeconds(
   return Math.max(
     0,
     Math.floor(
-      (nowMs - recordedAt) / 1000,
+      (nowMs - recordedAt) /
+        1000,
     ),
   )
+}
+
+async function resolveOccurrenceIdForOtp(
+  bookingId: string,
+): Promise<string | undefined> {
+  const {
+    data,
+    error,
+  } = await supabase
+    .from('bookings')
+    .select(
+      'id, fulfillment_type, worker_id',
+    )
+    .eq(
+      'id',
+      bookingId,
+    )
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  const bookingType =
+    String(
+      data?.fulfillment_type ??
+        '',
+    )
+
+  if (
+    bookingType !==
+      'scheduled' &&
+    bookingType !==
+      'recurring'
+  ) {
+    return undefined
+  }
+
+  if (!data?.worker_id) {
+    return undefined
+  }
+
+  const occurrence =
+    await getCustomerActiveBookingOccurrence(
+      bookingId,
+    )
+
+  if (
+    !occurrence ||
+    occurrence.worker_id !==
+      data.worker_id
+  ) {
+    return undefined
+  }
+
+  return occurrence.id
 }
 
 export async function requestBookingOtp(
@@ -282,18 +470,40 @@ export async function requestBookingOtp(
   otpType: 'start' | 'end',
   occurrenceId?: string,
 ) {
+  let resolvedOccurrenceId =
+    occurrenceId
+
+  /*
+   * Scheduled and recurring bookings automatically
+   * target the current worker-assigned occurrence.
+   *
+   * Instant bookings continue using the parent booking.
+   */
+  if (
+    !resolvedOccurrenceId
+  ) {
+    resolvedOccurrenceId =
+      await resolveOccurrenceIdForOtp(
+        bookingId,
+      )
+  }
+
   const body: {
     bookingId: string
-    otpType: 'start' | 'end'
+    otpType:
+      | 'start'
+      | 'end'
     occurrenceId?: string
   } = {
     bookingId,
     otpType,
   }
 
-  if (occurrenceId) {
+  if (
+    resolvedOccurrenceId
+  ) {
     body.occurrenceId =
-      occurrenceId
+      resolvedOccurrenceId
   }
 
   const {
