@@ -354,7 +354,7 @@ export default function ActiveBookingScreen({
     }
   }
 
-  useEffect(() => {
+    useEffect(() => {
     void refresh()
 
     const refreshInterval =
@@ -369,11 +369,18 @@ export default function ActiveBookingScreen({
         1000,
       )
 
+    // Use a unique channel name for every screen instance.
+    // This prevents Supabase Realtime from reusing an already
+    // subscribed channel when the screen is replaced/remounted
+    // quickly, such as after rescheduling.
+    const channelName =
+      `customer-booking-${bookingId}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`
+
     const channel =
       supabase
-        .channel(
-          `customer-booking-${bookingId}`,
-        )
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
@@ -425,9 +432,7 @@ export default function ActiveBookingScreen({
             const nextLocation =
               payload.new as WorkerLocation
 
-            setLocation(
-              nextLocation,
-            )
+            setLocation(nextLocation)
             setLocationNow(Date.now())
 
             if (
@@ -436,9 +441,7 @@ export default function ActiveBookingScreen({
               ) === 'fresh'
             ) {
               setMapRegion(
-                toMapRegion(
-                  nextLocation,
-                ),
+                toMapRegion(nextLocation),
               )
             }
           },
@@ -448,9 +451,8 @@ export default function ActiveBookingScreen({
     return () => {
       clearInterval(refreshInterval)
       clearInterval(clockInterval)
-      void supabase.removeChannel(
-        channel,
-      )
+
+      void supabase.removeChannel(channel)
     }
   }, [bookingId])
 

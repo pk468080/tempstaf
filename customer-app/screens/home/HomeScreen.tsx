@@ -196,7 +196,31 @@ export default function HomeScreen({
       setRefreshing(false)
     }
   }
+function getFriendlyLocationError(
+  error: unknown,
+): string {
+  const message =
+    error instanceof Error
+      ? error.message.toLowerCase()
+      : String(error).toLowerCase()
 
+  if (
+    message.includes('locationunavailable') ||
+    message.includes('cannot obtain current location') ||
+    message.includes('kclerrordomain')
+  ) {
+    return 'We could not detect your current location right now. You can search for your service area instead.'
+  }
+
+  if (
+    message.includes('permission') ||
+    message.includes('denied')
+  ) {
+    return 'Location access is unavailable. Search for your service area or enable location access in Settings.'
+  }
+
+  return 'Unable to detect your location right now. Search for your service area or try again.'
+}
   async function fetchCurrentLocation(
     automatic = false,
   ) {
