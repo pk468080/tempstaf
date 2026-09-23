@@ -1630,10 +1630,10 @@ function Timeline({
 function StatusBadge({
   status,
 }: {
-  status: string
+  status: string | null | undefined
 }) {
   const normalized =
-    status.toLowerCase()
+    String(status ?? '').toLowerCase()
 
   let background = '#e2e8f0'
   let color = '#334155'
@@ -1676,7 +1676,7 @@ function StatusBadge({
         color,
       }}
     >
-      {formatStatus(status)}
+      {status ? formatStatus(status) : '—'}
     </span>
   )
 }
