@@ -23,7 +23,6 @@ import {
   getCustomerBooking,
   getCustomerBookingStatusHistory,
   getLatestWorkerLocation,
-  getCustomerActiveBookingOccurrence,
   getWorkerLocationAgeSeconds,
   getWorkerLocationFreshness,
   requestBookingOtp,
@@ -31,7 +30,6 @@ import {
   type BookingStatusHistoryItem,
   type CustomerBooking,
   type WorkerLocation,
-  type CustomerBookingOccurrence,
   type WorkerLocationFreshness,
 } from '../../services/booking/bookingTracking.service'
 
@@ -50,15 +48,7 @@ type ActiveBookingScreenProps = {
 
 const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
 const trackingHero = require('../../assets/home/hero-worker.png')
-const [booking, setBooking] =
-  useState<CustomerBooking | null>(null)
-  const [
-  activeOccurrence,
-  setActiveOccurrence,
-] =
-  useState<CustomerBookingOccurrence | null>(
-    null,
-  )
+
 function formatStatus(status: BookingStatus) {
   return status
     .replace(/_/g, ' ')
@@ -314,35 +304,19 @@ export default function ActiveBookingScreen({
 
   async function refresh() {
     try {
-      const [
-  nextBooking,
-  nextOccurrence,
-  nextHistory,
-] = await Promise.all([
-  getCustomerBooking(
-    bookingId,
-  ),
+      const nextBooking =
+        await getCustomerBooking(
+          bookingId,
+        )
 
-  getCustomerActiveBookingOccurrence(
-    bookingId,
-  ),
+      setBooking(nextBooking)
 
-  getCustomerBookingStatusHistory(
-    bookingId,
-  ),
-])
+      const nextHistory =
+        await getCustomerBookingStatusHistory(
+          bookingId,
+        )
 
-setBooking(
-  nextBooking,
-)
-
-setActiveOccurrence(
-  nextOccurrence,
-)
-
-setStatusHistory(
-  nextHistory,
-)
+      setStatusHistory(nextHistory)
 
       if (nextBooking.worker_id) {
         const nextLocation =
