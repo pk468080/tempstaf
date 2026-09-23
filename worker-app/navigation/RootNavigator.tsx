@@ -7,9 +7,15 @@ import {
 } from '@react-navigation/native-stack'
 
 import SplashScreen from '../screens/auth/SplashScreen'
+
 import LoginScreen from '../screens/auth/LoginScreen'
+
 import WorkerRegistrationScreen from '../screens/auth/WorkerRegistrationScreen'
+
 import WorkerOnboardingScreen from '../screens/onboarding/WorkerOnboardingScreen'
+
+import WorkerPushRegistration from '../components/runtime/WorkerPushRegistration'
+
 import WorkerNavigator from './WorkerNavigator'
 
 import type {
@@ -30,76 +36,84 @@ export default function RootNavigator() {
           headerShown: false,
         }}
       >
-        <Stack.Screen name="Splash">
+        <Stack.Screen
+          name="Splash"
+        >
           {({ navigation }) => (
             <SplashScreen
-              onFinished={authState => {
-                if (
-                  !authState.authenticated
-                ) {
-                  navigation.replace(
-                    'Login',
-                  )
-                  return
-                }
+              onFinished={
+                authState => {
+                  if (
+                    !authState.authenticated
+                  ) {
+                    navigation.replace(
+                      'Login',
+                    )
 
-                if (
-                  authState.needsRegistration
-                ) {
-                  navigation.replace(
-                    'WorkerOnboarding',
-                  )
-                  return
-                }
+                    return
+                  }
 
+                  if (
+                    authState.needsRegistration
+                  ) {
+                    navigation.replace(
+                      'WorkerOnboarding',
+                    )
+
+                    return
+                  }
+
+                  navigation.replace(
+                    'Worker',
+                  )
+                }
+              }
+            />
+          )}
+        </Stack.Screen>
+
+        <Stack.Screen
+          name="Login"
+        >
+          {({ navigation }) => (
+            <LoginScreen
+              onAuthenticated={() => {
                 navigation.replace(
                   'Worker',
+                )
+              }}
+              onOnboardingRequired={() => {
+                navigation.replace(
+                  'WorkerOnboarding',
+                )
+              }}
+              onRegister={() => {
+                navigation.navigate(
+                  'WorkerRegistration',
                 )
               }}
             />
           )}
         </Stack.Screen>
 
-        <Stack.Screen name="Login">
-  {({ navigation }) => (
-    <LoginScreen
-      onAuthenticated={() => {
-        navigation.replace(
-          'Worker',
-        )
-      }}
-      onOnboardingRequired={() => {
-        navigation.replace(
-          'WorkerOnboarding',
-        )
-      }}
-      onRegister={() => {
-        navigation.navigate(
-          'WorkerRegistration',
-        )
-      }}
-    />
-  )}
-</Stack.Screen>
-
         <Stack.Screen
-  name="WorkerRegistration"
->
-  {({ navigation }) => (
-    <WorkerRegistrationScreen
-      onRegistered={() => {
-        navigation.replace(
-          'WorkerOnboarding',
-        )
-      }}
-      onBackToLogin={() => {
-        navigation.replace(
-          'Login',
-        )
-      }}
-    />
-  )}
-</Stack.Screen>
+          name="WorkerRegistration"
+        >
+          {({ navigation }) => (
+            <WorkerRegistrationScreen
+              onRegistered={() => {
+                navigation.replace(
+                  'WorkerOnboarding',
+                )
+              }}
+              onBackToLogin={() => {
+                navigation.replace(
+                  'Login',
+                )
+              }}
+            />
+          )}
+        </Stack.Screen>
 
         <Stack.Screen
           name="WorkerOnboarding"
@@ -115,9 +129,15 @@ export default function RootNavigator() {
           )}
         </Stack.Screen>
 
-        <Stack.Screen name="Worker">
+        <Stack.Screen
+          name="Worker"
+        >
           {() => (
-            <WorkerNavigator />
+            <>
+              <WorkerPushRegistration />
+
+              <WorkerNavigator />
+            </>
           )}
         </Stack.Screen>
       </Stack.Navigator>

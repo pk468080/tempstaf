@@ -199,3 +199,10 @@
 {"_e":"metro:client_log","_t":1790152155736,"level":"error","data":["[Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.\n\nCheck the render method of `App`.]"]}
 {"_e":"metro:client_log","_t":1790152197550,"level":"error","data":["[Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.\n\nCheck the render method of `App`.]"]}
 {"_e":"metro:client_log","_t":1790152705552,"level":"error","data":["[ReferenceError: Property 'bookingRevision' doesn't exist]"]}
+{"_e":"metro:bundling:started","_t":1790153221744,"id":"d","platform":"ios","environment":null,"entry":"index.ts"}
+{"_e":"metro:bundling:progress","_t":1790153221744,"id":"d","progress":0,"total":1,"current":0}
+{"_e":"metro:bundling:done","_t":1790153221816,"id":"d","total":1,"ms":72.253709}
+{"_e":"metro:client_log","_t":1790153222269,"level":"warn","data":["Sending `websocketMessage` with no listeners registered."]}
+{"_e":"metro:client_log","_t":1790153222269,"level":"warn","data":["Sending `websocketMessage` with no listeners registered."]}
+{"_e":"metro:client_log","_t":1790153224816,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
+{"_e":"metro:client_log","_t":1790153303906,"level":"error","data":["[Error: Cannot find native module 'ExpoPushTokenManager']"]}
