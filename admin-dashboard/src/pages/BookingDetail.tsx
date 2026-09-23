@@ -437,6 +437,96 @@ export default function BookingDetail() {
     await loadBooking()
   }
 
+  async function cancelOccurrence(
+  occurrenceId: string
+) {
+  if (!bookingId) return
+
+  const reason = window.prompt(
+    'Enter the occurrence cancellation reason (optional):'
+  )
+
+  if (reason === null) return
+
+  const confirmed = window.confirm(
+    'Cancel this recurring booking occurrence?'
+  )
+
+  if (!confirmed) return
+
+  setSaving(true)
+  setError('')
+  setSuccess('')
+
+  const {
+    data,
+    error: rpcError,
+  } = await adminAction(
+    'admin_cancel_booking_occurrence',
+    {
+      p_occurrence_id: occurrenceId,
+      p_reason: reason.trim() || null,
+    }
+  )
+
+  setSaving(false)
+
+  if (rpcError) {
+    setError(
+      `Occurrence cancellation failed: ${rpcError.message}`
+    )
+    return
+  }
+
+  if (
+    data &&
+    typeof data === 'object' &&
+    'success' in data &&
+    data.success === false
+  ) {
+    setError(
+      String(
+        (
+          data as {
+            error?: string
+          }
+        ).error ||
+          'Occurrence cancellation failed.'
+      )
+    )
+    return
+  }
+
+  const result = data as {
+    refund_amount?: number
+    refund_status?: string | null
+    parent_cancelled?: boolean
+  } | null
+
+  const refundAmount = Number(
+    result?.refund_amount || 0
+  )
+
+  if (result?.parent_cancelled) {
+    setSuccess(
+      refundAmount > 0
+        ? `Occurrence cancelled and parent booking cancelled. Refund of ₹${refundAmount.toFixed(
+            2
+          )} was created as pending.`
+        : 'Occurrence cancelled and parent booking cancelled.'
+    )
+  } else {
+    setSuccess(
+      refundAmount > 0
+        ? `Occurrence cancelled. Refund of ₹${refundAmount.toFixed(
+            2
+          )} was created as pending.`
+        : 'Occurrence cancelled successfully.'
+    )
+  }
+
+  await loadBooking()
+}
   const successfulRefundTotal = useMemo(() => {
     if (!detail) return 0
 
@@ -1015,6 +1105,7 @@ export default function BookingDetail() {
                 <tr>
                   <th>Refund</th>
                   <th>Amount</th>
+<th>Actions</th>
                   <th>Status</th>
                   <th>Provider refund</th>
                   <th>Requested</th>
@@ -1375,6 +1466,31 @@ export default function BookingDetail() {
                                 'INR'
                             )}
                       </td>
+                      <td>
+  {occurrence.status !== 'cancelled' &&
+    occurrence.status !== 'completed' && (
+      <button
+        style={styles.dangerButton}
+        onClick={() =>
+          cancelOccurrence(
+            occurrence.id
+          )
+        }
+        disabled={saving}
+      >
+        {saving
+          ? 'Saving...'
+          : 'Cancel occurrence'}
+      </button>
+    )}
+
+  {(occurrence.status === 'cancelled' ||
+    occurrence.status === 'completed') && (
+    <span style={styles.muted}>
+      No actions
+    </span>
+  )}
+</td>
                     </tr>
                   )
                 )}
