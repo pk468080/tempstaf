@@ -192,3 +192,4 @@
 {"_e":"metro:client_log","_t":1790145617842,"level":"warn","data":["SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context"]}
 {"_e":"metro:server_log","_t":1790146035151,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}
 {"_e":"metro:server_log","_t":1790146362851,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}
+{"_e":"metro:server_log","_t":1790147492751,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.princerajput.workerapp","iPhone 17 Pro","60"]}
