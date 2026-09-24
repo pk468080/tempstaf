@@ -18,6 +18,7 @@ export type CustomerBooking = {
   status: BookingStatus
   booking_type?: string | null
   service_name: string | null
+  service_image_url: string | null
   scheduled_start: string | null
   scheduled_end: string | null
   total_working_hours: number | null
@@ -76,6 +77,7 @@ type BookingRow = CustomerBooking & {
   service_variant?: {
     service?: {
       name?: string | null
+      image_url?: string | null
     } | null
   } | null
 }
@@ -88,6 +90,9 @@ function mapBooking(
     service_name:
       row.service_variant?.service?.name ??
       null,
+    service_image_url:
+      row.service_variant?.service?.image_url ??
+      null,
   }
 }
 
@@ -99,6 +104,115 @@ const OCCURRENCE_LIFECYCLE_STATUSES:
   'in_progress',
 ]
 
+const OCCURRENCE_STATUS_PRIORITY:
+  Partial<Record<BookingStatus, number>> = {
+  assigned: 1,
+  on_the_way: 2,
+  arrived: 3,
+  in_progress: 4,
+}
+
+function selectPreferredOccurrence(
+  occurrences: CustomerBookingOccurrence[],
+  nowMs = Date.now(),
+): CustomerBookingOccurrence | null {
+  if (occurrences.length === 0) {
+    return null
+  }
+
+  const lifecycleOccurrences =
+    occurrences
+      .filter(
+        occurrence =>
+          Boolean(occurrence.worker_id) &&
+          OCCURRENCE_LIFECYCLE_STATUSES.includes(
+            occurrence.status as BookingStatus,
+          ),
+      )
+      .sort((left, right) => {
+        const leftPriority =
+          OCCURRENCE_STATUS_PRIORITY[
+            left.status as BookingStatus
+          ] ?? 0
+
+        const rightPriority =
+          OCCURRENCE_STATUS_PRIORITY[
+            right.status as BookingStatus
+          ] ?? 0
+
+        if (
+          leftPriority !==
+          rightPriority
+        ) {
+          return (
+            rightPriority -
+            leftPriority
+          )
+        }
+
+        const leftStart =
+          Date.parse(
+            left.scheduled_start,
+          )
+
+        const rightStart =
+          Date.parse(
+            right.scheduled_start,
+          )
+
+        return (
+          Math.abs(
+            leftStart - nowMs,
+          ) -
+          Math.abs(
+            rightStart - nowMs,
+          )
+        )
+      })
+
+  if (lifecycleOccurrences[0]) {
+    return lifecycleOccurrences[0]
+  }
+
+  const futureOccurrences =
+    occurrences
+      .filter(occurrence => {
+        const start =
+          Date.parse(
+            occurrence.scheduled_start,
+          )
+
+        return (
+          Number.isFinite(start) &&
+          start >= nowMs
+        )
+      })
+      .sort(
+        (left, right) =>
+          Date.parse(
+            left.scheduled_start,
+          ) -
+          Date.parse(
+            right.scheduled_start,
+          ),
+      )
+
+  if (futureOccurrences[0]) {
+    return futureOccurrences[0]
+  }
+
+  return [...occurrences]
+    .sort(
+      (left, right) =>
+        Date.parse(
+          right.scheduled_start,
+        ) -
+        Date.parse(
+          left.scheduled_start,
+        ),
+    )[0] ?? null
+}
+
 function applyActiveOccurrenceToBooking(
   booking: CustomerBooking,
   occurrence:
@@ -109,10 +223,21 @@ function applyActiveOccurrenceToBooking(
     return booking
   }
 
+  /*
+   * Scheduled/recurring bookings can keep worker assignment
+   * on the active occurrence rather than the parent booking.
+   *
+   * If the parent has a worker, the occurrence must match it.
+   * If the parent has no worker, an assigned occurrence is still
+   * authoritative for that occurrence.
+   */
+  if (!occurrence.worker_id) {
+    return booking
+  }
+
   if (
-    !booking.worker_id ||
-    occurrence.worker_id !==
-      booking.worker_id
+    booking.worker_id &&
+    occurrence.worker_id !== booking.worker_id
   ) {
     return booking
   }
@@ -153,7 +278,7 @@ export async function getCustomerBooking(
   } = await supabase
     .from('bookings')
     .select(
-      'id, status, booking_type:fulfillment_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name))',
+      'id, status, booking_type:fulfillment_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name,image_url))',
     )
     .eq('id', bookingId)
     .single()
@@ -173,10 +298,6 @@ export async function getCustomerBooking(
     booking.booking_type !==
       'recurring'
   ) {
-    return booking
-  }
-
-  if (!booking.worker_id) {
     return booking
   }
 
@@ -200,7 +321,7 @@ export async function getCustomerBookings(): Promise<
   } = await supabase
     .from('bookings')
     .select(
-      'id, status, booking_type:fulfillment_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name))',
+      'id, status, booking_type:fulfillment_type, created_at, scheduled_start, scheduled_end, total_working_hours, total_amount, worker_id, started_at, completed_at, journey_started_at, arrived_at, service_variant:service_variants(service:services(name,image_url))',
     )
     .order('created_at', {
       ascending: false,
@@ -210,10 +331,99 @@ export async function getCustomerBookings(): Promise<
     throw error
   }
 
-  return (
+  const bookings = (
     (data ?? []) as unknown as BookingRow[]
-  ).map(
-    mapBooking,
+  ).map(mapBooking)
+
+  const occurrenceBookingIds = bookings
+    .filter(
+      booking =>
+        (booking.booking_type === 'scheduled' ||
+          booking.booking_type === 'recurring') &&
+        booking.worker_id !== null,
+    )
+    .map(booking => booking.id)
+
+  if (occurrenceBookingIds.length === 0) {
+    return bookings
+  }
+
+  const {
+    data: occurrenceRows,
+    error: occurrenceError,
+  } = await supabase
+    .from('booking_schedule_occurrences')
+    .select(
+      `
+        id,
+        booking_id,
+        worker_id,
+        occurrence_index,
+        occurrence_date,
+        scheduled_start,
+        scheduled_end,
+        status,
+        journey_started_at,
+        arrived_at,
+        started_at,
+        completed_at,
+        start_otp_verified_at,
+        end_otp_verified_at,
+        created_at,
+        updated_at
+      `,
+    )
+    .in(
+      'booking_id',
+      occurrenceBookingIds,
+    )
+    .not(
+      'status',
+      'in',
+      '("completed","cancelled")',
+    )
+    .order(
+      'scheduled_start',
+      {
+        ascending: true,
+      },
+    )
+
+  if (occurrenceError) {
+    throw occurrenceError
+  }
+
+  const occurrencesByBooking =
+    new Map<
+      string,
+      CustomerBookingOccurrence[]
+    >()
+
+  for (const row of (
+    occurrenceRows ?? []
+  ) as unknown as CustomerBookingOccurrence[]) {
+    const existing =
+      occurrencesByBooking.get(
+        row.booking_id,
+      ) ?? []
+
+    existing.push(row)
+
+    occurrencesByBooking.set(
+      row.booking_id,
+      existing,
+    )
+  }
+
+  return bookings.map(booking =>
+    applyActiveOccurrenceToBooking(
+      booking,
+      selectPreferredOccurrence(
+        occurrencesByBooking.get(
+          booking.id,
+        ) ?? [],
+      ),
+    ),
   )
 }
 
@@ -291,16 +501,15 @@ export async function getCustomerActiveBookingOccurrence(
         ascending: true,
       },
     )
-    .limit(1)
-    .maybeSingle()
 
   if (error) {
     throw error
   }
 
-  return data as
-    | CustomerBookingOccurrence
-    | null
+  return selectPreferredOccurrence(
+    (data ?? []) as unknown as
+      CustomerBookingOccurrence[],
+  )
 }
 
 export async function getCustomerBookingOccurrences(
@@ -472,17 +681,17 @@ async function resolveOccurrenceIdForOtp(
     return undefined
   }
 
-  if (!data?.worker_id) {
-    return undefined
-  }
-
   const occurrence =
     await getCustomerActiveBookingOccurrence(
       bookingId,
     )
 
+  if (!occurrence || !occurrence.worker_id) {
+    return undefined
+  }
+
   if (
-    !occurrence ||
+    data?.worker_id &&
     occurrence.worker_id !==
       data.worker_id
   ) {

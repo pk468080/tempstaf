@@ -145,7 +145,7 @@ export default function LoginScreen({
             </Text>
 
             <Text style={styles.footerText}>
-              Helpers  •  Housekeeping  •  Office Boy  •  Pantry Boy
+              Flexible staffing for business and support needs
             </Text>
           </View>
         </View>

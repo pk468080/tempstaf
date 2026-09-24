@@ -49,21 +49,6 @@ const CANCELLED_STATUSES = new Set<BookingStatus>([
 
 const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
 
-const serviceImages: Record<string, number> = {
-  helper: require('../../assets/services/helper.png'),
-  'housekeeping boy': require('../../assets/services/housekeeping-boy.png'),
-  'office boy': require('../../assets/services/office-boy.png'),
-  'pantry boy': require('../../assets/services/pantry-boy.png'),
-}
-
-function getServiceImage(name: string | null) {
-  if (!name) {
-    return undefined
-  }
-
-  return serviceImages[name.trim().toLowerCase()]
-}
-
 function formatStatus(status: BookingStatus) {
   return status
     .replace(/_/g, ' ')
@@ -225,7 +210,7 @@ function BookingCard({
   onPress: () => void
 }) {
   const statusTone = getStatusTone(booking.status)
-  const image = getServiceImage(booking.service_name)
+  const image = booking.service_image_url
   const group = getBookingGroup(booking)
 
   return (
@@ -240,7 +225,9 @@ function BookingCard({
         <View style={styles.serviceVisual}>
           {image ? (
             <Image
-              source={image}
+              source={{
+                uri: image,
+              }}
               style={styles.serviceImage}
               resizeMode="cover"
             />

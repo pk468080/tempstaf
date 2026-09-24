@@ -794,7 +794,8 @@ export default function RecurringBookingScreen({
               status={
                 isSeriesCompleted
                   ? 'completed'
-                  : 'assigned'
+                  : activeOccurrence?.status ??
+                    booking.status
               }
             />
           </View>
