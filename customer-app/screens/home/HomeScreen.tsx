@@ -22,12 +22,6 @@ const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
 const heroBannerImage = require('../../assets/home/hero-banner.png')
 const heroWorkerImage = require('../../assets/home/hero-worker.png')
 
-const serviceImages: Record<string, number> = {
-  helper: require('../../assets/services/helper.png'),
-  'housekeeping boy': require('../../assets/services/housekeeping-boy.png'),
-  'office boy': require('../../assets/services/office-boy.png'),
-  'pantry boy': require('../../assets/services/pantry-boy.png'),
-}
 
 type HomeLocation = {
   latitude: number
@@ -840,12 +834,20 @@ function ServiceCard({
   service: HomeService
   onPress: () => void
 }) {
+  const normalizedName = service.name.trim().toLowerCase()
+
   const image =
-    serviceImages[
-      service.name
-        .trim()
-        .toLowerCase()
-    ]
+    normalizedName === 'helper'
+      ? require('../../assets/services/helper.png')
+      : normalizedName === 'housekeeping boy'
+        ? require('../../assets/services/housekeeping-boy.png')
+        : normalizedName === 'office boy'
+          ? require('../../assets/services/office-boy.png')
+          : normalizedName === 'pantry boy'
+            ? require('../../assets/services/pantry-boy.png')
+            : null
+
+  const initials = getServiceInitials(service.name)
 
   return (
     <TouchableOpacity
@@ -863,7 +865,7 @@ function ServiceCard({
         ) : (
           <View style={styles.cardImageFallback}>
             <Text style={styles.cardImageFallbackText}>
-              TS
+              {initials}
             </Text>
           </View>
         )}
@@ -919,6 +921,23 @@ function ServiceCard({
       </View>
     </TouchableOpacity>
   )
+}
+
+function getServiceInitials(name: string): string {
+  const words = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  if (words.length === 0) {
+    return 'TS'
+  }
+
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase()
+  }
+
+  return `${words[0][0]}${words[1][0]}`.toUpperCase()
 }
 
 async function reverseGeocode(
