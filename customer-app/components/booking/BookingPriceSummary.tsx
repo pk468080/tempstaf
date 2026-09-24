@@ -21,6 +21,12 @@ interface BookingPriceSummaryProps {
 
   promotionDiscountAmount?: number
 
+  recurringDiscountPercent?: number
+
+  recurringDiscountAmount?: number
+
+  recurringDiscountTierName?: string | null
+
   platformFee?: number
 
   taxAmount?: number
@@ -51,6 +57,12 @@ export default function BookingPriceSummary({
 
   promotionDiscountAmount = 0,
 
+  recurringDiscountPercent = 0,
+
+  recurringDiscountAmount = 0,
+
+  recurringDiscountTierName,
+
   platformFee,
 
   taxAmount,
@@ -65,19 +77,10 @@ export default function BookingPriceSummary({
 
   error,
 }: BookingPriceSummaryProps) {
-
   if (loading) {
     return (
-      <View
-        style={
-          styles.container
-        }
-      >
-        <Text
-          style={
-            styles.loadingText
-          }
-        >
+      <View style={styles.container}>
+        <Text style={styles.loadingText}>
           Calculating price...
         </Text>
       </View>
@@ -86,75 +89,55 @@ export default function BookingPriceSummary({
 
   if (error) {
     return (
-      <View
-        style={
-          styles.container
-        }
-      >
-        <Text
-          style={
-            styles.errorText
-          }
-        >
+      <View style={styles.container}>
+        <Text style={styles.errorText}>
           {error}
         </Text>
       </View>
     )
   }
 
-  if (
-    finalAmount ===
-    undefined
-  ) {
+  if (finalAmount === undefined) {
     return null
   }
 
   const hasDurationDiscount =
-  serviceDiscountAmount >
-  0
+    serviceDiscountAmount > 0
 
-const hasPromotion =
-  promotionDiscountAmount >
-  0
+  const hasPromotion =
+    promotionDiscountAmount > 0
 
-const effectiveDurationPercent =
-  serviceDiscountPercent > 0
-    ? serviceDiscountPercent
-    : baseAmount &&
-        baseAmount > 0 &&
-        serviceDiscountAmount > 0
-      ? (
-          (serviceDiscountAmount /
-            baseAmount) *
-          100
-        )
-      : 0
+  const hasRecurringDiscount =
+    recurringDiscountAmount > 0
+
+  const effectiveDurationPercent =
+    serviceDiscountPercent > 0
+      ? serviceDiscountPercent
+      : baseAmount &&
+          baseAmount > 0 &&
+          serviceDiscountAmount > 0
+        ? (serviceDiscountAmount / baseAmount) * 100
+        : 0
+
+  const totalCalculatedDiscount =
+    serviceDiscountAmount +
+    promotionDiscountAmount +
+    recurringDiscountAmount
+
+  const displayedDiscountAmount =
+    discountAmount !== undefined
+      ? discountAmount
+      : totalCalculatedDiscount
 
   return (
-    <View
-      style={
-        styles.container
-      }
-    >
-
-      <View
-        style={
-          styles.row
-        }
-      >
-        <Text
-          style={
-            styles.label
-          }
-        >
+    <View style={styles.container}>
+      {/* Base Amount */}
+      <View style={styles.row}>
+        <Text style={styles.label}>
           Base amount
         </Text>
 
-        <Text
-          style={
-            styles.value
-          }
-        >
+        <Text style={styles.value}>
           {formatMoney(
             baseAmount,
             currency,
@@ -162,32 +145,17 @@ const effectiveDurationPercent =
         </Text>
       </View>
 
+      {/* Duration Discount */}
       {hasDurationDiscount && (
-        <View
-          style={
-            styles.row
-          }
-        >
-          <View
-            style={
-              styles.rowTextBlock
-            }
-          >
-            <Text
-              style={
-                styles.label
-              }
-            >
+        <View style={styles.row}>
+          <View style={styles.rowTextBlock}>
+            <Text style={styles.label}>
               Duration discount
             </Text>
 
-            <Text
-              style={
-                styles.helperText
-              }
-            >
+            <Text style={styles.helperText}>
               {discountTierName ||
-  `${effectiveDurationPercent.toFixed(0)}% for this duration`}
+                `${effectiveDurationPercent.toFixed(0)}% for this duration`}
             </Text>
           </View>
 
@@ -206,30 +174,15 @@ const effectiveDurationPercent =
         </View>
       )}
 
+      {/* Promotion */}
       {hasPromotion && (
-        <View
-          style={
-            styles.row
-          }
-        >
-          <View
-            style={
-              styles.rowTextBlock
-            }
-          >
-            <Text
-              style={
-                styles.label
-              }
-            >
+        <View style={styles.row}>
+          <View style={styles.rowTextBlock}>
+            <Text style={styles.label}>
               Promotion
             </Text>
 
-            <Text
-              style={
-                styles.helperText
-              }
-            >
+            <Text style={styles.helperText}>
               {promotionTitle ||
                 'Active promotion'}
             </Text>
@@ -250,21 +203,43 @@ const effectiveDurationPercent =
         </View>
       )}
 
+      {/* Recurring Commitment Discount */}
+      {hasRecurringDiscount && (
+        <View style={styles.row}>
+          <View style={styles.rowTextBlock}>
+            <Text style={styles.label}>
+              Recurring discount
+            </Text>
+
+            <Text style={styles.helperText}>
+              {recurringDiscountTierName ||
+                `${recurringDiscountPercent.toFixed(0)}% commitment discount`}
+            </Text>
+          </View>
+
+          <Text
+            style={[
+              styles.value,
+              styles.discount,
+            ]}
+          >
+            −
+            {formatMoney(
+              recurringDiscountAmount,
+              currency,
+            )}
+          </Text>
+        </View>
+      )}
+
+      {/* Generic Discount Fallback */}
       {!hasDurationDiscount &&
         !hasPromotion &&
-        discountAmount !==
-          undefined &&
+        !hasRecurringDiscount &&
+        discountAmount !== undefined &&
         discountAmount > 0 && (
-          <View
-            style={
-              styles.row
-            }
-          >
-            <Text
-              style={
-                styles.label
-              }
-            >
+          <View style={styles.row}>
+            <Text style={styles.label}>
               Discount
             </Text>
 
@@ -283,18 +258,12 @@ const effectiveDurationPercent =
           </View>
         )}
 
+      {/* Total Discount */}
       {(hasDurationDiscount ||
-        hasPromotion) && (
-        <View
-          style={
-            styles.row
-          }
-        >
-          <Text
-            style={
-              styles.label
-            }
-          >
+        hasPromotion ||
+        hasRecurringDiscount) && (
+        <View style={styles.row}>
+          <Text style={styles.label}>
             Total discount
           </Text>
 
@@ -306,38 +275,22 @@ const effectiveDurationPercent =
           >
             −
             {formatMoney(
-              discountAmount ??
-                (
-                  serviceDiscountAmount +
-                  promotionDiscountAmount
-                ),
+              displayedDiscountAmount,
               currency,
             )}
           </Text>
         </View>
       )}
 
-      {platformFee !==
-        undefined &&
+      {/* Platform Fee */}
+      {platformFee !== undefined &&
         platformFee > 0 && (
-          <View
-            style={
-              styles.row
-            }
-          >
-            <Text
-              style={
-                styles.label
-              }
-            >
+          <View style={styles.row}>
+            <Text style={styles.label}>
               Platform fee
             </Text>
 
-            <Text
-              style={
-                styles.value
-              }
-            >
+            <Text style={styles.value}>
               {formatMoney(
                 platformFee,
                 currency,
@@ -346,27 +299,15 @@ const effectiveDurationPercent =
           </View>
         )}
 
-      {taxAmount !==
-        undefined &&
+      {/* Tax */}
+      {taxAmount !== undefined &&
         taxAmount > 0 && (
-          <View
-            style={
-              styles.row
-            }
-          >
-            <Text
-              style={
-                styles.label
-              }
-            >
+          <View style={styles.row}>
+            <Text style={styles.label}>
               Tax
             </Text>
 
-            <Text
-              style={
-                styles.value
-              }
-            >
+            <Text style={styles.value}>
               {formatMoney(
                 taxAmount,
                 currency,
@@ -375,222 +316,161 @@ const effectiveDurationPercent =
           </View>
         )}
 
-      {occurrenceCount !==
-        undefined && (
-          <View
-            style={
-              styles.row
-            }
-          >
-            <Text
-              style={
-                styles.label
-              }
-            >
-              Occurrences
-            </Text>
+      {/* Occurrences */}
+      {occurrenceCount !== undefined && (
+        <View style={styles.row}>
+          <Text style={styles.label}>
+            Occurrences
+          </Text>
 
-            <Text
-              style={
-                styles.value
-              }
-            >
-              {occurrenceCount}
-            </Text>
-          </View>
-        )}
+          <Text style={styles.value}>
+            {occurrenceCount}
+          </Text>
+        </View>
+      )}
 
+      {/* Savings Banner */}
       {(hasDurationDiscount ||
-        hasPromotion) && (
-        <View
-          style={
-            styles.savingsBanner
-          }
-        >
-          <Text
-            style={
-              styles.savingsTitle
-            }
-          >
+        hasPromotion ||
+        hasRecurringDiscount) && (
+        <View style={styles.savingsBanner}>
+          <Text style={styles.savingsTitle}>
             You save{' '}
             {formatMoney(
-              discountAmount ??
-                0,
+              displayedDiscountAmount,
               currency,
             )}
           </Text>
 
-          <Text
-            style={
-              styles.savingsText
-            }
-          >
+          <Text style={styles.savingsText}>
             Discounts are applied
             automatically at checkout.
           </Text>
         </View>
       )}
 
-      <View
-        style={
-          styles.divider
-        }
-      />
+      {/* Final Total */}
+      <View style={styles.divider} />
 
-      <View
-        style={
-          styles.rowFinal
-        }
-      >
-        <Text
-          style={
-            styles.labelFinal
-          }
-        >
+      <View style={styles.rowFinal}>
+        <Text style={styles.labelFinal}>
           Total amount
         </Text>
 
-        <Text
-          style={
-            styles.valueFinal
-          }
-        >
+        <Text style={styles.valueFinal}>
           {formatMoney(
             finalAmount,
             currency,
           )}
         </Text>
       </View>
-
     </View>
   )
 }
 
-const styles =
-  StyleSheet.create({
+const styles = StyleSheet.create({
+  container: {
+    padding: 16,
+    marginVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
 
-    container: {
-      padding: 16,
-      marginVertical: 12,
-      borderRadius: 12,
-      backgroundColor:
-        '#F9FAFB',
-      borderWidth: 1,
-      borderColor:
-        '#E5E7EB',
-    },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
 
-    loadingText: {
-      fontSize: 14,
-      color: '#6B7280',
-      textAlign: 'center',
-      fontWeight:
-        '500',
-    },
+  errorText: {
+    fontSize: 14,
+    color: '#DC2626',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
 
-    errorText: {
-      fontSize: 14,
-      color: '#DC2626',
-      textAlign: 'center',
-      fontWeight:
-        '500',
-    },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 12,
+  },
 
-    row: {
-      flexDirection:
-        'row',
-      justifyContent:
-        'space-between',
-      alignItems:
-        'center',
-      paddingVertical: 10,
-      gap: 12,
-    },
+  rowTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
 
-    rowTextBlock: {
-      flex: 1,
-      minWidth: 0,
-    },
+  helperText: {
+    marginTop: 3,
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
 
-    helperText: {
-      marginTop: 3,
-      fontSize: 11,
-      color: '#64748B',
-      fontWeight:
-        '500',
-    },
+  rowFinal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
 
-    rowFinal: {
-      flexDirection:
-        'row',
-      justifyContent:
-        'space-between',
-      alignItems:
-        'center',
-      paddingVertical: 12,
-    },
+  label: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
 
-    label: {
-      fontSize: 14,
-      color: '#6B7280',
-      fontWeight:
-        '500',
-    },
+  labelFinal: {
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '700',
+  },
 
-    labelFinal: {
-      fontSize: 15,
-      color: '#111827',
-      fontWeight:
-        '700',
-    },
+  value: {
+    fontSize: 14,
+    color: '#111827',
+    fontWeight: '600',
+  },
 
-    value: {
-      fontSize: 14,
-      color: '#111827',
-      fontWeight:
-        '600',
-    },
+  valueFinal: {
+    fontSize: 18,
+    color: '#111827',
+    fontWeight: '800',
+  },
 
-    valueFinal: {
-      fontSize: 18,
-      color: '#111827',
-      fontWeight:
-        '800',
-    },
+  discount: {
+    color: '#059669',
+  },
 
-    discount: {
-      color: '#059669',
-    },
+  savingsBanner: {
+    marginTop: 6,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
 
-    savingsBanner: {
-      marginTop: 6,
-      padding: 12,
-      borderRadius: 10,
-      backgroundColor:
-        '#ECFDF5',
-      borderWidth: 1,
-      borderColor:
-        '#A7F3D0',
-    },
+  savingsTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#047857',
+  },
 
-    savingsTitle: {
-      fontSize: 12,
-      fontWeight:
-        '800',
-      color: '#047857',
-    },
+  savingsText: {
+    marginTop: 3,
+    fontSize: 11,
+    color: '#065F46',
+  },
 
-    savingsText: {
-      marginTop: 3,
-      fontSize: 11,
-      color: '#065F46',
-    },
-
-    divider: {
-      height: 1,
-      backgroundColor:
-        '#E5E7EB',
-      marginVertical: 10,
-    },
-
-  })
+  divider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 10,
+  },
+})

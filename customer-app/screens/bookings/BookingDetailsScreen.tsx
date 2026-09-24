@@ -534,10 +534,19 @@ export default function BookingDetailsScreen({
   promotionTitle={
     pricing?.promotion_title
   }
-  promotionDiscountAmount={
+   promotionDiscountAmount={
     pricing?.promotion_discount_amount
   }
-            platformFee={
+  recurringDiscountPercent={
+    pricing?.recurring_discount_percent
+  }
+  recurringDiscountAmount={
+    pricing?.recurring_discount_amount
+  }
+  recurringDiscountTierName={
+    pricing?.recurring_discount_tier_name
+  }
+  platformFee={
               pricing?.platform_fee
             }
             taxAmount={
