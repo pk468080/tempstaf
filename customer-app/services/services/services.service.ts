@@ -23,18 +23,19 @@ type ServiceRow = {
   id: string
   name: string
   description: string | null
+  image_url: string | null
+  display_order: number | null
+  is_featured: boolean | null
   service_variants: ServiceVariantRow[]
 }
 
-/**
- * Returns the services that can be presented on the customer Home screen.
- *
- * Home is a discovery/selection layer.
- * It does NOT perform the authoritative booking availability check.
- *
- * Final service-area, worker-availability and booking validation
- * happens later in the booking flow/backend.
- */
+type ServiceAreaRow = {
+  service_id: string | null
+  center_latitude: number | string
+  center_longitude: number | string
+  radius_km: number | string
+}
+
 export async function getHomeServices(): Promise<HomeService[]> {
   const { data, error } = await supabase
     .from('services')
@@ -42,6 +43,9 @@ export async function getHomeServices(): Promise<HomeService[]> {
       id,
       name,
       description,
+      image_url,
+      display_order,
+      is_featured,
       service_variants (
         id,
         service_id,
@@ -65,6 +69,9 @@ export async function getHomeServices(): Promise<HomeService[]> {
       'service_variants.service_variant_prices.is_active',
       true,
     )
+    .order('display_order', {
+      ascending: true,
+    })
     .order('name', {
       ascending: true,
     })
@@ -123,9 +130,9 @@ export async function getHomeServices(): Promise<HomeService[]> {
               : Number.POSITIVE_INFINITY
 
           return (
-  effectiveFrom <= now &&
-  now < effectiveTo
-)
+            effectiveFrom <= now &&
+            now < effectiveTo
+          )
         })
         .sort((a, b) => {
           const aTime =
@@ -148,10 +155,6 @@ export async function getHomeServices(): Promise<HomeService[]> {
     const price =
       activePrices[0]
 
-    /*
-     * Do not expose a service on Home when it has
-     * no currently effective hourly customer price.
-     */
     if (!price) {
       continue
     }
@@ -175,8 +178,140 @@ export async function getHomeServices(): Promise<HomeService[]> {
       hourlyPrice,
       currency:
         price.currency ?? null,
+      imageUrl:
+        service.image_url ?? null,
+      displayOrder:
+        Number(service.display_order ?? 0),
+      isFeatured:
+        service.is_featured === true,
     })
   }
 
-  return services
+  return services.sort((a, b) => {
+    if (a.isFeatured !== b.isFeatured) {
+      return a.isFeatured ? -1 : 1
+    }
+
+    if (a.displayOrder !== b.displayOrder) {
+      return a.displayOrder - b.displayOrder
+    }
+
+    return a.name.localeCompare(b.name)
+  })
+}
+
+export async function getHomeServicesForLocation(
+  latitude: number,
+  longitude: number,
+): Promise<HomeService[]> {
+  if (
+    !Number.isFinite(latitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    !Number.isFinite(longitude) ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return []
+  }
+
+  const [
+    services,
+    serviceAreasResult,
+  ] = await Promise.all([
+    getHomeServices(),
+    supabase
+      .from('service_areas')
+      .select(
+        'service_id,center_latitude,center_longitude,radius_km',
+      )
+      .eq('is_active', true),
+  ])
+
+  if (serviceAreasResult.error) {
+    throw serviceAreasResult.error
+  }
+
+  const availableServiceIds =
+    new Set<string>()
+
+  const areas =
+    (serviceAreasResult.data ??
+      []) as ServiceAreaRow[]
+
+  for (const area of areas) {
+    const centerLatitude =
+      Number(area.center_latitude)
+    const centerLongitude =
+      Number(area.center_longitude)
+    const radiusKm =
+      Number(area.radius_km)
+
+    if (
+      !Number.isFinite(centerLatitude) ||
+      !Number.isFinite(centerLongitude) ||
+      !Number.isFinite(radiusKm) ||
+      radiusKm <= 0
+    ) {
+      continue
+    }
+
+    const distanceKm =
+      calculateDistanceKm(
+        latitude,
+        longitude,
+        centerLatitude,
+        centerLongitude,
+      )
+
+    if (distanceKm <= radiusKm) {
+      if (area.service_id === null) {
+        for (const service of services) {
+          availableServiceIds.add(service.id)
+        }
+      } else {
+        availableServiceIds.add(
+          area.service_id,
+        )
+      }
+    }
+  }
+
+  return services.filter(service =>
+    availableServiceIds.has(service.id),
+  )
+}
+
+function calculateDistanceKm(
+  latitude1: number,
+  longitude1: number,
+  latitude2: number,
+  longitude2: number,
+): number {
+  const earthRadiusKm = 6371
+
+  const latitudeDelta =
+    toRadians(latitude2 - latitude1)
+
+  const longitudeDelta =
+    toRadians(longitude2 - longitude1)
+
+  const a =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(toRadians(latitude1)) *
+      Math.cos(toRadians(latitude2)) *
+      Math.sin(longitudeDelta / 2) ** 2
+
+  return (
+    2 *
+    earthRadiusKm *
+    Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(1 - a),
+    )
+  )
+}
+
+function toRadians(value: number): number {
+  return (value * Math.PI) / 180
 }

@@ -1,8 +1,13 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  useEffect,
-  useRef,
-  useState,
-} from 'react'
+  Check,
+  Edit3,
+  MapPin,
+  Plus,
+  RefreshCw,
+  Search,
+  X,
+} from 'lucide-react'
 
 import { adminAction } from '../lib/adminAction'
 import { loadGoogleMaps } from '../lib/googleMaps'
@@ -18,19 +23,6 @@ type Service = {
 
 type Area = {
   id: string
-  service_id: string
-  name: string
-  city: string | null
-  state: string | null
-  center_latitude: number
-  center_longitude: number
-  radius_km: number
-  is_active: boolean
-}
-
-type Form = {
-  id: string
-  service_id: string
   name: string
   city: string
   state: string
@@ -38,6 +30,24 @@ type Form = {
   center_longitude: number
   radius_km: number
   is_active: boolean
+  service_ids: string[]
+  service_names: string[]
+  service_count: number
+  created_at: string
+  updated_at: string
+  is_legacy: boolean
+}
+
+type Form = {
+  id: string
+  name: string
+  city: string
+  state: string
+  center_latitude: number
+  center_longitude: number
+  radius_km: number
+  is_active: boolean
+  service_ids: string[]
 }
 
 const DEFAULT_LOCATION = {
@@ -47,110 +57,128 @@ const DEFAULT_LOCATION = {
 
 const emptyForm: Form = {
   id: '',
-  service_id: '',
   name: '',
-  city: '',
-  state: '',
+  city: 'Delhi',
+  state: 'Delhi',
   center_latitude: DEFAULT_LOCATION.lat,
   center_longitude: DEFAULT_LOCATION.lng,
-  radius_km: 5,
+  radius_km: 3,
   is_active: true,
+  service_ids: [],
+}
+
+function normalizeServiceIds(ids: string[]) {
+  return Array.from(new Set(ids)).sort()
+}
+
+function serviceSelectionChanged(a: string[], b: string[]) {
+  return normalizeServiceIds(a).join(',') !== normalizeServiceIds(b).join(',')
 }
 
 export default function ServiceAreas() {
-  const [services, setServices] =
-    useState<Service[]>([])
+  const [services, setServices] = useState<Service[]>([])
+  const [areas, setAreas] = useState<Area[]>([])
+  const [form, setForm] = useState<Form>(emptyForm)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [formOpen, setFormOpen] = useState(false)
+  const [serviceSearch, setServiceSearch] = useState('')
+  const [areaSearch, setAreaSearch] = useState('')
+  const [statusFilter, setStatusFilter] =
+    useState<'all' | 'active' | 'inactive'>('all')
+  const [error, setError] = useState<string | null>(null)
+  const [mapLoading, setMapLoading] = useState(true)
+  const [mapError, setMapError] = useState<string | null>(null)
 
-  const [areas, setAreas] =
-    useState<Area[]>([])
+  const mapContainerRef = useRef<HTMLDivElement | null>(null)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const mapRef = useRef<any>(null)
+  const markerRef = useRef<any>(null)
+  const circleRef = useRef<any>(null)
+  const autocompleteRef = useRef<any>(null)
+  const mapInitializedRef = useRef(false)
 
-  const [form, setForm] =
-    useState<Form>(emptyForm)
+  const activeServices = useMemo(
+    () => services.filter((service) => service.is_active),
+    [services],
+  )
 
-  const [loading, setLoading] =
-    useState(true)
+  const selectedInactiveServices = useMemo(
+    () =>
+      form.service_ids
+        .map((id) => services.find((service) => service.id === id))
+        .filter((service): service is Service => Boolean(service && !service.is_active)),
+    [form.service_ids, services],
+  )
 
-  const [saving, setSaving] =
-    useState(false)
+  const filteredServicesForSelection = useMemo(() => {
+    const query = serviceSearch.trim().toLowerCase()
 
-  const [mapLoading, setMapLoading] =
-    useState(true)
+    return services
+      .filter(
+        (service) =>
+          service.is_active || form.service_ids.includes(service.id),
+      )
+      .filter((service) =>
+        query ? service.name.toLowerCase().includes(query) : true,
+      )
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [services, serviceSearch, form.service_ids])
 
-  const [mapError, setMapError] =
-    useState<string | null>(null)
+  const filteredAreas = useMemo(() => {
+    const query = areaSearch.trim().toLowerCase()
 
-  const [error, setError] =
-    useState<string | null>(null)
+    return areas.filter((area) => {
+      if (statusFilter === 'active' && !area.is_active) return false
+      if (statusFilter === 'inactive' && area.is_active) return false
 
-  const mapContainerRef =
-    useRef<HTMLDivElement | null>(null)
+      if (!query) return true
 
-  const searchInputRef =
-    useRef<HTMLInputElement | null>(null)
+      const serviceText = area.service_names.join(' ')
+      const haystack = [
+        area.name,
+        area.city,
+        area.state,
+        serviceText,
+      ]
+        .join(' ')
+        .toLowerCase()
 
-  const mapRef =
-    useRef<any>(null)
+      return haystack.includes(query)
+    })
+  }, [areas, areaSearch, statusFilter])
 
-  const markerRef =
-    useRef<any>(null)
-
-  const circleRef =
-    useRef<any>(null)
-
-  const autocompleteRef =
-    useRef<any>(null)
-
-  const mapInitializedRef =
-    useRef(false)
+  const activeAreaCount = areas.filter((area) => area.is_active).length
+  const inactiveAreaCount = areas.filter((area) => !area.is_active).length
+  const serviceAssignmentCount = areas.reduce(
+    (sum, area) => sum + area.service_count,
+    0,
+  )
 
   async function loadData() {
     setLoading(true)
     setError(null)
 
     try {
-      const [
-        servicesResult,
-        areasResult,
-      ] = await Promise.all([
+      const [servicesResult, areasResult] = await Promise.all([
         supabase
           .from('services')
-          .select(
-            'id, name, is_active'
-          )
-          .order('name', {
-            ascending: true,
-          }),
-
-        adminAction<Area[]>(
-          'admin_list_service_areas'
-        ),
+          .select('id,name,is_active')
+          .order('name', { ascending: true }),
+        adminAction<Area[]>('admin_list_service_areas_v3'),
       ])
 
-      if (servicesResult.error) {
-        throw servicesResult.error
-      }
+      if (servicesResult.error) throw servicesResult.error
+      if (areasResult.error) throw areasResult.error
 
-      if (areasResult.error) {
-        throw areasResult.error
-      }
-
-      setServices(
-        (servicesResult.data || []) as Service[]
-      )
-
-      setAreas(
-        (areasResult.data || []) as Area[]
-      )
+      setServices((servicesResult.data || []) as Service[])
+      setAreas((areasResult.data || []) as Area[])
     } catch (err) {
-      console.error(
-        '[TempStaff] Failed to load service areas:',
-        err
-      )
-
+      console.error('[TempStaff] Failed to load service areas:', err)
       setError(
         err instanceof Error
           ? err.message
-          : 'Failed to load service areas.'
+          : 'Failed to load service areas.',
       )
     } finally {
       setLoading(false)
@@ -165,6 +193,14 @@ export default function ServiceAreas() {
     let cancelled = false
 
     async function initializeMap() {
+      if (
+        !mapContainerRef.current ||
+        !searchInputRef.current ||
+        mapInitializedRef.current
+      ) {
+        return
+      }
+
       try {
         setMapLoading(true)
         setMapError(null)
@@ -182,217 +218,127 @@ export default function ServiceAreas() {
 
         mapInitializedRef.current = true
 
-        const center = {
-          lat: form.center_latitude,
-          lng: form.center_longitude,
+        const initialCenter = {
+          lat: emptyForm.center_latitude,
+          lng: emptyForm.center_longitude,
         }
 
-        const map =
-          new google.maps.Map(
-            mapContainerRef.current,
-            {
-              center,
-              zoom: 11,
-              mapTypeControl: false,
-              streetViewControl: false,
-              fullscreenControl: true,
-            }
-          )
+        const map = new google.maps.Map(mapContainerRef.current, {
+          center: initialCenter,
+          zoom: 11,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: true,
+        })
 
         mapRef.current = map
 
-        const marker =
-          new google.maps.Marker({
-            position: center,
-            map,
-            draggable: true,
-            title:
-              'TempStaff service area center',
-          })
+        const marker = new google.maps.Marker({
+          position: initialCenter,
+          map,
+          draggable: true,
+          title: 'TempStaff service area center',
+        })
 
         markerRef.current = marker
 
-        const circle =
-          new google.maps.Circle({
-            map,
-            center,
-            radius:
-              form.radius_km * 1000,
-            editable: true,
-            draggable: false,
-            fillOpacity: 0.18,
-            strokeWeight: 2,
-          })
+        const circle = new google.maps.Circle({
+          map,
+          center: initialCenter,
+          radius: emptyForm.radius_km * 1000,
+          editable: true,
+          draggable: false,
+          fillOpacity: 0.18,
+          strokeWeight: 2,
+        })
 
         circleRef.current = circle
 
-        const autocomplete =
-          new google.maps.places.Autocomplete(
-            searchInputRef.current,
-            {
-              fields: [
-                'geometry',
-                'formatted_address',
-                'name',
-                'address_components',
-              ],
-              types: ['geocode'],
+        const autocomplete = new google.maps.places.Autocomplete(
+          searchInputRef.current,
+          {
+            fields: [
+              'geometry',
+              'formatted_address',
+              'name',
+              'address_components',
+            ],
+            types: ['geocode'],
+          },
+        )
+
+        autocompleteRef.current = autocomplete
+
+        autocomplete.addListener('place_changed', () => {
+          const place = autocomplete.getPlace()
+          const location = place.geometry?.location
+
+          if (!location) {
+            setMapError('The selected place does not have a map location.')
+            return
+          }
+
+          const latitude = location.lat()
+          const longitude = location.lng()
+          const components = place.address_components || []
+
+          let city = ''
+          let state = ''
+
+          for (const component of components) {
+            const types = component.types || []
+
+            if (types.includes('locality')) city = component.long_name
+            if (types.includes('administrative_area_level_1')) {
+              state = component.long_name
             }
-          )
+          }
 
-        autocompleteRef.current =
-          autocomplete
+          marker.setPosition(location)
+          circle.setCenter(location)
+          map.panTo(location)
+          map.setZoom(13)
 
-        autocomplete.addListener(
-          'place_changed',
-          () => {
-            const place =
-              autocomplete.getPlace()
-
-            const location =
-              place.geometry?.location
-
-            if (!location) {
-              setMapError(
-                'The selected place does not have a map location.'
-              )
-              return
-            }
-
-            const latitude =
-              location.lat()
-
-            const longitude =
-              location.lng()
-
-            marker.setPosition(
-              location
-            )
-
-            circle.setCenter(
-              location
-            )
-
-            map.panTo(location)
-            map.setZoom(13)
-
-            const components =
-              place.address_components || []
-
-            let city = ''
-            let state = ''
-
-            for (
-              const component of components
-            ) {
-              const types =
-                component.types || []
-
-              if (
-                types.includes(
-                  'locality'
-                )
-              ) {
-                city =
-                  component.long_name
-              }
-
-              if (
-                types.includes(
-                  'administrative_area_level_1'
-                )
-              ) {
-                state =
-                  component.long_name
-              }
-            }
-
-            const name =
+          updateForm({
+            name:
               place.name ||
-              searchInputRef.current
-                ?.value ||
-              form.name
+              searchInputRef.current?.value ||
+              form.name,
+            city: city || form.city,
+            state: state || form.state,
+            center_latitude: latitude,
+            center_longitude: longitude,
+          })
+        })
 
-            updateForm({
-              name,
-              city,
-              state,
-              center_latitude:
-                latitude,
-              center_longitude:
-                longitude,
-            })
-          }
-        )
+        marker.addListener('dragend', () => {
+          const position = marker.getPosition()
+          if (!position) return
 
-        marker.addListener(
-          'dragend',
-          () => {
-            const position =
-              marker.getPosition()
+          updateForm({
+            center_latitude: position.lat(),
+            center_longitude: position.lng(),
+          })
+        })
 
-            if (!position) {
-              return
-            }
+        circle.addListener('radius_changed', () => {
+          const radiusMeters = circle.getRadius()
+          if (typeof radiusMeters !== 'number') return
 
-            const latitude =
-              position.lat()
-
-            const longitude =
-              position.lng()
-
-            circle.setCenter(
-              position
-            )
-
-            updateForm({
-              center_latitude:
-                latitude,
-              center_longitude:
-                longitude,
-            })
-          }
-        )
-
-        circle.addListener(
-          'radius_changed',
-          () => {
-            const radiusMeters =
-              circle.getRadius()
-
-            if (
-              typeof radiusMeters !==
-              'number'
-            ) {
-              return
-            }
-
-            updateForm({
-              radius_km:
-                Number(
-                  (
-                    radiusMeters /
-                    1000
-                  ).toFixed(2)
-                ),
-            })
-          }
-        )
+          const radiusKm = Number((radiusMeters / 1000).toFixed(2))
+          updateForm({ radius_km: radiusKm })
+        })
 
         setMapLoading(false)
       } catch (err) {
-        console.error(
-          '[TempStaff] Failed to initialize Google Maps:',
-          err
-        )
+        console.error('[TempStaff] Failed to initialize Google Maps:', err)
 
         if (!cancelled) {
           setMapError(
             err instanceof Error
               ? err.message
-              : 'Failed to load Google Maps.'
+              : 'Failed to load Google Maps.',
           )
-
           setMapLoading(false)
         }
       }
@@ -403,7 +349,7 @@ export default function ServiceAreas() {
     return () => {
       cancelled = true
     }
-  }, [form.name, form.radius_km, form.center_latitude, form.center_longitude])
+  }, [])
 
   useEffect(() => {
     if (
@@ -416,216 +362,146 @@ export default function ServiceAreas() {
     }
 
     const position = {
-      lat: Number(
-        form.center_latitude
-      ),
-      lng: Number(
-        form.center_longitude
-      ),
+      lat: Number(form.center_latitude),
+      lng: Number(form.center_longitude),
     }
 
-    if (
-      !Number.isFinite(position.lat) ||
-      !Number.isFinite(position.lng)
-    ) {
-      return
-    }
+    if (!Number.isFinite(position.lat) || !Number.isFinite(position.lng)) return
 
-    markerRef.current.setPosition(
-      position
-    )
-
-    circleRef.current.setCenter(
-      position
-    )
-
-    circleRef.current.setRadius(
-      Number(form.radius_km) * 1000
-    )
-
+    markerRef.current.setPosition(position)
+    circleRef.current.setCenter(position)
+    circleRef.current.setRadius(Number(form.radius_km) * 1000)
     mapRef.current.panTo(position)
-  }, [
-    form.center_latitude,
-    form.center_longitude,
-  ])
+  }, [form.center_latitude, form.center_longitude, form.radius_km])
 
-  useEffect(() => {
-    if (
-      !circleRef.current ||
-      !Number.isFinite(
-        Number(form.radius_km)
-      )
-    ) {
-      return
-    }
-
-    circleRef.current.setRadius(
-      Number(form.radius_km) * 1000
-    )
-  }, [form.radius_km])
-
-  function updateForm(
-    changes: Partial<Form>
-  ) {
-    setForm(current => ({
-      ...current,
-      ...changes,
-    }))
+  function updateForm(changes: Partial<Form>) {
+    setForm((current) => ({ ...current, ...changes }))
   }
 
-  function resetForm() {
-    setForm(emptyForm)
+  function openCreate() {
+    setForm({
+      ...emptyForm,
+      service_ids: [],
+    })
+    setServiceSearch('')
     setError(null)
     setMapError(null)
+    setFormOpen(true)
 
-    if (
-      searchInputRef.current
-    ) {
-      searchInputRef.current.value =
-        ''
-    }
-
-    if (
-      markerRef.current &&
-      circleRef.current &&
-      mapRef.current
-    ) {
-      const position = {
-        lat: DEFAULT_LOCATION.lat,
-        lng: DEFAULT_LOCATION.lng,
+    window.setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.value = ''
       }
+    }, 0)
+  }
 
-      markerRef.current.setPosition(
-        position
-      )
-
-      circleRef.current.setCenter(
-        position
-      )
-
-      circleRef.current.setRadius(
-        emptyForm.radius_km * 1000
-      )
-
-      mapRef.current.panTo(
-        position
-      )
-
-      mapRef.current.setZoom(11)
-    }
+  function closeForm() {
+    if (saving) return
+    setFormOpen(false)
+    setServiceSearch('')
+    setError(null)
+    setMapError(null)
   }
 
   function editArea(area: Area) {
-    const nextForm: Form = {
+    setForm({
       id: area.id,
-      service_id:
-        area.service_id,
       name: area.name,
-      city:
-        area.city || '',
-      state:
-        area.state || '',
-      center_latitude:
-        Number(
-          area.center_latitude
-        ),
-      center_longitude:
-        Number(
-          area.center_longitude
-        ),
-      radius_km:
-        Number(area.radius_km),
-      is_active:
-        area.is_active,
-    }
-
-    setForm(nextForm)
-    setError(null)
-
-    if (
-      searchInputRef.current
-    ) {
-      searchInputRef.current.value =
-        area.name
-    }
-
-    if (
-      markerRef.current &&
-      circleRef.current &&
-      mapRef.current
-    ) {
-      const position = {
-        lat:
-          nextForm.center_latitude,
-        lng:
-          nextForm.center_longitude,
-      }
-
-      markerRef.current.setPosition(
-        position
-      )
-
-      circleRef.current.setCenter(
-        position
-      )
-
-      circleRef.current.setRadius(
-        nextForm.radius_km * 1000
-      )
-
-      mapRef.current.panTo(
-        position
-      )
-
-      mapRef.current.setZoom(13)
-    }
-
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
+      city: area.city || '',
+      state: area.state || '',
+      center_latitude: Number(area.center_latitude),
+      center_longitude: Number(area.center_longitude),
+      radius_km: Number(area.radius_km),
+      is_active: area.is_active,
+      service_ids: normalizeServiceIds(area.service_ids || []),
     })
+
+    setServiceSearch('')
+    setError(null)
+    setMapError(null)
+    setFormOpen(true)
+
+    window.setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.value = area.name
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, 0)
+  }
+
+  function toggleService(serviceId: string) {
+    setForm((current) => {
+      const exists = current.service_ids.includes(serviceId)
+
+      return {
+        ...current,
+        service_ids: exists
+          ? current.service_ids.filter((id) => id !== serviceId)
+          : [...current.service_ids, serviceId],
+      }
+    })
+  }
+
+  function selectAllActiveServices() {
+    setForm((current) => ({
+      ...current,
+      service_ids: normalizeServiceIds(activeServices.map((service) => service.id)),
+    }))
+  }
+
+  function clearServices() {
+    setForm((current) => ({
+      ...current,
+      service_ids: [],
+    }))
   }
 
   async function saveArea() {
     setError(null)
 
-    if (!form.service_id) {
-      setError(
-        'Please select a service.'
-      )
+    const name = form.name.trim()
+    const city = form.city.trim()
+    const state = form.state.trim()
+    const latitude = Number(form.center_latitude)
+    const longitude = Number(form.center_longitude)
+    const radius = Number(form.radius_km)
+    const serviceIds = normalizeServiceIds(form.service_ids)
+
+    if (!name) {
+      setError('Please enter an area name.')
       return
     }
 
-    if (!form.name.trim()) {
-      setError(
-        'Please enter an area name.'
-      )
+    if (!city) {
+      setError('Please enter a city.')
       return
     }
 
-    const latitude =
-      Number(
-        form.center_latitude
-      )
+    if (!state) {
+      setError('Please enter a state.')
+      return
+    }
 
-    const longitude =
-      Number(
-        form.center_longitude
-      )
+    if (serviceIds.length === 0) {
+      setError('Select at least one service for this area.')
+      return
+    }
 
-    const radius =
-      Number(
-        form.radius_km
+    if (selectedInactiveServices.length > 0) {
+      setError(
+        `Remove inactive service${
+          selectedInactiveServices.length === 1 ? '' : 's'
+        }: ${selectedInactiveServices.map((service) => service.name).join(', ')}.`,
       )
+      return
+    }
 
     if (
       !Number.isFinite(latitude) ||
       latitude < -90 ||
       latitude > 90
     ) {
-      setError(
-        'Latitude must be between -90 and 90.'
-      )
+      setError('Latitude must be between -90 and 90.')
       return
     }
 
@@ -634,617 +510,738 @@ export default function ServiceAreas() {
       longitude < -180 ||
       longitude > 180
     ) {
-      setError(
-        'Longitude must be between -180 and 180.'
-      )
+      setError('Longitude must be between -180 and 180.')
       return
     }
 
-    if (
-      !Number.isFinite(radius) ||
-      radius <= 0 ||
-      radius > 500
-    ) {
-      setError(
-        'Radius must be greater than 0 and no more than 500 km.'
-      )
+    if (!Number.isFinite(radius) || radius <= 0 || radius > 10) {
+      setError('Radius must be greater than 0 and no more than 10 km.')
       return
     }
 
     setSaving(true)
 
     try {
-      const {
-        error: actionError,
-      } = await adminAction(
-        'admin_upsert_service_area_v2',
+      const { error: actionError } = await adminAction(
+        'admin_upsert_service_area_v3',
         {
-          p_id:
-            form.id || null,
-
-          p_service_id:
-            form.service_id,
-
-          p_name:
-            form.name.trim(),
-
-          p_city:
-            form.city.trim(),
-
-          p_state:
-            form.state.trim(),
-
-          p_center_latitude:
-            latitude,
-
-          p_center_longitude:
-            longitude,
-
-          p_radius_km:
-            radius,
-
-          p_is_active:
-            form.is_active,
-        }
+          p_id: form.id || null,
+          p_name: name,
+          p_city: city,
+          p_state: state,
+          p_center_latitude: latitude,
+          p_center_longitude: longitude,
+          p_radius_km: radius,
+          p_is_active: form.is_active,
+          p_service_ids: serviceIds,
+        },
       )
 
-      if (actionError) {
-        throw actionError
-      }
+      if (actionError) throw actionError
 
-      resetForm()
-
+      closeForm()
       await loadData()
     } catch (err) {
-      console.error(
-        '[TempStaff] Failed to save service area:',
-        err
-      )
-
+      console.error('[TempStaff] Failed to save service area:', err)
       setError(
         err instanceof Error
           ? err.message
-          : 'Failed to save service area.'
+          : 'Failed to save service area.',
       )
     } finally {
       setSaving(false)
     }
   }
 
-  function serviceName(
-    serviceId: string
-  ) {
-    return (
-      services.find(
-        service =>
-          service.id ===
-          serviceId
-      )?.name ||
-      'Unknown service'
-    )
+  function resetFilters() {
+    setAreaSearch('')
+    setStatusFilter('all')
   }
+
+  const formCoordinates = `${Number(form.center_latitude).toFixed(6)}, ${Number(
+    form.center_longitude,
+  ).toFixed(6)}`
 
   return (
     <div className="page-content">
       <div className="page-heading">
         <div>
-          <h1>
-            Service Areas
-          </h1>
-
-          <p>
-            Control where each
-            TempStaff service is
-            available.
-          </p>
-        </div>
-
-        <button
-          className="dashboard-refresh"
-          onClick={loadData}
-          disabled={loading}
-        >
-          {loading
-            ? 'Loading...'
-            : 'Refresh'}
-        </button>
-      </div>
-
-      {error && (
-        <div className="error-banner">
-          {error}
-        </div>
-      )}
-
-      <div
-        className="panel"
-        style={{
-          marginBottom: 24,
-        }}
-      >
-        <div className="panel-header">
-          <div>
-            <h2>
-              {form.id
-                ? 'Edit service area'
-                : 'Launch service in an area'}
-            </h2>
-
-            <p>
-              Search for a location,
-              position the marker and
-              define the service radius.
-            </p>
-          </div>
-        </div>
-
-        <div
-          style={{
-            padding: 20,
-          }}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns:
-                'repeat(3, minmax(0, 1fr))',
-              gap: 16,
-              marginBottom: 18,
-            }}
-          >
-            <label>
-              Service
-
-              <select
-                value={
-                  form.service_id
-                }
-                onChange={event =>
-                  updateForm({
-                    service_id:
-                      event.target.value,
-                  })
-                }
-              >
-                <option value="">
-                  Select service
-                </option>
-
-                {services
-  .filter(
-    service =>
-      service.is_active ||
-      service.id === form.service_id
-  )
-  .map(service => (
-                    <option
-                      key={
-                        service.id
-                      }
-                      value={
-                        service.id
-                      }
-                    >
-                      {service.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-
-            <label>
-              Search location
-
-              <input
-                ref={
-                  searchInputRef
-                }
-                placeholder="Search locality, city or address"
-                autoComplete="off"
-              />
-            </label>
-
-            <label>
-              Area / Locality
-
-              <input
-                value={
-                  form.name
-                }
-                onChange={event =>
-                  updateForm({
-                    name:
-                      event.target.value,
-                  })
-                }
-                placeholder="e.g. Dwarka"
-              />
-            </label>
-
-            <label>
-              City
-
-              <input
-                value={
-                  form.city
-                }
-                onChange={event =>
-                  updateForm({
-                    city:
-                      event.target.value,
-                  })
-                }
-                placeholder="e.g. Delhi"
-              />
-            </label>
-
-            <label>
-              State
-
-              <input
-                value={
-                  form.state
-                }
-                onChange={event =>
-                  updateForm({
-                    state:
-                      event.target.value,
-                  })
-                }
-                placeholder="e.g. Delhi"
-              />
-            </label>
-
-            <label>
-              Radius (km)
-
-              <input
-                type="number"
-                min="0.1"
-                max="500"
-                step="0.1"
-                value={
-                  form.radius_km
-                }
-                onChange={event =>
-                  updateForm({
-                    radius_km:
-                      Number(
-                        event.target.value
-                      ),
-                  })
-                }
-              />
-            </label>
-          </div>
-
-          <div
-            style={{
-              position: 'relative',
-              width: '100%',
-              height: 450,
-              borderRadius: 12,
-              overflow: 'hidden',
-              border:
-                '1px solid #d9dde5',
-              background:
-                '#f5f7fa',
-            }}
-          >
-            <div
-              ref={
-                mapContainerRef
-              }
-              style={{
-                width: '100%',
-                height: '100%',
-              }}
-            />
-
-            {mapLoading && (
-              <div
-                style={{
-                  position:
-                    'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  alignItems:
-                    'center',
-                  justifyContent:
-                    'center',
-                  background:
-                    'rgba(255,255,255,0.88)',
-                  fontWeight: 600,
-                }}
-              >
-                Loading Google Maps...
-              </div>
-            )}
-
-            {mapError && (
-              <div
-                style={{
-                  position:
-                    'absolute',
-                  left: 16,
-                  right: 16,
-                  bottom: 16,
-                  padding: 14,
-                  borderRadius: 8,
-                  background:
-                    '#fff1f1',
-                  color:
-                    '#a21b1b',
-                  border:
-                    '1px solid #f0b8b8',
-                  fontSize: 14,
-                }}
-              >
-                {mapError}
-              </div>
-            )}
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns:
-                'repeat(3, minmax(0, 1fr))',
-              gap: 16,
-              marginTop: 16,
-            }}
-          >
-            <label>
-              Center Latitude
-
-              <input
-                type="number"
-                step="any"
-                value={
-                  form.center_latitude
-                }
-                onChange={event =>
-                  updateForm({
-                    center_latitude:
-                      Number(
-                        event.target.value
-                      ),
-                  })
-                }
-              />
-            </label>
-
-            <label>
-              Center Longitude
-
-              <input
-                type="number"
-                step="any"
-                value={
-                  form.center_longitude
-                }
-                onChange={event =>
-                  updateForm({
-                    center_longitude:
-                      Number(
-                        event.target.value
-                      ),
-                  })
-                }
-              />
-            </label>
-
-            <label
-              style={{
-                display: 'flex',
-                alignItems:
-                  'center',
-                gap: 8,
-                paddingTop: 24,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={
-                  form.is_active
-                }
-                onChange={event =>
-                  updateForm({
-                    is_active:
-                      event.target
-                        .checked,
-                  })
-                }
-              />
-
-              Service area active
-            </label>
-          </div>
-
           <div
             style={{
               display: 'flex',
-              justifyContent:
-                'space-between',
               alignItems: 'center',
-              marginTop: 18,
-              gap: 12,
-              flexWrap: 'wrap',
+              gap: 10,
             }}
           >
             <div
               style={{
-                fontSize: 13,
-                color: '#666',
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                background: '#EAF7F7',
+                color: '#007E80',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              Drag the marker to
-              change the center.
-              Resize the circle to
-              change the coverage radius.
+              <MapPin size={19} />
+            </div>
+            <div>
+              <h1>Service Areas</h1>
+              <p>
+                Define one geographic area and publish multiple services inside it.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            className="dashboard-refresh"
+            onClick={() => void loadData()}
+            disabled={loading}
+          >
+            <RefreshCw
+              size={15}
+              style={{
+                marginRight: 7,
+                verticalAlign: 'middle',
+              }}
+            />
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+
+          <button
+            className="dashboard-refresh"
+            onClick={openCreate}
+            style={{
+              background: '#062F52',
+              color: '#FFFFFF',
+            }}
+          >
+            <Plus
+              size={15}
+              style={{
+                marginRight: 7,
+                verticalAlign: 'middle',
+              }}
+            />
+            New area
+          </button>
+        </div>
+      </div>
+
+      {error && !formOpen && <div className="error-banner">{error}</div>}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
+        <div className="panel">
+          <span style={{ color: '#71818C', fontSize: 12, fontWeight: 700 }}>
+            TOTAL AREAS
+          </span>
+          <div style={{ fontSize: 30, fontWeight: 900, marginTop: 6, color: '#062F52' }}>
+            {areas.length}
+          </div>
+        </div>
+        <div className="panel">
+          <span style={{ color: '#71818C', fontSize: 12, fontWeight: 700 }}>
+            LIVE AREAS
+          </span>
+          <div style={{ fontSize: 30, fontWeight: 900, marginTop: 6, color: '#087F72' }}>
+            {activeAreaCount}
+          </div>
+          <div style={{ marginTop: 4, color: '#71818C', fontSize: 12 }}>
+            {inactiveAreaCount} inactive
+          </div>
+        </div>
+        <div className="panel">
+          <span style={{ color: '#71818C', fontSize: 12, fontWeight: 700 }}>
+            SERVICE ASSIGNMENTS
+          </span>
+          <div style={{ fontSize: 30, fontWeight: 900, marginTop: 6, color: '#062F52' }}>
+            {serviceAssignmentCount}
+          </div>
+          <div style={{ marginTop: 4, color: '#71818C', fontSize: 12 }}>
+            Across all geographic areas
+          </div>
+        </div>
+      </div>
+
+      {formOpen && (
+        <div className="panel" style={{ marginBottom: 22 }}>
+          <div className="panel-header">
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 900,
+                  letterSpacing: 1,
+                  color: '#007E80',
+                }}
+              >
+                {form.id ? 'EDIT AREA' : 'NEW AREA'}
+              </div>
+              <h2 style={{ margin: '4px 0 3px' }}>
+                {form.id ? `Edit ${form.name || 'service area'}` : 'Create a service area'}
+              </h2>
+              <p>
+                Set the map footprint once, then select every service available inside it.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="dashboard-refresh"
+              onClick={closeForm}
+              disabled={saving}
+            >
+              <X size={16} style={{ verticalAlign: 'middle' }} />
+            </button>
+          </div>
+
+          <div style={{ padding: 20 }}>
+            {error && <div className="error-banner" style={{ marginBottom: 18 }}>{error}</div>}
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1.05fr) minmax(0, .95fr)',
+                gap: 20,
+                alignItems: 'start',
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1.4fr .8fr',
+                    gap: 12,
+                  }}
+                >
+                  <label>
+                    <strong>Area name</strong>
+                    <input
+                      value={form.name}
+                      onChange={(event) => updateForm({ name: event.target.value })}
+                      placeholder="e.g. Dwarka Sector 21"
+                      style={{ width: '100%', marginTop: 6 }}
+                      disabled={saving}
+                    />
+                  </label>
+
+                  <label>
+                    <strong>Radius (km)</strong>
+                    <input
+                      type="number"
+                      min="0.1"
+                      max="10"
+                      step="0.1"
+                      value={form.radius_km}
+                      onChange={(event) => updateForm({ radius_km: Number(event.target.value) })}
+                      style={{ width: '100%', marginTop: 6 }}
+                      disabled={saving}
+                    />
+                  </label>
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 12,
+                    marginTop: 12,
+                  }}
+                >
+                  <label>
+                    <strong>City</strong>
+                    <input
+                      value={form.city}
+                      onChange={(event) => updateForm({ city: event.target.value })}
+                      placeholder="Delhi"
+                      style={{ width: '100%', marginTop: 6 }}
+                      disabled={saving}
+                    />
+                  </label>
+                  <label>
+                    <strong>State</strong>
+                    <input
+                      value={form.state}
+                      onChange={(event) => updateForm({ state: event.target.value })}
+                      placeholder="Delhi"
+                      style={{ width: '100%', marginTop: 6 }}
+                      disabled={saving}
+                    />
+                  </label>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 18,
+                    border: '1px solid #E3EBEF',
+                    borderRadius: 18,
+                    background: '#FBFDFE',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: '14px 16px',
+                      borderBottom: '1px solid #E3EBEF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <strong>Services available in this area</strong>
+                      <div style={{ marginTop: 3, color: '#71818C', fontSize: 12 }}>
+                        {form.service_ids.length} selected · {activeServices.length} active services
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        className="dashboard-refresh"
+                        onClick={selectAllActiveServices}
+                        disabled={saving || activeServices.length === 0}
+                      >
+                        Select all
+                      </button>
+                      <button
+                        type="button"
+                        className="dashboard-refresh"
+                        onClick={clearServices}
+                        disabled={saving || form.service_ids.length === 0}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: 12 }}>
+                    <div style={{ position: 'relative', marginBottom: 10 }}>
+                      <Search
+                        size={16}
+                        style={{
+                          position: 'absolute',
+                          left: 11,
+                          top: 12,
+                          color: '#8194A0',
+                        }}
+                      />
+                      <input
+                        value={serviceSearch}
+                        onChange={(event) => setServiceSearch(event.target.value)}
+                        placeholder="Search services..."
+                        style={{ width: '100%', paddingLeft: 36 }}
+                        disabled={saving}
+                      />
+                    </div>
+
+                    {filteredServicesForSelection.length === 0 ? (
+                      <div style={{ padding: 18, textAlign: 'center', color: '#71818C', fontSize: 13 }}>
+                        No matching services.
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                          gap: 8,
+                          maxHeight: 290,
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {filteredServicesForSelection.map((service) => {
+                          const selected = form.service_ids.includes(service.id)
+
+                          return (
+                            <button
+                              key={service.id}
+                              type="button"
+                              onClick={() => toggleService(service.id)}
+                              disabled={saving}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: '11px 12px',
+                                borderRadius: 14,
+                                border: selected ? '1px solid #00A7A7' : '1px solid #E3EBEF',
+                                background: selected ? '#EFFCFA' : '#FFFFFF',
+                                cursor: saving ? 'default' : 'pointer',
+                                textAlign: 'left',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 22,
+                                  height: 22,
+                                  borderRadius: 7,
+                                  border: selected ? '1px solid #00A7A7' : '1px solid #CBD5E1',
+                                  background: selected ? '#00A7A7' : '#FFFFFF',
+                                  color: '#FFFFFF',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flex: '0 0 auto',
+                                }}
+                              >
+                                {selected && <Check size={14} strokeWidth={3} />}
+                              </span>
+
+                              <span style={{ minWidth: 0, flex: 1 }}>
+                                <strong
+                                  style={{
+                                    display: 'block',
+                                    color: '#062F52',
+                                    fontSize: 13,
+                                  }}
+                                >
+                                  {service.name}
+                                </strong>
+                                {!service.is_active && (
+                                  <span style={{ color: '#B45309', fontSize: 10, fontWeight: 700 }}>
+                                    Inactive — deselect before saving
+                                  </span>
+                                )}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginTop: 16,
+                    cursor: saving ? 'default' : 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.is_active}
+                    onChange={(event) => updateForm({ is_active: event.target.checked })}
+                    disabled={saving}
+                  />
+                  <span>
+                    <strong>Area is live</strong>
+                    <span style={{ display: 'block', marginTop: 2, color: '#71818C', fontSize: 12 }}>
+                      Customers can book selected services inside this area when enabled.
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              <div>
+                <label style={{ display: 'block' }}>
+                  <strong>Search map location</strong>
+                  <input
+                    ref={searchInputRef}
+                    placeholder="Search sector, locality, city or address"
+                    autoComplete="off"
+                    style={{ width: '100%', marginTop: 6 }}
+                    disabled={saving}
+                  />
+                </label>
+
+                <div
+                  style={{
+                    position: 'relative',
+                    marginTop: 12,
+                    width: '100%',
+                    height: 430,
+                    borderRadius: 18,
+                    overflow: 'hidden',
+                    border: '1px solid #D9E2E7',
+                    background: '#F5F7FA',
+                  }}
+                >
+                  <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+
+                  {mapLoading && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(255,255,255,.88)',
+                        fontWeight: 700,
+                        color: '#062F52',
+                      }}
+                    >
+                      Loading Google Maps...
+                    </div>
+                  )}
+
+                  {mapError && (
+                    <div
+                      className="error-banner"
+                      style={{
+                        position: 'absolute',
+                        left: 12,
+                        right: 12,
+                        bottom: 12,
+                        margin: 0,
+                        background: '#FFFFFF',
+                      }}
+                    >
+                      {mapError}
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 12,
+                      left: 12,
+                      padding: '8px 10px',
+                      borderRadius: 999,
+                      background: 'rgba(6,47,82,.90)',
+                      color: '#FFFFFF',
+                      fontSize: 11,
+                      fontWeight: 800,
+                    }}
+                  >
+                    Drag pin · resize circle
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 10,
+                    marginTop: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      background: '#F6FAFB',
+                      border: '1px solid #E3EBEF',
+                    }}
+                  >
+                    <div style={{ color: '#71818C', fontSize: 10, fontWeight: 800, letterSpacing: .6 }}>
+                      CENTER
+                    </div>
+                    <div style={{ marginTop: 4, fontSize: 12, color: '#062F52', fontWeight: 700 }}>
+                      {formCoordinates}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      background: '#F6FAFB',
+                      border: '1px solid #E3EBEF',
+                    }}
+                  >
+                    <div style={{ color: '#71818C', fontSize: 10, fontWeight: 800, letterSpacing: .6 }}>
+                      COVERAGE
+                    </div>
+                    <div style={{ marginTop: 4, fontSize: 12, color: '#062F52', fontWeight: 700 }}>
+                      {Number(form.radius_km).toFixed(2)} km radius
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div
               style={{
                 display: 'flex',
+                justifyContent: 'flex-end',
                 gap: 10,
+                marginTop: 22,
+                paddingTop: 18,
+                borderTop: '1px solid #E8EEF1',
               }}
             >
               <button
+                type="button"
                 className="dashboard-refresh"
-                onClick={
-                  resetForm
-                }
+                onClick={closeForm}
                 disabled={saving}
               >
-                Clear
+                Cancel
               </button>
-
               <button
+                type="button"
                 className="dashboard-refresh"
-                onClick={
-                  saveArea
-                }
+                onClick={() => void saveArea()}
                 disabled={saving}
+                style={{
+                  minWidth: 150,
+                  background: '#062F52',
+                  color: '#FFFFFF',
+                }}
               >
-                {saving
-                  ? 'Saving...'
-                  : form.id
-                    ? 'Save changes'
-                    : 'Launch service'}
+                {saving ? 'Saving...' : form.id ? 'Save changes' : 'Create area'}
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      <div className="panel" style={{ marginBottom: 20 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(260px, 1fr) 170px auto',
+            gap: 12,
+            alignItems: 'end',
+          }}
+        >
+          <label>
+            <strong>Search areas</strong>
+            <div style={{ position: 'relative', marginTop: 6 }}>
+              <Search
+                size={16}
+                style={{
+                  position: 'absolute',
+                  left: 11,
+                  top: 11,
+                  color: '#8194A0',
+                }}
+              />
+              <input
+                type="search"
+                value={areaSearch}
+                onChange={(event) => setAreaSearch(event.target.value)}
+                placeholder="Area, city, state or service"
+                style={{ width: '100%', paddingLeft: 36 }}
+              />
+            </div>
+          </label>
+
+          <label>
+            <strong>Status</strong>
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as 'all' | 'active' | 'inactive')
+              }
+              style={{ width: '100%', marginTop: 6 }}
+            >
+              <option value="all">All</option>
+              <option value="active">Live</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
+
+          <button className="dashboard-refresh" onClick={resetFilters}>
+            Reset
+          </button>
         </div>
       </div>
 
       <div className="panel">
         <div className="panel-header">
           <div>
-            <h2>
-              Configured service
-              areas
-            </h2>
-
+            <h2>All service areas</h2>
             <p>
-              {areas.length} area
-              {areas.length === 1
-                ? ''
-                : 's'} configured
+              {loading
+                ? 'Loading areas...'
+                : `${filteredAreas.length} of ${areas.length} area${areas.length === 1 ? '' : 's'}`}
             </p>
           </div>
         </div>
 
         {loading ? (
           <div className="bookings-empty">
-            <strong>
-              Loading service
-              areas...
-            </strong>
-
-            <span>
-              Please wait.
-            </span>
+            <strong>Loading service areas...</strong>
+            <span>Please wait.</span>
           </div>
-        ) : areas.length ===
-          0 ? (
+        ) : filteredAreas.length === 0 ? (
           <div className="bookings-empty">
-            <strong>
-              No service areas
-              configured
-            </strong>
-
-            <span>
-              Add your first launch
-              area above.
-            </span>
+            <strong>No service areas found</strong>
+            <span>Try a different search or status filter.</span>
           </div>
         ) : (
           <div className="bookings-table-wrap">
             <table className="bookings-table">
               <thead>
                 <tr>
-                  <th>
-                    Area
-                  </th>
-
-                  <th>
-                    Service
-                  </th>
-
-                  <th>
-                    Location
-                  </th>
-
-                  <th>
-                    Radius
-                  </th>
-
-                  <th>
-                    Status
-                  </th>
-
-                  <th>
-                    Action
-                  </th>
+                  <th>Area</th>
+                  <th>Coverage</th>
+                  <th>Services</th>
+                  <th>Status</th>
+                  <th>Updated</th>
+                  <th>Action</th>
                 </tr>
               </thead>
-
               <tbody>
-                {areas.map(area => (
-                  <tr
-                    key={
-                      area.id
-                    }
-                  >
+                {filteredAreas.map((area) => (
+                  <tr key={`${area.is_legacy ? 'legacy' : 'group'}-${area.id}`}>
                     <td>
-                      <strong>
-                        {
-                          area.name
-                        }
-                      </strong>
-                    </td>
-
-                    <td>
-                      {serviceName(
-                        area.service_id
+                      <strong>{area.name}</strong>
+                      <div style={{ marginTop: 3, color: '#71818C', fontSize: 12 }}>
+                        {area.city}, {area.state}
+                      </div>
+                      {area.is_legacy && (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            marginTop: 7,
+                            padding: '4px 7px',
+                            borderRadius: 999,
+                            background: '#FFF7E8',
+                            color: '#A75A16',
+                            fontSize: 9,
+                            fontWeight: 800,
+                            letterSpacing: .5,
+                          }}
+                        >
+                          LEGACY AREA
+                        </span>
                       )}
                     </td>
-
                     <td>
-                      {area.city ||
-                        '—'}
-
-                      {area.state
-                        ? `, ${area.state}`
-                        : ''}
-
-                      <br />
-
-                      <span
-                        style={{
-                          color:
-                            '#777',
-                          fontSize:
-                            12,
-                        }}
-                      >
-                        {Number(
-                          area.center_latitude
-                        ).toFixed(6)}
-                        {', '}
-                        {Number(
-                          area.center_longitude
-                        ).toFixed(6)}
-                      </span>
+                      <strong>{Number(area.radius_km).toFixed(1)} km</strong>
+                      <div style={{ marginTop: 3, color: '#71818C', fontSize: 11 }}>
+                        {Number(area.center_latitude).toFixed(4)}, {Number(area.center_longitude).toFixed(4)}
+                      </div>
                     </td>
-
                     <td>
-                      {Number(
-                        area.radius_km
-                      )}{' '}
-                      km
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxWidth: 360 }}>
+                        {area.service_names.map((serviceName) => (
+                          <span
+                            key={`${area.id}-${serviceName}`}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '5px 8px',
+                              borderRadius: 999,
+                              background: '#EAF7F7',
+                              color: '#087F72',
+                              fontSize: 10,
+                              fontWeight: 800,
+                            }}
+                          >
+                            {serviceName}
+                          </span>
+                        ))}
+                        {area.service_count === 0 && (
+                          <span style={{ color: '#A0ADB5', fontSize: 12 }}>No services</span>
+                        )}
+                      </div>
                     </td>
-
                     <td>
                       <span
                         className={
@@ -1253,21 +1250,20 @@ export default function ServiceAreas() {
                             : 'booking-status booking-status-cancelled'
                         }
                       >
-                        {area.is_active
-                          ? 'Active'
-                          : 'Inactive'}
+                        {area.is_active ? 'Live' : 'Inactive'}
                       </span>
                     </td>
-
+                    <td>
+                      <span style={{ color: '#71818C', fontSize: 12 }}>
+                        {new Date(area.updated_at).toLocaleString()}
+                      </span>
+                    </td>
                     <td>
                       <button
                         className="dashboard-refresh"
-                        onClick={() =>
-                          editArea(
-                            area
-                          )
-                        }
+                        onClick={() => editArea(area)}
                       >
+                        <Edit3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
                         Edit
                       </button>
                     </td>

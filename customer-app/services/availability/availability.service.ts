@@ -2,7 +2,7 @@ import { supabase } from '../../lib/supabase'
 
 export type ServiceArea = {
   id: string
-  serviceId: string
+  serviceId: string | null
   name: string
   city: string | null
   state: string | null
@@ -13,7 +13,7 @@ export type ServiceArea = {
 
 type ServiceAreaRow = {
   id: string
-  service_id: string
+  service_id: string | null
   name: string
   city: string | null
   state: string | null
@@ -37,14 +37,18 @@ export async function getActiveServiceAreas(): Promise<
   }
 
   return ((data ?? []) as ServiceAreaRow[]).map(
-    (area) => ({
+    area => ({
       id: area.id,
       serviceId: area.service_id,
       name: area.name,
       city: area.city,
       state: area.state,
-      centerLatitude: Number(area.center_latitude),
-      centerLongitude: Number(area.center_longitude),
+      centerLatitude: Number(
+        area.center_latitude,
+      ),
+      centerLongitude: Number(
+        area.center_longitude,
+      ),
       radiusKm: Number(area.radius_km),
     }),
   )
@@ -53,30 +57,74 @@ export async function getActiveServiceAreas(): Promise<
 export async function getAvailableServiceIds(
   latitude: number,
   longitude: number,
+  serviceIds: string[] = [],
 ): Promise<Set<string>> {
-  const areas = await getActiveServiceAreas()
+  if (
+    !Number.isFinite(latitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    !Number.isFinite(longitude) ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return new Set<string>()
+  }
 
-  const availableServiceIds = new Set<string>()
+  const areas =
+    await getActiveServiceAreas()
+
+  const availableServiceIds =
+    new Set<string>()
+
+  const requestedIds =
+    new Set(serviceIds)
 
   for (const area of areas) {
     if (
-      !Number.isFinite(area.centerLatitude) ||
-      !Number.isFinite(area.centerLongitude) ||
+      !Number.isFinite(
+        area.centerLatitude,
+      ) ||
+      !Number.isFinite(
+        area.centerLongitude,
+      ) ||
       !Number.isFinite(area.radiusKm) ||
-      area.radiusKm < 0
+      area.radiusKm <= 0
     ) {
       continue
     }
 
-    const distanceKm = calculateDistanceKm(
-      latitude,
-      longitude,
-      area.centerLatitude,
-      area.centerLongitude,
-    )
+    const distanceKm =
+      calculateDistanceKm(
+        latitude,
+        longitude,
+        area.centerLatitude,
+        area.centerLongitude,
+      )
 
-    if (distanceKm <= area.radiusKm) {
-      availableServiceIds.add(area.serviceId)
+    if (distanceKm > area.radiusKm) {
+      continue
+    }
+
+    if (area.serviceId === null) {
+      if (requestedIds.size > 0) {
+        requestedIds.forEach(
+          serviceId =>
+            availableServiceIds.add(
+              serviceId,
+            ),
+        )
+      }
+
+      continue
+    }
+
+    if (
+      requestedIds.size === 0 ||
+      requestedIds.has(area.serviceId)
+    ) {
+      availableServiceIds.add(
+        area.serviceId,
+      )
     }
   }
 

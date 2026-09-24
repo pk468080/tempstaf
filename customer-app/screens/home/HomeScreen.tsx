@@ -15,7 +15,9 @@ import {
 import * as Location from 'expo-location'
 
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
-import { getHomeServices } from '../../services/services/services.service'
+import {
+  getHomeServicesForLocation,
+} from '../../services/services/services.service'
 import type { HomeService } from '../../types/service'
 
 const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
@@ -58,10 +60,22 @@ export default function HomeScreen({
   const [locationSearching, setLocationSearching] = useState(false)
   const automaticLocationRequestStarted = useRef(false)
 
-  async function loadServices() {
+  async function loadServices(
+    currentLocation: HomeLocation | null,
+  ) {
     setError('')
 
-    const nextServices = await getHomeServices()
+    if (!currentLocation) {
+      setServices([])
+      return
+    }
+
+    const nextServices =
+      await getHomeServicesForLocation(
+        currentLocation.latitude,
+        currentLocation.longitude,
+      )
+
     setServices(nextServices)
   }
 
@@ -108,14 +122,15 @@ export default function HomeScreen({
 
     try {
       /*
-       * Services are independent of the customer's
-       * selected location.
+       * The customer's selected location is used to
+       * determine which active services are published
+       * for that geographic service area.
        *
-       * Location becomes authoritative during the
-       * booking availability check.
+       * Booking/backend validation remains authoritative
+       * later in the booking flow.
        */
       await Promise.all([
-        loadServices(),
+        loadServices(currentLocation),
         loadAddress(currentLocation),
       ])
     } catch (err) {
@@ -133,7 +148,7 @@ export default function HomeScreen({
 
     try {
       await Promise.all([
-        loadServices(),
+        loadServices(location),
         loadAddress(location),
       ])
     } catch (err) {
@@ -563,12 +578,12 @@ export default function HomeScreen({
             </View>
 
             <Text style={styles.sectionTitle}>
-              Choose a staffing service
+              Services available here
             </Text>
 
             <Text style={styles.sectionSubtitle}>
-              Simple hourly help for your
-              business.
+              Showing only services that cover
+              your selected location.
             </Text>
           </View>
 
@@ -618,13 +633,14 @@ export default function HomeScreen({
             </View>
 
             <Text style={styles.emptyTitle}>
-              No hourly services available
+              No services available here
             </Text>
 
             <Text style={styles.emptyText}>
-              There are currently no
-              customer-priced hourly
-              services configured.
+              We do not currently have an
+              active hourly service covering
+              this location. Try another
+              service location.
             </Text>
           </View>
         ) : (
@@ -834,19 +850,6 @@ function ServiceCard({
   service: HomeService
   onPress: () => void
 }) {
-  const normalizedName = service.name.trim().toLowerCase()
-
-  const image =
-    normalizedName === 'helper'
-      ? require('../../assets/services/helper.png')
-      : normalizedName === 'housekeeping boy'
-        ? require('../../assets/services/housekeeping-boy.png')
-        : normalizedName === 'office boy'
-          ? require('../../assets/services/office-boy.png')
-          : normalizedName === 'pantry boy'
-            ? require('../../assets/services/pantry-boy.png')
-            : null
-
   const initials = getServiceInitials(service.name)
 
   return (
@@ -856,9 +859,9 @@ function ServiceCard({
       onPress={onPress}
     >
       <View style={styles.cardImageWrap}>
-        {image ? (
+        {service.imageUrl ? (
           <Image
-            source={image}
+            source={{ uri: service.imageUrl }}
             style={styles.cardImage}
             resizeMode="cover"
           />
@@ -883,7 +886,7 @@ function ServiceCard({
         <View style={styles.cardImageBadge}>
           <View style={styles.cardImageBadgeDot} />
           <Text style={styles.cardImageBadgeText}>
-            HOURLY
+            {service.isFeatured ? 'FEATURED' : 'HOURLY'}
           </Text>
         </View>
       </View>
