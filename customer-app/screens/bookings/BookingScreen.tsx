@@ -64,13 +64,6 @@ type BookingScreenProps = {
 
 type BookingType = 'instant' | 'scheduled' | 'recurring'
 
-const serviceImages: Record<string, number> = {
-  helper: require('../../assets/services/helper.png'),
-  'housekeeping boy': require('../../assets/services/housekeeping-boy.png'),
-  'office boy': require('../../assets/services/office-boy.png'),
-  'pantry boy': require('../../assets/services/pantry-boy.png'),
-}
-
 const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
 
 const METHOD_COPY: Record<
@@ -101,10 +94,6 @@ const METHOD_COPY: Record<
     description:
       'Book the same service on selected days.',
   },
-}
-
-function getServiceImage(name: string) {
-  return serviceImages[name.trim().toLowerCase()]
 }
 
 export default function BookingScreen({
@@ -838,9 +827,11 @@ if (
       >
         <View style={styles.serviceHero}>
           <View style={styles.serviceHeroImageWrap}>
-            {getServiceImage(service.name) ? (
+            {service.imageUrl ? (
               <Image
-                source={getServiceImage(service.name)}
+                source={{
+                  uri: service.imageUrl,
+                }}
                 style={styles.serviceHeroImage}
                 resizeMode="cover"
               />
