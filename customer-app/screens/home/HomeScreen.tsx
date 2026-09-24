@@ -58,7 +58,66 @@ export default function HomeScreen({
   const [locationPickerVisible, setLocationPickerVisible] = useState(false)
   const [locationQuery, setLocationQuery] = useState('')
   const [locationSearching, setLocationSearching] = useState(false)
+  const [serviceQuery, setServiceQuery] = useState('')
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [featuredOnly, setFeaturedOnly] = useState(false)
   const automaticLocationRequestStarted = useRef(false)
+
+  const serviceCategories = Array.from(
+    new Map(
+      services
+        .filter(
+          service =>
+            Boolean(service.categoryId) &&
+            Boolean(service.categoryName),
+        )
+        .map(service => [
+          service.categoryId as string,
+          service.categoryName as string,
+        ]),
+    ),
+  )
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  const normalizedServiceQuery =
+    serviceQuery.trim().toLowerCase()
+
+  const filteredServices = services.filter(service => {
+    const categoryMatches =
+      selectedCategoryId === null ||
+      service.categoryId === selectedCategoryId
+
+    const featuredMatches =
+      !featuredOnly || service.isFeatured
+
+    const searchMatches =
+      normalizedServiceQuery.length === 0 ||
+      service.name
+        .toLowerCase()
+        .includes(normalizedServiceQuery) ||
+      (service.description ?? '')
+        .toLowerCase()
+        .includes(normalizedServiceQuery) ||
+      (service.categoryName ?? '')
+        .toLowerCase()
+        .includes(normalizedServiceQuery)
+
+    return (
+      categoryMatches &&
+      featuredMatches &&
+      searchMatches
+    )
+  })
+
+  const featuredServices = services.filter(
+    service => service.isFeatured,
+  )
+
+  const hasServiceFilters =
+    normalizedServiceQuery.length > 0 ||
+    selectedCategoryId !== null ||
+    featuredOnly
 
   async function loadServices(
     currentLocation: HomeLocation | null,
@@ -568,31 +627,207 @@ export default function HomeScreen({
           </View>
         ) : null}
 
+        {featuredServices.length > 0 &&
+        normalizedServiceQuery.length === 0 &&
+        selectedCategoryId === null &&
+        !featuredOnly ? (
+          <View style={styles.featuredSection}>
+            <View style={styles.featuredHeader}>
+              <View style={styles.sectionHeadingWrap}>
+                <View style={styles.sectionEyebrowRow}>
+                  <View style={styles.sectionEyebrowLine} />
+                  <Text style={styles.sectionEyebrow}>
+                    RECOMMENDED
+                  </Text>
+                </View>
+
+                <Text style={styles.sectionTitle}>
+                  Featured services
+                </Text>
+
+                <Text style={styles.sectionSubtitle}>
+                  Popular staffing options available at your location.
+                </Text>
+              </View>
+
+              <View style={styles.sectionCount}>
+                <Text style={styles.sectionCountValue}>
+                  {featuredServices.length}
+                </Text>
+                <Text style={styles.sectionCountLabel}>
+                  FEATURED
+                </Text>
+              </View>
+            </View>
+
+            <FlatList
+              data={featuredServices}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.featuredList}
+              keyExtractor={item => `featured-${item.id}`}
+              renderItem={({ item }) => (
+                <View style={styles.featuredCardWrap}>
+                  <ServiceCard
+                    service={item}
+                    variant="featured"
+                    onPress={() => {
+                      if (!location) {
+                        setLocationError(
+                          'Select a service location before booking.',
+                        )
+                        return
+                      }
+
+                      onServicePress?.(item)
+                    }}
+                  />
+                </View>
+              )}
+            />
+          </View>
+        ) : null}
+
+        <View style={styles.servicesToolbar}>
+          <View style={styles.serviceSearchField}>
+            <Text style={styles.serviceSearchIcon}>
+              ⌕
+            </Text>
+
+            <TextInput
+              value={serviceQuery}
+              onChangeText={setServiceQuery}
+              placeholder="Search services"
+              placeholderTextColor="#94A3B8"
+              style={styles.serviceSearchInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="search"
+            />
+
+            {serviceQuery.length > 0 ? (
+              <TouchableOpacity
+                style={styles.serviceSearchClear}
+                onPress={() => setServiceQuery('')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.serviceSearchClearText}>
+                  ×
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterList}
+          >
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                selectedCategoryId === null &&
+                  !featuredOnly &&
+                  styles.filterChipActive,
+              ]}
+              onPress={() => {
+                setSelectedCategoryId(null)
+                setFeaturedOnly(false)
+              }}
+              activeOpacity={0.82}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  selectedCategoryId === null &&
+                    !featuredOnly &&
+                    styles.filterChipTextActive,
+                ]}
+              >
+                All
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                featuredOnly && styles.filterChipActive,
+              ]}
+              onPress={() => setFeaturedOnly(value => !value)}
+              activeOpacity={0.82}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  featuredOnly && styles.filterChipTextActive,
+                ]}
+              >
+                Featured
+              </Text>
+            </TouchableOpacity>
+
+            {serviceCategories.map(category => {
+              const active =
+                selectedCategoryId === category.id
+
+              return (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.filterChip,
+                    active && styles.filterChipActive,
+                  ]}
+                  onPress={() =>
+                    setSelectedCategoryId(
+                      active ? null : category.id,
+                    )
+                  }
+                  activeOpacity={0.82}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      active && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {category.name}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </ScrollView>
+        </View>
+
         <View style={styles.sectionHeader}>
           <View style={styles.sectionHeadingWrap}>
             <View style={styles.sectionEyebrowRow}>
               <View style={styles.sectionEyebrowLine} />
               <Text style={styles.sectionEyebrow}>
-                WHAT YOU NEED
+                {hasServiceFilters
+                  ? 'SEARCH RESULTS'
+                  : 'WHAT YOU NEED'}
               </Text>
             </View>
 
             <Text style={styles.sectionTitle}>
-              Services available here
+              {hasServiceFilters
+                ? 'Matching services'
+                : 'Services available here'}
             </Text>
 
             <Text style={styles.sectionSubtitle}>
-              Showing only services that cover
-              your selected location.
+              {hasServiceFilters
+                ? 'Search or filters are applied to services covering your selected location.'
+                : 'Showing only services that cover your selected location.'}
             </Text>
           </View>
 
           <View style={styles.sectionCount}>
             <Text style={styles.sectionCountValue}>
-              {services.length}
+              {filteredServices.length}
             </Text>
             <Text style={styles.sectionCountLabel}>
-              LIVE
+              {hasServiceFilters ? 'MATCH' : 'LIVE'}
             </Text>
           </View>
         </View>
@@ -643,9 +878,39 @@ export default function HomeScreen({
               service location.
             </Text>
           </View>
+        ) : filteredServices.length === 0 ? (
+          <View style={styles.empty}>
+            <View style={styles.emptyIcon}>
+              <Text style={styles.emptyIconText}>
+                ⌕
+              </Text>
+            </View>
+
+            <Text style={styles.emptyTitle}>
+              No matching services
+            </Text>
+
+            <Text style={styles.emptyText}>
+              Try a different search term or clear the selected filters.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.clearFiltersButton}
+              onPress={() => {
+                setServiceQuery('')
+                setSelectedCategoryId(null)
+                setFeaturedOnly(false)
+              }}
+              activeOpacity={0.86}
+            >
+              <Text style={styles.clearFiltersButtonText}>
+                Clear search & filters
+              </Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <FlatList
-            data={services}
+            data={filteredServices}
             scrollEnabled={false}
             numColumns={2}
             columnWrapperStyle={styles.serviceRow}
@@ -846,19 +1111,26 @@ export default function HomeScreen({
 function ServiceCard({
   service,
   onPress,
+  variant = 'grid',
 }: {
   service: HomeService
   onPress: () => void
+  variant?: 'grid' | 'featured'
 }) {
   const initials = getServiceInitials(service.name)
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, variant === 'featured' && styles.featuredCard]}
       activeOpacity={0.88}
       onPress={onPress}
     >
-      <View style={styles.cardImageWrap}>
+      <View
+        style={[
+          styles.cardImageWrap,
+          variant === 'featured' && styles.featuredCardImageWrap,
+        ]}
+      >
         {service.imageUrl ? (
           <Image
             source={{ uri: service.imageUrl }}
@@ -1555,6 +1827,131 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     fontWeight: '800',
     color: COLORS.primaryDark,
+  },
+
+  featuredSection: {
+    marginBottom: 24,
+  },
+
+  featuredHeader: {
+    marginBottom: 13,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+
+  featuredList: {
+    paddingRight: 4,
+  },
+
+  featuredCardWrap: {
+    width: 226,
+    marginRight: 12,
+  },
+
+  featuredCard: {
+    width: '100%',
+  },
+
+  featuredCardImageWrap: {
+    height: 126,
+  },
+
+  servicesToolbar: {
+    marginBottom: 19,
+  },
+
+  serviceSearchField: {
+    minHeight: 54,
+    paddingHorizontal: 13,
+    borderRadius: 17,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  serviceSearchIcon: {
+    width: 24,
+    fontSize: 20,
+    lineHeight: 22,
+    color: COLORS.primaryDark,
+    textAlign: 'center',
+  },
+
+  serviceSearchInput: {
+    flex: 1,
+    minHeight: 50,
+    marginLeft: 7,
+    paddingHorizontal: 6,
+    paddingVertical: 0,
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.ink,
+  },
+
+  serviceSearchClear: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F1F6F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  serviceSearchClearText: {
+    marginTop: -1,
+    fontSize: 20,
+    lineHeight: 20,
+    fontWeight: '500',
+    color: COLORS.inkSoft,
+  },
+
+  filterList: {
+    paddingTop: 10,
+    paddingRight: 4,
+  },
+
+  filterChip: {
+    minHeight: 36,
+    marginRight: 8,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  filterChipActive: {
+    backgroundColor: COLORS.ink,
+    borderColor: COLORS.ink,
+  },
+
+  filterChipText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.inkSoft,
+  },
+
+  filterChipTextActive: {
+    color: COLORS.white,
+  },
+
+  clearFiltersButton: {
+    marginTop: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 11,
+    backgroundColor: COLORS.ink,
+  },
+
+  clearFiltersButtonText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: COLORS.white,
   },
 
   bottomBanner: {

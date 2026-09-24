@@ -8,4 +8,6 @@ export type HomeService = {
   imageUrl: string | null
   displayOrder: number
   isFeatured: boolean
+  categoryId: string | null
+  categoryName: string | null
 }

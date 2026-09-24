@@ -19,13 +19,20 @@ type ServiceVariantRow = {
   service_variant_prices: ServiceVariantPriceRow[]
 }
 
+type ServiceCategoryRow = {
+  id: string
+  name: string
+}
+
 type ServiceRow = {
   id: string
   name: string
   description: string | null
   image_url: string | null
+  category_id: string | null
   display_order: number | null
   is_featured: boolean | null
+  service_categories: ServiceCategoryRow | null
   service_variants: ServiceVariantRow[]
 }
 
@@ -44,8 +51,13 @@ export async function getHomeServices(): Promise<HomeService[]> {
       name,
       description,
       image_url,
+      category_id,
       display_order,
       is_featured,
+      service_categories (
+        id,
+        name
+      ),
       service_variants (
         id,
         service_id,
@@ -184,6 +196,10 @@ export async function getHomeServices(): Promise<HomeService[]> {
         Number(service.display_order ?? 0),
       isFeatured:
         service.is_featured === true,
+      categoryId:
+        service.category_id ?? null,
+      categoryName:
+        service.service_categories?.name ?? null,
     })
   }
 
