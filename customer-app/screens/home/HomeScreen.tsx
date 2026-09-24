@@ -16,6 +16,13 @@ import * as Location from 'expo-location'
 
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
 import {
+  getCustomerFavouriteServiceIds,
+  getCustomerRebookHistory,
+  getHomePromotions,
+  setCustomerFavouriteService,
+} from '../../services/home/home-content.service'
+import type { HomePromotion, HomeRebook } from '../../services/home/home-content.service'
+import {
   getHomeServicesForLocation,
 } from '../../services/services/services.service'
 import type { HomeService } from '../../types/service'
@@ -61,6 +68,13 @@ export default function HomeScreen({
   const [serviceQuery, setServiceQuery] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [featuredOnly, setFeaturedOnly] = useState(false)
+  const [favouriteServiceIds, setFavouriteServiceIds] = useState<Set<string>>(
+    new Set(),
+  )
+  const [rebookHistory, setRebookHistory] = useState<HomeRebook[]>([])
+  const [promotions, setPromotions] = useState<HomePromotion[]>([])
+  const [contentLoading, setContentLoading] = useState(true)
+  const [contentError, setContentError] = useState('')
   const automaticLocationRequestStarted = useRef(false)
 
   const serviceCategories = Array.from(
@@ -119,6 +133,24 @@ export default function HomeScreen({
     selectedCategoryId !== null ||
     featuredOnly
 
+  const favouriteServices = services.filter(service =>
+    favouriteServiceIds.has(service.id),
+  )
+
+  const rebookServices = rebookHistory
+    .map(item => {
+      const service = services.find(
+        candidate => candidate.id === item.serviceId,
+      )
+
+      return service ? { service, booking: item } : null
+    })
+    .filter(
+      (item): item is { service: HomeService; booking: HomeRebook } =>
+        Boolean(item),
+    )
+    .slice(0, 4)
+
   async function loadServices(
     currentLocation: HomeLocation | null,
   ) {
@@ -126,7 +158,7 @@ export default function HomeScreen({
 
     if (!currentLocation) {
       setServices([])
-      return
+      return []
     }
 
     const nextServices =
@@ -136,6 +168,73 @@ export default function HomeScreen({
       )
 
     setServices(nextServices)
+    return nextServices
+  }
+
+  async function loadHomeContent(availableServices: HomeService[]) {
+    setContentLoading(true)
+    setContentError('')
+
+    try {
+      const availableIds = new Set(
+        availableServices.map(service => service.id),
+      )
+
+      const [nextFavouriteIds, nextRebookHistory, nextPromotions] =
+        await Promise.all([
+          getCustomerFavouriteServiceIds(),
+          getCustomerRebookHistory(),
+          getHomePromotions(availableIds),
+        ])
+
+      setFavouriteServiceIds(nextFavouriteIds)
+      setRebookHistory(nextRebookHistory)
+      setPromotions(nextPromotions)
+    } catch (err) {
+      console.error('Home personalized content error:', err)
+      setContentError(
+        'Some personalized home content could not be loaded.',
+      )
+    } finally {
+      setContentLoading(false)
+    }
+  }
+
+  async function toggleFavourite(serviceId: string) {
+    const wasFavourite = favouriteServiceIds.has(serviceId)
+    const next = new Set(favouriteServiceIds)
+
+    if (wasFavourite) {
+      next.delete(serviceId)
+    } else {
+      next.add(serviceId)
+    }
+
+    setFavouriteServiceIds(next)
+
+    try {
+      await setCustomerFavouriteService(
+        serviceId,
+        !wasFavourite,
+      )
+    } catch (err) {
+      console.error('Favourite service error:', err)
+      setFavouriteServiceIds(favouriteServiceIds)
+      setContentError(
+        'Please sign in to save favourite services.',
+      )
+    }
+  }
+
+  async function handleServicePress(service: HomeService) {
+    if (!location) {
+      setLocationError(
+        'Select a service location before booking.',
+      )
+      return
+    }
+
+    onServicePress?.(service)
   }
 
   async function loadAddress(
@@ -188,9 +287,10 @@ export default function HomeScreen({
        * Booking/backend validation remains authoritative
        * later in the booking flow.
        */
+      const nextServices = await loadServices(currentLocation)
       await Promise.all([
-        loadServices(currentLocation),
         loadAddress(currentLocation),
+        loadHomeContent(nextServices),
       ])
     } catch (err) {
       console.error('Home loading error:', err)
@@ -206,9 +306,10 @@ export default function HomeScreen({
     setError('')
 
     try {
+      const nextServices = await loadServices(location)
       await Promise.all([
-        loadServices(location),
         loadAddress(location),
+        loadHomeContent(nextServices),
       ])
     } catch (err) {
       console.error('Home refresh error:', err)
@@ -671,18 +772,224 @@ export default function HomeScreen({
                   <ServiceCard
                     service={item}
                     variant="featured"
-                    onPress={() => {
-                      if (!location) {
-                        setLocationError(
-                          'Select a service location before booking.',
-                        )
-                        return
-                      }
-
-                      onServicePress?.(item)
-                    }}
+                    isFavourite={favouriteServiceIds.has(item.id)}
+                    onToggleFavourite={() => void toggleFavourite(item.id)}
+                    onPress={() => void handleServicePress(item)}
                   />
                 </View>
+              )}
+            />
+          </View>
+        ) : null}
+
+        {contentError ? (
+          <View style={styles.contentNotice}>
+            <Text style={styles.contentNoticeText}>
+              {contentError}
+            </Text>
+          </View>
+        ) : null}
+
+        {rebookServices.length > 0 &&
+        normalizedServiceQuery.length === 0 &&
+        selectedCategoryId === null &&
+        !featuredOnly ? (
+          <View style={styles.homeSection}>
+            <View style={styles.personalHeader}>
+              <View style={styles.sectionHeadingWrap}>
+                <View style={styles.sectionEyebrowRow}>
+                  <View style={styles.sectionEyebrowLine} />
+                  <Text style={styles.sectionEyebrow}>
+                    QUICK REBOOK
+                  </Text>
+                </View>
+                <Text style={styles.sectionTitle}>
+                  Book again
+                </Text>
+                <Text style={styles.sectionSubtitle}>
+                  Your most recent completed services.
+                </Text>
+              </View>
+            </View>
+
+            <FlatList
+              data={rebookServices}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.rebookList}
+              keyExtractor={item => `rebook-${item.service.id}`}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.rebookCard}
+                  activeOpacity={0.88}
+                  onPress={() => void handleServicePress(item.service)}
+                >
+                  <View style={styles.rebookImageWrap}>
+                    {item.service.imageUrl ? (
+                      <Image
+                        source={{ uri: item.service.imageUrl }}
+                        style={styles.rebookImage}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Text style={styles.rebookInitials}>
+                        {getServiceInitials(item.service.name)}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={styles.rebookCopy}>
+                    <Text style={styles.rebookName} numberOfLines={1}>
+                      {item.service.name}
+                    </Text>
+                    <Text style={styles.rebookMeta} numberOfLines={1}>
+                      {item.booking.durationValue
+                        ? `${item.booking.durationValue} ${item.booking.durationUnit ?? 'hr'} booked`
+                        : 'Previously booked'}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.rebookArrow}>
+                    →
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        ) : null}
+
+        {favouriteServices.length > 0 &&
+        normalizedServiceQuery.length === 0 &&
+        selectedCategoryId === null &&
+        !featuredOnly ? (
+          <View style={styles.homeSection}>
+            <View style={styles.personalHeader}>
+              <View style={styles.sectionHeadingWrap}>
+                <View style={styles.sectionEyebrowRow}>
+                  <View style={styles.sectionEyebrowLine} />
+                  <Text style={styles.sectionEyebrow}>
+                    SAVED BY YOU
+                  </Text>
+                </View>
+                <Text style={styles.sectionTitle}>
+                  Your favourites
+                </Text>
+              </View>
+              <View style={styles.sectionCount}>
+                <Text style={styles.sectionCountValue}>
+                  {favouriteServices.length}
+                </Text>
+                <Text style={styles.sectionCountLabel}>
+                  SAVED
+                </Text>
+              </View>
+            </View>
+
+            <FlatList
+              data={favouriteServices.slice(0, 4)}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.favouriteList}
+              keyExtractor={item => `favourite-${item.id}`}
+              renderItem={({ item }) => (
+                <View style={styles.favouriteCardWrap}>
+                  <ServiceCard
+                    service={item}
+                    variant="featured"
+                    isFavourite
+                    onToggleFavourite={() =>
+                      void toggleFavourite(item.id)
+                    }
+                    onPress={() => void handleServicePress(item)}
+                  />
+                </View>
+              )}
+            />
+          </View>
+        ) : null}
+
+        {promotions.length > 0 &&
+        normalizedServiceQuery.length === 0 &&
+        selectedCategoryId === null &&
+        !featuredOnly ? (
+          <View style={styles.homeSection}>
+            <View style={styles.personalHeader}>
+              <View style={styles.sectionHeadingWrap}>
+                <View style={styles.sectionEyebrowRow}>
+                  <View style={styles.sectionEyebrowLine} />
+                  <Text style={styles.sectionEyebrow}>
+                    TEMPSTAFF UPDATES
+                  </Text>
+                </View>
+                <Text style={styles.sectionTitle}>
+                  Offers & updates
+                </Text>
+              </View>
+            </View>
+
+            <FlatList
+              data={promotions}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.promotionList}
+              keyExtractor={item => `promotion-${item.id}`}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.promotionCard}
+                  activeOpacity={0.9}
+                  onPress={() => {
+                    if (!item.serviceId) {
+                      setServiceQuery('')
+                      setSelectedCategoryId(null)
+                      setFeaturedOnly(false)
+                      return
+                    }
+
+                    const service = services.find(
+                      candidate => candidate.id === item.serviceId,
+                    )
+
+                    if (service) {
+                      void handleServicePress(service)
+                    }
+                  }}
+                >
+                  {item.imageUrl ? (
+                    <Image
+                      source={{ uri: item.imageUrl }}
+                      style={styles.promotionImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.promotionImageFallback}>
+                      <Text style={styles.promotionImageFallbackText}>
+                        TS
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.promotionOverlay} />
+                  <View style={styles.promotionCopy}>
+                    <Text style={styles.promotionTitle} numberOfLines={2}>
+                      {item.title}
+                    </Text>
+                    {item.subtitle ? (
+                      <Text style={styles.promotionSubtitle} numberOfLines={2}>
+                        {item.subtitle}
+                      </Text>
+                    ) : null}
+                    {item.ctaText ? (
+                      <View style={styles.promotionCta}>
+                        <Text style={styles.promotionCtaText}>
+                          {item.ctaText}
+                        </Text>
+                        <Text style={styles.promotionCtaArrow}>
+                          →
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </TouchableOpacity>
               )}
             />
           </View>
@@ -918,16 +1225,9 @@ export default function HomeScreen({
             renderItem={({ item }) => (
               <ServiceCard
                 service={item}
-                onPress={() => {
-                  if (!location) {
-                    setLocationError(
-                      'Select a service location before booking.',
-                    )
-                    return
-                  }
-
-                  onServicePress?.(item)
-                }}
+                isFavourite={favouriteServiceIds.has(item.id)}
+                onToggleFavourite={() => void toggleFavourite(item.id)}
+                onPress={() => void handleServicePress(item)}
               />
             )}
           />
@@ -1111,10 +1411,14 @@ export default function HomeScreen({
 function ServiceCard({
   service,
   onPress,
+  onToggleFavourite,
+  isFavourite = false,
   variant = 'grid',
 }: {
   service: HomeService
   onPress: () => void
+  onToggleFavourite?: () => void
+  isFavourite?: boolean
   variant?: 'grid' | 'featured'
 }) {
   const initials = getServiceInitials(service.name)
@@ -1173,6 +1477,21 @@ function ServiceCard({
             {service.isFeatured ? 'FEATURED' : 'HOURLY'}
           </Text>
         </View>
+
+        {onToggleFavourite ? (
+          <TouchableOpacity
+            style={styles.favoriteButton}
+            onPress={event => {
+              event.stopPropagation?.()
+              onToggleFavourite()
+            }}
+            activeOpacity={0.82}
+          >
+            <Text style={styles.favoriteButtonText}>
+              {isFavourite ? '♥' : '♡'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <View style={styles.cardContent}>
@@ -1838,6 +2157,209 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 14,
     fontWeight: '800',
+    color: COLORS.primaryDark,
+  },
+
+  homeSection: {
+    marginBottom: 23,
+  },
+
+  personalHeader: {
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+
+  contentNotice: {
+    marginBottom: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#F7C68B',
+  },
+
+  contentNoticeText: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '600',
+    color: '#8A4A10',
+  },
+
+  rebookList: {
+    paddingRight: 4,
+  },
+
+  rebookCard: {
+    width: 236,
+    minHeight: 74,
+    marginRight: 10,
+    padding: 9,
+    borderRadius: 17,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  rebookImageWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 13,
+    backgroundColor: '#F3F8F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+
+  rebookImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  rebookInitials: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: COLORS.primaryDark,
+  },
+
+  rebookCopy: {
+    flex: 1,
+    marginLeft: 9,
+  },
+
+  rebookName: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: COLORS.ink,
+  },
+
+  rebookMeta: {
+    marginTop: 3,
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.muted,
+  },
+
+  rebookArrow: {
+    marginLeft: 7,
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.primaryDark,
+  },
+
+  favouriteList: {
+    paddingRight: 4,
+  },
+
+  favouriteCardWrap: {
+    width: 210,
+    marginRight: 10,
+  },
+
+  promotionList: {
+    paddingRight: 4,
+  },
+
+  promotionCard: {
+    width: 286,
+    height: 170,
+    marginRight: 12,
+    borderRadius: 21,
+    overflow: 'hidden',
+    backgroundColor: COLORS.ink,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  promotionImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  promotionImageFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primarySoft,
+  },
+
+  promotionImageFallbackText: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: COLORS.primaryDark,
+  },
+
+  promotionOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(5, 25, 37, 0.52)',
+  },
+
+  promotionCopy: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 15,
+  },
+
+  promotionTitle: {
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: '900',
+    color: COLORS.white,
+  },
+
+  promotionSubtitle: {
+    marginTop: 4,
+    fontSize: 10.5,
+    lineHeight: 15,
+    fontWeight: '600',
+    color: '#D8E6EC',
+  },
+
+  promotionCta: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  promotionCtaText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: COLORS.ink,
+  },
+
+  promotionCtaArrow: {
+    marginLeft: 5,
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.primaryDark,
+  },
+
+  favoriteButton: {
+    position: 'absolute',
+    left: 8,
+    top: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  favoriteButtonText: {
+    marginTop: -1,
+    fontSize: 17,
+    lineHeight: 19,
     color: COLORS.primaryDark,
   },
 
