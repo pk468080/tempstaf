@@ -1,4 +1,3 @@
-
 import {
   BrowserRouter,
   Navigate,
@@ -18,6 +17,7 @@ import ServiceAreas from './pages/ServiceAreas'
 import Payments from './pages/Payments'
 import Reviews from './pages/Reviews'
 import Notifications from './pages/Notifications'
+import OffersUpdates from './pages/OffersUpdates'
 
 import AdminLayout from './layouts/AdminLayout'
 import AdminGuard from './components/AdminGuard'
@@ -26,102 +26,27 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Authentication */}
-        <Route
-          path="/login"
-          element={<Login />}
-        />
+        <Route path="/login" element={<Login />} />
 
-        {/* Protected Admin Application */}
         <Route element={<AdminGuard />}>
           <Route element={<AdminLayout />}>
-
-            {/* Dashboard */}
-            <Route
-              path="/dashboard"
-              element={<Dashboard />}
-            />
-
-            {/* Operations */}
-            <Route
-              path="/bookings"
-              element={<Bookings />}
-            />
-            <Route
-  path="/bookings/:bookingId"
-  element={<BookingDetail />}
-/>
-
-            {/* Workforce */}
-            <Route
-              path="/workers"
-              element={<Workers />}
-            />
-
-            <Route
-              path="/workers/:workerId"
-              element={<WorkerDetail />}
-            />
-
-            {/* Customers */}
-            <Route
-              path="/customers"
-              element={<Customers />}
-            />
-
-            {/* Catalog */}
-            <Route
-              path="/services"
-              element={<Services />}
-            />
-
-            <Route
-              path="/service-areas"
-              element={<ServiceAreas />}
-            />
-
-            {/* Finance */}
-            <Route
-              path="/payments"
-              element={<Payments />}
-            />
-
-            {/* Reviews */}
-            <Route
-              path="/reviews"
-              element={<Reviews />}
-            />
-
-            {/* Notifications */}
-            <Route
-              path="/notifications"
-              element={<Notifications />}
-            />
-
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/bookings" element={<Bookings />} />
+            <Route path="/bookings/:bookingId" element={<BookingDetail />} />
+            <Route path="/workers" element={<Workers />} />
+            <Route path="/workers/:workerId" element={<WorkerDetail />} />
+            <Route path="/customers" element={<Customers />} />
+            <Route path="/services" element={<Services />} />
+            <Route path="/service-areas" element={<ServiceAreas />} />
+            <Route path="/offers-updates" element={<OffersUpdates />} />
+            <Route path="/payments" element={<Payments />} />
+            <Route path="/reviews" element={<Reviews />} />
+            <Route path="/notifications" element={<Notifications />} />
           </Route>
         </Route>
 
-        {/* Default */}
-        <Route
-          path="/"
-          element={
-            <Navigate
-              to="/dashboard"
-              replace
-            />
-          }
-        />
-
-        {/* Unknown route */}
-        <Route
-          path="*"
-          element={
-            <Navigate
-              to="/dashboard"
-              replace
-            />
-          }
-        />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   )
