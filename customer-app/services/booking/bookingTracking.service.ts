@@ -336,13 +336,12 @@ export async function getCustomerBookings(): Promise<
   ).map(mapBooking)
 
   const occurrenceBookingIds = bookings
-    .filter(
-      booking =>
-        (booking.booking_type === 'scheduled' ||
-          booking.booking_type === 'recurring') &&
-        booking.worker_id !== null,
-    )
-    .map(booking => booking.id)
+  .filter(
+    booking =>
+      booking.booking_type === 'scheduled' ||
+      booking.booking_type === 'recurring',
+  )
+  .map(booking => booking.id)
 
   if (occurrenceBookingIds.length === 0) {
     return bookings
