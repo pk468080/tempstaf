@@ -694,8 +694,15 @@ export default function RecurringBookingScreen({
   }
 
   const isSeriesCompleted =
+  occurrences.length > 0 &&
+  completedCount === occurrences.length
+
+const isSeriesCancelled =
+  booking.status === 'cancelled' ||
+  (
     occurrences.length > 0 &&
-    remainingCount === 0
+    cancelledCount === occurrences.length
+  )
 
   return (
     <ScreenContainer>
@@ -791,13 +798,15 @@ export default function RecurringBookingScreen({
             </View>
 
             <StatusBadge
-              status={
-                isSeriesCompleted
-                  ? 'completed'
-                  : activeOccurrence?.status ??
-                    booking.status
-              }
-            />
+  status={
+    isSeriesCancelled
+      ? 'cancelled'
+      : isSeriesCompleted
+        ? 'completed'
+        : activeOccurrence?.status ??
+          booking.status
+  }
+/>
           </View>
 
           <View
@@ -1199,8 +1208,7 @@ export default function RecurringBookingScreen({
         </View>
 
         {!isSeriesCompleted &&
-        booking.status !==
-          'cancelled' ? (
+!isSeriesCancelled ? (
           <Pressable
             style={
               styles.cancelButton

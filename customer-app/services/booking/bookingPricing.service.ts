@@ -68,8 +68,19 @@ export async function calculateInstantBookingPrice(
     },
   )
 
-  if (error) throw error
-  if (!data) throw new Error('The backend did not return an instant booking price.')
+if (error) {
+  throw new Error(
+    error instanceof Error
+      ? error.message
+      : typeof error === 'object' &&
+          error !== null &&
+          'message' in error
+        ? String(
+            (error as { message?: unknown }).message,
+          )
+        : 'Unable to calculate booking price.',
+  )
+}  if (!data) throw new Error('The backend did not return an instant booking price.')
 
   return {
     ...(data as BookingPriceResult),

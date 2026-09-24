@@ -566,14 +566,18 @@ export default function BookingScreen({
     setSelectedScheduledSlotKey(null)
 
     if (type === 'recurring') {
-      if (!startDate) {
-        setStartDate(today)
-      }
+  if (!startDate) {
+    setStartDate(today)
+  }
 
-      if (!endDate) {
-        setEndDate(today)
-      }
-    }
+  if (!endDate) {
+    const recurringEndDate = new Date(today)
+    recurringEndDate.setDate(
+      recurringEndDate.getDate() + 6,
+    )
+    setEndDate(recurringEndDate)
+  }
+}
   }
 
   function handleSelectScheduledSlot(
