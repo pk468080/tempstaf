@@ -559,7 +559,7 @@ export default function HomeScreen({
           <Image
             source={heroBannerImage}
             style={styles.heroBackground}
-            resizeMode="cover"
+            resizeMode="contain"
           />
 
           <View style={styles.heroTint} />
@@ -1118,6 +1118,7 @@ function ServiceCard({
   variant?: 'grid' | 'featured'
 }) {
   const initials = getServiceInitials(service.name)
+  const [imageRatio, setImageRatio] = useState<number | null>(null)
 
   return (
     <TouchableOpacity
@@ -1134,8 +1135,19 @@ function ServiceCard({
         {service.imageUrl ? (
           <Image
             source={{ uri: service.imageUrl }}
-            style={styles.cardImage}
-            resizeMode="cover"
+            style={[
+              styles.cardImage,
+              { aspectRatio: imageRatio ?? 1.15 },
+            ]}
+            resizeMode="contain"
+            onLoad={({ nativeEvent }) => {
+              const width = Number(nativeEvent.source?.width)
+              const height = Number(nativeEvent.source?.height)
+
+              if (width > 0 && height > 0) {
+                setImageRatio(width / height)
+              }
+            }}
           />
         ) : (
           <View style={styles.cardImageFallback}>
@@ -1357,7 +1369,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 13,
   },
 
   welcomeCopy: {
@@ -1671,9 +1683,9 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    width: '48.25%',
-    marginBottom: 16,
-    borderRadius: 21,
+    width: '47.6%',
+    marginBottom: 13,
+    borderRadius: 18,
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1689,15 +1701,15 @@ const styles = StyleSheet.create({
   },
 
   cardImageWrap: {
-    height: 142,
-    backgroundColor: '#EAF5F7',
+    backgroundColor: '#F3F8F9',
     position: 'relative',
     overflow: 'hidden',
   },
 
   cardImage: {
     width: '100%',
-    height: '100%',
+    height: undefined,
+    backgroundColor: '#F3F8F9',
   },
 
   cardImageShade: {
@@ -1721,8 +1733,8 @@ const styles = StyleSheet.create({
 
   cardPricePill: {
     position: 'absolute',
-    left: 9,
-    bottom: 9,
+    left: 8,
+    bottom: 8,
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 10,
@@ -1730,15 +1742,15 @@ const styles = StyleSheet.create({
   },
 
   cardPricePillText: {
-    fontSize: 8.5,
+    fontSize: 8,
     fontWeight: '800',
     color: COLORS.white,
   },
 
   cardImageBadge: {
     position: 'absolute',
-    right: 9,
-    top: 9,
+    right: 8,
+    top: 8,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 7,
@@ -1763,13 +1775,13 @@ const styles = StyleSheet.create({
   },
 
   cardContent: {
-    padding: 12,
-    paddingBottom: 13,
+    padding: 10,
+    paddingBottom: 11,
   },
 
   serviceName: {
-    fontSize: 15,
-    lineHeight: 19,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '900',
     letterSpacing: -0.15,
     color: COLORS.ink,
@@ -1777,25 +1789,25 @@ const styles = StyleSheet.create({
 
   description: {
     minHeight: 32,
-    marginTop: 5,
-    fontSize: 10.5,
-    lineHeight: 15,
+    marginTop: 4,
+    fontSize: 10,
+    lineHeight: 14,
     fontWeight: '500',
     color: COLORS.muted,
   },
 
   descriptionFallback: {
     minHeight: 32,
-    marginTop: 5,
-    fontSize: 10.5,
-    lineHeight: 15,
+    marginTop: 4,
+    fontSize: 10,
+    lineHeight: 14,
     fontWeight: '500',
     color: COLORS.muted,
   },
 
   bookRow: {
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#EEF3F5',
     flexDirection: 'row',
@@ -1845,17 +1857,15 @@ const styles = StyleSheet.create({
   },
 
   featuredCardWrap: {
-    width: 226,
-    marginRight: 12,
+    width: 210,
+    marginRight: 10,
   },
 
   featuredCard: {
     width: '100%',
   },
 
-  featuredCardImageWrap: {
-    height: 126,
-  },
+  featuredCardImageWrap: {},
 
   servicesToolbar: {
     marginBottom: 19,
