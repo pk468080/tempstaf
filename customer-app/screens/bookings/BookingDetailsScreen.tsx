@@ -516,12 +516,27 @@ export default function BookingDetailsScreen({
 
         <BookingSection title="Pricing">
           <BookingPriceSummary
-            baseAmount={
-              pricing?.gross_amount
-            }
-            discountAmount={
-              pricing?.discount_amount
-            }
+  baseAmount={
+    pricing?.gross_amount
+  }
+  discountAmount={
+    pricing?.discount_amount
+  }
+  serviceDiscountPercent={
+    pricing?.service_discount_percent
+  }
+  serviceDiscountAmount={
+    pricing?.service_discount_amount
+  }
+  discountTierName={
+    pricing?.discount_tier_name
+  }
+  promotionTitle={
+    pricing?.promotion_title
+  }
+  promotionDiscountAmount={
+    pricing?.promotion_discount_amount
+  }
             platformFee={
               pricing?.platform_fee
             }
