@@ -57,8 +57,8 @@ async function configureAndroidNotifications(): Promise<void> {
   }
 
   await Notifications.setNotificationChannelAsync(
-    'default',
-    {
+  'booking-assignment',
+  {
       name:
         'TempStaff Worker',
       importance:

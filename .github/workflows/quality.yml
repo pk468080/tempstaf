@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - development
       - "audit/**"
   pull_request:
 
@@ -13,13 +14,16 @@ jobs:
     defaults:
       run:
         working-directory: admin-dashboard
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: admin-dashboard/package-lock.json
+
       - run: npm ci
       - run: npm run lint
       - run: npm run build
@@ -29,13 +33,16 @@ jobs:
     defaults:
       run:
         working-directory: customer-app
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: customer-app/package-lock.json
+
       - run: npm ci
       - run: npx tsc --noEmit
 
@@ -44,12 +51,15 @@ jobs:
     defaults:
       run:
         working-directory: worker-app
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: worker-app/package-lock.json
+
       - run: npm ci
       - run: npx tsc --noEmit

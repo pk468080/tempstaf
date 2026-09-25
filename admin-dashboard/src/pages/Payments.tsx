@@ -317,13 +317,20 @@ export default function Payments() {
   )
 
   const grossPaid = useMemo(
-    () =>
-      paidPayments.reduce(
+  () =>
+    payments
+      .filter(
+        payment =>
+          payment.status === 'paid' ||
+          payment.status === 'partially_refunded' ||
+          payment.status === 'refunded',
+      )
+      .reduce(
         (total, payment) => total + Number(payment.amount || 0),
         0,
       ),
-    [paidPayments],
-  )
+  [payments],
+)
 
   const successfulRefundTotal = useMemo(
     () =>
