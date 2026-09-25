@@ -8,7 +8,9 @@ import {
   View,
 } from 'react-native'
 import { useEffect, useState } from 'react'
-
+import type {
+  BookingType,
+} from '../../types/booking'
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
 import BookingPriceSummary from '../../components/booking/BookingPriceSummary'
 import BookingSection from '../../components/booking/BookingSection'
@@ -35,7 +37,7 @@ const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
 
 type BookingDetailsScreenProps = {
   service: HomeService
-  bookingType: 'instant' | 'scheduled' | 'recurring'
+ bookingType: BookingType
   location: {
     latitude: number
     longitude: number

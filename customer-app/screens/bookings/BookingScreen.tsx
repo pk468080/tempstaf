@@ -52,7 +52,10 @@ toTimeString,
 } from '../../lib/bookingUtils'
 
 import type { HomeService } from '../../types/service'
-import type { BookingDraft } from '../../types/booking'
+import type {
+  BookingDraft,
+  BookingType,
+} from '../../types/booking'
 
 type BookingScreenProps = {
   service: HomeService
@@ -64,7 +67,6 @@ type BookingScreenProps = {
   onContinue?: (draft: BookingDraft) => void
 }
 
-type BookingType = 'instant' | 'scheduled' | 'recurring'
 
 const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
 
