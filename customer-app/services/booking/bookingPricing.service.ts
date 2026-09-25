@@ -3,22 +3,22 @@ import type { MultiOccurrencePricingInput } from '../../types/booking'
 export type BookingPriceResult = {
   success: boolean
   pricing_engine?: string
-  service_id?: string
-  service_variant_id?: string
-  booking_type?: string
-  occurrence_count?: number
-  hours_per_occurrence?: number
-  total_working_hours?: number
   hourly_price?: number
-  gross_amount?: number
-  discount_amount?: number
-  platform_fee?: number
-  tax_amount?: number
+  service_id: string
+service_variant_id: string
+booking_type: string
+occurrence_count: number
+hours_per_occurrence: number
+total_working_hours: number
+gross_amount: number
+discount_amount: number
+platform_fee: number
+tax_amount: number
+final_amount: number
+currency: string
+timezone: string
   tax?: number
-  final_amount?: number
-  currency?: string
   commitment_days?: number | null
-  timezone?: string
   discount_tier_id?: string | null
   discount_tier_name?: string | null
   discount_percent?: number
