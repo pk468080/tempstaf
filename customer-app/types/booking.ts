@@ -38,6 +38,8 @@ export type BookingCreationResult = {
   final_amount: number
   currency: string
   timezone: string
+  instant_available?: boolean
+  fallback_to_scheduled?: boolean
 }
 
 export type MultiOccurrenceBookingInput = {

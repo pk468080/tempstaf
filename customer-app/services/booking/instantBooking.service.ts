@@ -1,17 +1,6 @@
 import { supabase } from '../../lib/supabase'
 
-export type InstantBookingResult = {
-	booking_id: string
-	occurrence_count: number
-	total_working_hours: number
-	gross_amount: number
-	discount_amount: number
-	final_amount: number
-	currency: string
-	timezone: string
-	instant_available?: boolean
-	fallback_to_scheduled?: boolean
-}
+import type { BookingCreationResult } from '../../types/booking'
 
 export type CreateInstantBookingInput = {
 	serviceVariantId: string
@@ -23,7 +12,7 @@ export type CreateInstantBookingInput = {
 
 export async function createCustomerInstantBooking(
 	input: CreateInstantBookingInput,
-): Promise<InstantBookingResult> {
+): Promise<BookingCreationResult> {
 	const { data, error } = await supabase.rpc(
 		'create_customer_hourly_booking',
 		{
@@ -44,5 +33,5 @@ export async function createCustomerInstantBooking(
 		throw new Error('The backend did not return a booking result.')
 	}
 
-	return data as InstantBookingResult
+	return data as BookingCreationResult
 }
