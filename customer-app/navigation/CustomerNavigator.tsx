@@ -31,6 +31,12 @@ import {
   createCustomerInstantBooking,
 } from '../services/booking/instantBooking.service'
 
+import {
+  getWeekdayIndex,
+  toDateString,
+  toTimeString,
+} from '../lib/bookingUtils'
+
 import type { BookingDraft } from '../types/booking'
 import type { HomeService } from '../types/service'
 
@@ -82,65 +88,7 @@ const Tab =
 
 const Stack =
   createNativeStackNavigator<CustomerStackParamList>()
-function toDateOnly(value: string) {
-  const date = new Date(value)
 
-  const year = date.getFullYear()
-  const month = String(
-    date.getMonth() + 1,
-  ).padStart(2, '0')
-  const day = String(
-    date.getDate(),
-  ).padStart(2, '0')
-
-  return `${year}-${month}-${day}`
-}
-function toTimeOnly(
-  value: string,
-) {
-  const date = new Date(value)
-
-  const hours = String(
-    date.getHours(),
-  ).padStart(2, '0')
-
-  const minutes = String(
-    date.getMinutes(),
-  ).padStart(2, '0')
-
-  const seconds = String(
-    date.getSeconds(),
-  ).padStart(2, '0')
-
-  return `${hours}:${minutes}:${seconds}`
-}
-
-const WEEKDAY_INDEX: Record<
-  string,
-  number
-> = {
-  Sunday: 0,
-  Monday: 1,
-  Tuesday: 2,
-  Wednesday: 3,
-  Thursday: 4,
-  Friday: 5,
-  Saturday: 6,
-}
-
-function convertWeekdays(
-  weekdays: string[],
-) {
-  return weekdays
-    .map(
-      weekday =>
-        WEEKDAY_INDEX[weekday],
-    )
-    .filter(
-      value =>
-        value !== undefined,
-    )
-}
 
 
 export default function CustomerNavigator({
@@ -280,24 +228,24 @@ export default function CustomerNavigator({
                     addressId,
 
                     startDate:
-                      toDateOnly(
-                        draft.startDate!,
-                      ),
+  toDateString(
+    new Date(draft.startDate!),
+  ),
 
-                    endDate:
-                      toDateOnly(
-                        draft.endDate!,
-                      ),
+endDate:
+  toDateString(
+    new Date(draft.endDate!),
+  ),
 
-                    startTime:
-                      toTimeOnly(
-                        draft.startTime,
-                      ),
+startTime:
+  toTimeString(
+    new Date(draft.startTime),
+  ),
 
-                    endTime:
-                      toTimeOnly(
-                        draft.endTime,
-                      ),
+endTime:
+  toTimeString(
+    new Date(draft.endTime),
+  ),
 
                     selectedWeekdays:
                       [0, 1, 2, 3, 4, 5, 6],
@@ -331,9 +279,9 @@ export default function CustomerNavigator({
             }
 
             const weekdayIndexes =
-              convertWeekdays(
-                draft.selectedWeekdays,
-              )
+  draft.selectedWeekdays
+    .map(getWeekdayIndex)
+    .filter(index => index >= 0)
 
             if (
               weekdayIndexes.length ===
@@ -344,14 +292,14 @@ export default function CustomerNavigator({
               )
             }
 
-            const expectedWeekdayIndexes =
-              Array.from(
-                new Set(
-                  convertWeekdays(
-                    draft.selectedWeekdays,
-                  ),
-                ),
-              )
+   const expectedWeekdayIndexes =
+  Array.from(
+    new Set(
+      draft.selectedWeekdays
+        .map(getWeekdayIndex)
+        .filter(index => index >= 0),
+    ),
+  )
 
             const expectedExcludedDates =
               Array.from(
@@ -397,24 +345,24 @@ export default function CustomerNavigator({
                   addressId,
 
                   startDate:
-                    toDateOnly(
-                      draft.startDate!,
-                    ),
+  toDateString(
+    new Date(draft.startDate!),
+  ),
 
-                  endDate:
-                    toDateOnly(
-                      draft.endDate!,
-                    ),
+endDate:
+  toDateString(
+    new Date(draft.endDate!),
+  ),
 
-                  startTime:
-                    toTimeOnly(
-                      draft.startTime,
-                    ),
+startTime:
+  toTimeString(
+    new Date(draft.startTime),
+  ),
 
-                  endTime:
-                    toTimeOnly(
-                      draft.endTime,
-                    ),
+endTime:
+  toTimeString(
+    new Date(draft.endTime),
+  ),
 
                   selectedWeekdays:
                     expectedWeekdayIndexes,
