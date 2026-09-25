@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-
+import type { MultiOccurrencePricingInput } from '../../types/booking'
 export type BookingPriceResult = {
   success: boolean
   pricing_engine?: string
@@ -45,16 +45,7 @@ export type BookingPriceResult = {
   occurrences?: unknown[]
 }
 
-type CalculateMultiOccurrencePricingInput = {
-  serviceVariantId: string
-  startDate: string
-  endDate: string
-  startTime: string
-  endTime: string
-  selectedWeekdays: number[]
-  excludedDates: string[]
-  bookingType: 'scheduled' | 'recurring'
-}
+
 
 export async function calculateInstantBookingPrice(
   serviceVariantId: string,
@@ -92,7 +83,7 @@ if (error) {
 }
 
 export async function calculateMultiOccurrenceBookingPrice(
-  input: CalculateMultiOccurrencePricingInput,
+  input: MultiOccurrencePricingInput,
 ): Promise<BookingPriceResult> {
   const { data, error } = await supabase.rpc(
     'calculate_multi_occurrence_booking_price',
@@ -115,7 +106,10 @@ export async function calculateMultiOccurrenceBookingPrice(
 }
 
 export async function calculateScheduledBookingPrice(
-  input: Omit<CalculateMultiOccurrencePricingInput, 'selectedWeekdays' | 'bookingType'>,
+  input: Omit<
+    MultiOccurrencePricingInput,
+    'selectedWeekdays' | 'bookingType'
+  >,
 ): Promise<BookingPriceResult> {
   return calculateMultiOccurrenceBookingPrice({
     ...input,

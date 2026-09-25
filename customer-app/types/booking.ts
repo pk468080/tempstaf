@@ -42,14 +42,23 @@ export type BookingCreationResult = {
   fallback_to_scheduled?: boolean
 }
 
-export type MultiOccurrenceBookingInput = {
+export type BookingScheduleInput = {
   serviceVariantId: string
-  addressId: string
   startDate: string
   endDate: string
   startTime: string
   endTime: string
   selectedWeekdays: number[]
   excludedDates: string[]
-  notes?: string | null
 }
+
+export type MultiOccurrenceBookingInput =
+  BookingScheduleInput & {
+    addressId: string
+    notes?: string | null
+  }
+
+export type MultiOccurrencePricingInput =
+  BookingScheduleInput & {
+    bookingType: 'scheduled' | 'recurring'
+  }
