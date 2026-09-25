@@ -1,34 +1,14 @@
 import { supabase } from '../../lib/supabase'
+import type {
+  BookingCreationResult,
+  MultiOccurrenceBookingInput,
+} from '../../types/booking'
 
-export type RecurringBookingResult = {
-  booking_id: string
-  occurrence_count: number
-  total_working_hours: number
-  gross_amount: number
-  discount_amount: number
-  platform_fee?: number
-  tax_amount?: number
-  tax?: number
-  final_amount: number
-  currency: string
-  timezone: string
-}
 
-type CreateRecurringBookingInput = {
-  serviceVariantId: string
-  addressId: string
-  startDate: string
-  endDate: string
-  startTime: string
-  endTime: string
-  selectedWeekdays: number[]
-  excludedDates: string[]
-  notes?: string | null
-}
 
 export async function createCustomerRecurringBooking(
-  input: CreateRecurringBookingInput,
-): Promise<RecurringBookingResult> {
+  input: MultiOccurrenceBookingInput,
+): Promise<BookingCreationResult> {
   const { data, error } = await supabase.rpc(
     'create_customer_recurring_booking',
     {
@@ -71,5 +51,5 @@ export async function createCustomerRecurringBooking(
     )
   }
 
-  return data as RecurringBookingResult
+  return data as BookingCreationResult
 }

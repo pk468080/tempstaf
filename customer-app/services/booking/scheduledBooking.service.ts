@@ -1,30 +1,10 @@
 import { supabase } from '../../lib/supabase'
+import type {
+  BookingCreationResult,
+  MultiOccurrenceBookingInput,
+} from '../../types/booking'
 
-export type ScheduledBookingResult = {
-  booking_id: string
-  occurrence_count: number
-  total_working_hours: number
-  gross_amount: number
-  discount_amount: number
-  platform_fee?: number
-  tax_amount?: number
-  tax?: number
-  final_amount: number
-  currency: string
-  timezone: string
-}
 
-type CreateScheduledBookingInput = {
-  serviceVariantId: string
-  addressId: string
-  startDate: string
-  endDate: string
-  startTime: string
-  endTime: string
-  selectedWeekdays?: number[]
-  excludedDates: string[]
-  notes?: string | null
-}
 
 function normalizeSupabaseError(
   error: unknown,
@@ -85,8 +65,10 @@ function normalizeSupabaseError(
 }
 
 export async function createCustomerScheduledBooking(
-  input: CreateScheduledBookingInput,
-): Promise<ScheduledBookingResult> {
+  input: Omit<MultiOccurrenceBookingInput, 'selectedWeekdays'> & {
+    selectedWeekdays?: number[]
+  },
+): Promise<BookingCreationResult> {
   try {
     const {
       data,
@@ -140,7 +122,7 @@ export async function createCustomerScheduledBooking(
       )
     }
 
-    return data as ScheduledBookingResult
+    return data as BookingCreationResult
   } catch (error) {
     console.error(
       'Scheduled booking RPC failed:',
