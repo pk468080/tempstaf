@@ -9,7 +9,6 @@ import type {
 } from '../../types/notifications'
 
 import {
-  getUnreadNotificationCount,
   sortNotifications,
 } from '../../lib/notificationUtils'
 
@@ -144,9 +143,17 @@ function validateNotificationId(
 function validatePushToken(
   token: string,
 ): void {
-  if (!token.trim()) {
+  const normalized = token.trim()
+
+  if (!normalized) {
     throw new Error(
       'Push token is required.',
+    )
+  }
+
+  if (!/^ExponentPushToken\\[[^\\]]+\\]$/.test(normalized)) {
+    throw new Error(
+      'Invalid Expo push token.',
     )
   }
 }
@@ -183,7 +190,20 @@ function normalizePlatform(
     return null
   }
 
-  return platform.trim().toLowerCase()
+  const normalized =
+    platform.trim().toLowerCase()
+
+  if (
+    normalized !== 'android' &&
+    normalized !== 'ios' &&
+    normalized !== 'web'
+  ) {
+    throw new Error(
+      'Invalid push token platform.',
+    )
+  }
+
+  return normalized
 }
 
 export async function getWorkerNotifications(
@@ -412,97 +432,52 @@ export async function registerWorkerPushToken(
   const workerId =
     await getCurrentWorkerId()
 
+  const normalizedToken =
+    token.trim()
+
   const normalizedPlatform =
     normalizePlatform(
       platform,
     )
 
   const {
-    data: existing,
-    error: existingError,
-  } = await supabase
-    .from('push_tokens')
-    .select(
-      PUSH_TOKEN_SELECT,
-    )
-    .eq(
-      'user_id',
-      workerId,
-    )
-    .eq(
-      'token',
-      token.trim(),
-    )
-    .maybeSingle()
-
-  if (existingError) {
-    throw existingError
-  }
-
-  if (existing) {
-    const {
-      data,
-      error,
-    } = await supabase
-      .from('push_tokens')
-      .update({
-        platform:
-          normalizedPlatform,
-
-        is_active:
-          true,
-      })
-      .eq(
-        'id',
-        existing.id,
-      )
-      .eq(
-        'user_id',
-        workerId,
-      )
-      .select(
-        PUSH_TOKEN_SELECT,
-      )
-      .single()
-
-    if (error) {
-      throw error
-    }
-
-    return mapPushToken(
-      data as WorkerPushTokenRow,
-    )
-  }
-
-  const {
     data,
     error,
-  } = await supabase
-    .from('push_tokens')
-    .insert({
-      user_id:
-        workerId,
+  } = await supabase.rpc(
+    'register_worker_push_token',
+    {
+      p_token:
+        normalizedToken,
 
-      token:
-        token.trim(),
-
-      platform:
+      p_platform:
         normalizedPlatform,
-
-      is_active:
-        true,
-    })
-    .select(
-      PUSH_TOKEN_SELECT,
-    )
-    .single()
+    },
+  )
 
   if (error) {
     throw error
   }
 
+  if (!data) {
+    throw new Error(
+      'Worker push token could not be registered.',
+    )
+  }
+
+  const row =
+    data as unknown as WorkerPushTokenRow
+
+  if (
+    row.user_id !==
+    workerId
+  ) {
+    throw new Error(
+      'Push token registration belongs to a different worker account.',
+    )
+  }
+
   return mapPushToken(
-    data as WorkerPushTokenRow,
+    row,
   )
 }
 

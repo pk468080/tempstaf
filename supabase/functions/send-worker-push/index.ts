@@ -1,6 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "npm:@supabase/server";
 
+const MAX_EXPO_BATCH_SIZE = 100;
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -16,6 +18,14 @@ function isExpoToken(token: unknown): token is string {
     token.trim().startsWith("ExponentPushToken[") &&
     token.trim().endsWith("]")
   );
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    result.push(items.slice(i, i + size));
+  }
+  return result;
 }
 
 export default {
@@ -54,8 +64,6 @@ export default {
         );
       }
 
-      const tokenSet = new Set<string>();
-
       const { data: pushTokens, error: pushTokenError } =
         await ctx.supabaseAdmin
           .from("push_tokens")
@@ -68,28 +76,11 @@ export default {
         return json({ error: "Unable to load push token" }, 500);
       }
 
+      const tokenSet = new Set<string>();
+
       for (const row of pushTokens ?? []) {
         if (isExpoToken(row?.token)) {
           tokenSet.add(row.token.trim());
-        }
-      }
-
-      const { data: legacyTokens, error: legacyTokenError } =
-        await ctx.supabaseAdmin
-          .from("worker_push_tokens")
-          .select("expo_push_token")
-          .eq("worker_id", userId);
-
-      if (legacyTokenError) {
-        console.warn(
-          "Failed to load legacy worker_push_tokens:",
-          legacyTokenError,
-        );
-      } else {
-        for (const row of legacyTokens ?? []) {
-          if (isExpoToken(row?.expo_push_token)) {
-            tokenSet.add(row.expo_push_token.trim());
-          }
         }
       }
 
@@ -98,65 +89,112 @@ export default {
       if (tokens.length === 0) {
         return json({
           sent: 0,
+          batches: 0,
+          retired_tokens: 0,
           reason: "No active Expo push tokens",
         });
       }
 
-      const messages = tokens.map((to) => ({
-        to,
-        sound: "default",
-        title,
-        body,
-        data: {
-          notification_id: record.id ?? null,
-          booking_id: record.booking_id ?? null,
-          notification_type:
-            record.notification_type ?? "general",
-        },
-        channelId: "booking-assignment",
-      }));
+      const retiredTokens = new Set<string>();
+      let sent = 0;
+      const batchResults: unknown[] = [];
 
-      const expoResponse = await fetch(
-        "https://exp.host/--/api/v2/push/send",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
+      for (const tokenBatch of chunk(tokens, MAX_EXPO_BATCH_SIZE)) {
+        const messages = tokenBatch.map((to) => ({
+          to,
+          sound: "default",
+          title,
+          body,
+          data: {
+            notification_id: record.id ?? null,
+            booking_id: record.booking_id ?? null,
+            notification_type:
+              record.notification_type ?? "general",
           },
-          body: JSON.stringify(messages),
-        },
-      );
+          channelId: "booking-assignment",
+        }));
 
-      const expoBodyText = await expoResponse.text();
+        const expoResponse = await fetch(
+          "https://exp.host/--/api/v2/push/send",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify(messages),
+          },
+        );
 
-      let expoBody: unknown = expoBodyText;
+        const expoBodyText = await expoResponse.text();
 
-      try {
-        expoBody = JSON.parse(expoBodyText);
-      } catch {
-        // Keep non-JSON response text for diagnostics.
+        let expoBody: any = expoBodyText;
+
+        try {
+          expoBody = JSON.parse(expoBodyText);
+        } catch {
+          // Keep non-JSON response text for diagnostics.
+        }
+
+        if (!expoResponse.ok) {
+          console.error(
+            "Expo push send failed:",
+            expoResponse.status,
+            expoBodyText,
+          );
+
+          return json(
+            {
+              error: "Push delivery failed",
+              status: expoResponse.status,
+              sent_before_failure: sent,
+            },
+            502,
+          );
+        }
+
+        const tickets = Array.isArray(expoBody?.data)
+          ? expoBody.data
+          : [];
+
+        for (let i = 0; i < Math.min(tickets.length, tokenBatch.length); i += 1) {
+          const ticket = tickets[i];
+
+          if (
+            ticket?.status === "error" &&
+            ticket?.details?.error === "DeviceNotRegistered"
+          ) {
+            retiredTokens.add(tokenBatch[i]);
+          }
+        }
+
+        sent += messages.length;
+        batchResults.push(expoBody);
       }
 
-      if (!expoResponse.ok) {
-        console.error(
-          "Expo push send failed:",
-          expoResponse.status,
-          expoBodyText,
-        );
+      if (retiredTokens.size > 0) {
+        const { error: retireError } = await ctx.supabaseAdmin
+          .from("push_tokens")
+          .update({
+            is_active: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", userId)
+          .in("token", Array.from(retiredTokens));
 
-        return json(
-          {
-            error: "Push delivery failed",
-            status: expoResponse.status,
-          },
-          502,
-        );
+        if (retireError) {
+          console.error(
+            "Failed to retire invalid Expo push tokens:",
+            retireError,
+          );
+        }
       }
 
       return json({
-        sent: messages.length,
-        expo: expoBody,
+        sent,
+        batches: Math.ceil(tokens.length / MAX_EXPO_BATCH_SIZE),
+        retired_tokens: retiredTokens.size,
+        expo: batchResults.length === 1 ? batchResults[0] : batchResults,
       });
     },
   ),
