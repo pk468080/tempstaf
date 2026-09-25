@@ -4,7 +4,6 @@ export type BookingType =
   | 'recurring'
 
 export type BookingDraft = {
-  serviceId: string
   bookingType: BookingType
 
   location: {
@@ -21,9 +20,6 @@ export type BookingDraft = {
 
   selectedWeekdays: string[]
   excludedDates: string[]
-
-  hourlyPrice: number
-  currency: string | null
 }
 
 export type BookingCreationResult = {

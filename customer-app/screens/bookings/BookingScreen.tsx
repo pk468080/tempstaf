@@ -706,7 +706,6 @@ const normalizedExcludedDates =
     : []
 
 const draft: BookingDraft = {
-  serviceId: service.id,
   bookingType,
   location,
   startDate: startDate
@@ -725,8 +724,7 @@ const draft: BookingDraft = {
     bookingType === 'recurring'
       ? normalizedExcludedDates
       : [],
-  hourlyPrice: service.hourlyPrice ?? 0,
-  currency: service.currency ?? null,
+
 }
 
 if (
