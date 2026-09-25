@@ -10,6 +10,7 @@ import {
 import {
   getWorkerPresence,
   sendWorkerPresenceHeartbeat,
+  updateWorkerLocation,
 } from '../../services/worker/workerPresence.service'
 
 import {
@@ -21,8 +22,22 @@ import {
   stopWorkerBackgroundLocationTracking,
 } from '../../services/location/workerBackgroundLocation.service'
 
+import {
+  getActiveWorkerBookings,
+} from '../../services/bookings/workerBookings.service'
+
+import {
+  supabase,
+} from '../../lib/supabase'
+
 const PRESENCE_POLL_INTERVAL_MS = 15_000
 const HEARTBEAT_INTERVAL_MS = 30_000
+
+const LIVE_TRACKING_STATUSES = [
+  'on_the_way',
+  'arrived',
+  'in_progress',
+] as const
 
 export default function WorkerPresenceRuntime() {
   const {
@@ -36,6 +51,9 @@ export default function WorkerPresenceRuntime() {
     if (!session?.user?.id) {
       return
     }
+
+    const workerId =
+      session.user.id
 
     stoppedRef.current = false
 
@@ -56,6 +74,60 @@ export default function WorkerPresenceRuntime() {
           cause,
         )
       }
+    }
+
+    async function hasActiveTrackingBooking(): Promise<boolean> {
+      /*
+       * Check parent bookings first.
+       */
+      const activeBookings =
+        await getActiveWorkerBookings()
+
+      const hasLiveParentBooking =
+        activeBookings.some(
+          (booking) =>
+            LIVE_TRACKING_STATUSES.includes(
+              booking.status as (
+                typeof LIVE_TRACKING_STATUSES
+              )[number],
+            ),
+        )
+
+      if (hasLiveParentBooking) {
+        return true
+      }
+
+      /*
+       * Recurring bookings use occurrence-level
+       * journey states, so check active occurrences too.
+       */
+      const {
+        data,
+        error,
+      } = await supabase
+        .from(
+          'booking_schedule_occurrences',
+        )
+        .select('id')
+        .eq(
+          'worker_id',
+          workerId,
+        )
+        .in(
+          'status',
+          [
+            ...LIVE_TRACKING_STATUSES,
+          ],
+        )
+        .limit(1)
+
+      if (error) {
+        throw error
+      }
+
+      return (
+        (data?.length ?? 0) > 0
+      )
     }
 
     async function runCycle() {
@@ -80,7 +152,27 @@ export default function WorkerPresenceRuntime() {
           presence?.status ===
           'available'
 
-        if (!workerIsAvailable) {
+        /*
+         * A worker can be unavailable in presence because
+         * they are busy, while still actively travelling
+         * to or serving a customer.
+         */
+        const activeTrackingBooking =
+          await hasActiveTrackingBooking()
+
+        if (stoppedRef.current) {
+          return
+        }
+
+        const shouldTrackLocation =
+          workerIsAvailable ||
+          activeTrackingBooking
+
+        /*
+         * Stop location tracking only when the worker is
+         * neither available nor actively handling a booking.
+         */
+        if (!shouldTrackLocation) {
           if (
             backgroundTrackingAttempted
           ) {
@@ -93,24 +185,32 @@ export default function WorkerPresenceRuntime() {
           return
         }
 
+        /*
+         * Keep background location tracking alive for:
+         *
+         * - available workers
+         * - workers actively handling a booking
+         */
         if (
           !backgroundTrackingAttempted
         ) {
-          backgroundTrackingAttempted =
-            true
-
           try {
             await startWorkerBackgroundLocationTracking()
+
+            backgroundTrackingAttempted =
+              true
           } catch (cause) {
             /*
-             * Background location permission may not yet
-             * be granted. Foreground heartbeat continues
-             * to keep the presence alive while the app is active.
+             * Background permission may not be available.
+             * Foreground location updates can still continue.
              */
             console.warn(
               'Worker background location tracking is unavailable:',
               cause,
             )
+
+            backgroundTrackingAttempted =
+              false
           }
         }
 
@@ -135,17 +235,40 @@ export default function WorkerPresenceRuntime() {
           return
         }
 
-        await sendWorkerPresenceHeartbeat(
-          location.latitude,
-          location.longitude,
-        )
+        /*
+         * Available worker:
+         * keep worker presence alive.
+         */
+        if (workerIsAvailable) {
+          await sendWorkerPresenceHeartbeat(
+            location.latitude,
+            location.longitude,
+          )
+        }
+        /*
+         * Busy worker with an active booking:
+         * write the location through worker_update_location.
+         *
+         * The backend creates booking-scoped tracking rows
+         * for active parent bookings and active recurring
+         * occurrences.
+         */
+        else if (
+          activeTrackingBooking
+        ) {
+          await updateWorkerLocation(
+            location.latitude,
+            location.longitude,
+            null,
+          )
+        }
 
         lastHeartbeatAt =
           Date.now()
       } catch (cause) {
         /*
-         * A temporary location/network failure must not
-         * crash the Worker App. The next cycle retries.
+         * Temporary network/location/database failures
+         * should not crash the Worker App.
          */
         console.warn(
           'Worker presence runtime update failed:',

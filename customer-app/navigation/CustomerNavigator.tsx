@@ -142,6 +142,7 @@ function convertWeekdays(
     )
 }
 
+
 export default function CustomerNavigator({
   location,
   onLocationChange,
