@@ -25,6 +25,8 @@ import {
   generateRecurringOccurrences,
   formatDateDisplay,
   formatTimeDisplay,
+  toDateString,
+  toTimeString,
 } from '../../lib/bookingUtils'
 
 import type { HomeService } from '../../types/service'
