@@ -418,6 +418,21 @@ export type Database = {
     Views: {}
 
     Functions: {
+        register_worker_push_token: {
+    Args: {
+      p_token: string
+      p_platform?: string | null
+    }
+    Returns: {
+      id: string
+      user_id: string
+      token: string
+      platform: string | null
+      is_active: boolean
+      created_at: string
+      updated_at: string
+    }
+  }
   worker_booking_action: {
     Args: {
       p_booking_id: string
