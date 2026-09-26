@@ -1,5 +1,9 @@
-import RootNavigator from './navigation/RootNavigator'
+import { View, Text } from "react-native";
 
 export default function App() {
-  return <RootNavigator />
+  return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <Text>Hello Expo</Text>
+    </View>
+  );
 }
