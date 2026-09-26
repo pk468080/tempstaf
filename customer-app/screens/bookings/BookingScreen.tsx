@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
@@ -11,7 +10,6 @@ import {
 
 import { ScreenContainer } from '../../components/layout/ScreenContainer'
 
-import BookingMethodCard from '../../components/booking/BookingMethodCard'
 import ServiceAreaStatusCard from '../../components/booking/ServiceAreaStatusCard'
 import TimeRangePicker from '../../components/booking/TimeRangePicker'
 import DateRangePicker from '../../components/booking/DateRangePicker'
@@ -33,16 +31,20 @@ import {
 } from '../../services/availability/scheduledAvailability.service'
 
 import {
+  getInstantAvailabilitySlots,
+  type InstantAvailabilitySlot,
+} from '../../services/availability/instantSlotAvailability.service'
+
+import {
   calculateMultiOccurrenceBookingPrice,
   type BookingPriceResult,
 } from '../../services/booking/bookingPricing.service'
 
 import {
   toDateString,
-toTimeString,
+  toTimeString,
   startOfToday,
   startOfDay,
-  isNearTermDate,
   getDurationHours,
   isValidTimeRange,
   getWeekdayIndex,
@@ -67,7 +69,6 @@ type BookingScreenProps = {
   onContinue?: (draft: BookingDraft) => void
 }
 
-
 const tempStaffLogo = require('../../assets/branding/tempstuff-logo.png')
 
 const METHOD_COPY: Record<
@@ -76,7 +77,6 @@ const METHOD_COPY: Record<
     eyebrow: string
     title: string
     description: string
-    badge?: string
   }
 > = {
   instant: {
@@ -84,7 +84,6 @@ const METHOD_COPY: Record<
     title: 'Instant',
     description:
       'Start today with a nearby available worker.',
-    badge: 'Available now',
   },
   scheduled: {
     eyebrow: 'FLEXIBLE',
@@ -100,6 +99,29 @@ const METHOD_COPY: Record<
   },
 }
 
+function getNextInstantStartTime(now = new Date()) {
+  const result = new Date(now)
+
+  result.setSeconds(0, 0)
+
+  const minutes = result.getMinutes()
+  const remainder = minutes % 15
+
+  if (remainder !== 0) {
+    result.setMinutes(minutes + (15 - remainder))
+  } else {
+    result.setMinutes(minutes + 15)
+  }
+
+  return result
+}
+
+function getDefaultInstantEndTime(start: Date) {
+  const end = new Date(start)
+  end.setHours(end.getHours() + 1)
+  return end
+}
+
 export default function BookingScreen({
   service,
   location,
@@ -107,20 +129,24 @@ export default function BookingScreen({
 }: BookingScreenProps) {
   const today = useMemo(() => startOfToday(), [])
 
+  const tomorrow = useMemo(() => {
+    const date = new Date(today)
+    date.setDate(date.getDate() + 1)
+    return date
+  }, [today])
+
   const [bookingType, setBookingType] =
     useState<BookingType>('instant')
 
-  const [startTime, setStartTime] = useState(() => {
-    const date = new Date()
-    date.setHours(10, 0, 0, 0)
-    return date
-  })
+  const [startTime, setStartTime] = useState(() =>
+    getNextInstantStartTime(),
+  )
 
-  const [endTime, setEndTime] = useState(() => {
-    const date = new Date()
-    date.setHours(18, 0, 0, 0)
-    return date
-  })
+  const [endTime, setEndTime] = useState(() =>
+    getDefaultInstantEndTime(
+      getNextInstantStartTime(),
+    ),
+  )
 
   const [startDate, setStartDate] =
     useState<Date | null>(null)
@@ -164,6 +190,24 @@ export default function BookingScreen({
     setSelectedScheduledSlotKey,
   ] = useState<string | null>(null)
 
+  const [instantSlots, setInstantSlots] =
+    useState<InstantAvailabilitySlot[]>([])
+
+  const [
+    instantAvailabilityLoading,
+    setInstantAvailabilityLoading,
+  ] = useState(false)
+
+  const [
+    instantAvailabilityError,
+    setInstantAvailabilityError,
+  ] = useState<string | null>(null)
+
+  const [
+    selectedInstantSlotKey,
+    setSelectedInstantSlotKey,
+  ] = useState<string | null>(null)
+
   const [currentTime, setCurrentTime] =
     useState(() => new Date())
 
@@ -184,18 +228,25 @@ export default function BookingScreen({
   const timeRangeValid =
     isValidTimeRange(startTime, endTime)
 
-  const isNearTerm =
-    startDate &&
-    isNearTermDate(startDate, today)
-
-  const canSelectScheduledSlots =
-    bookingType === 'scheduled' &&
-    Boolean(isNearTerm)
-
   const isTodaySelected =
     !!startDate &&
     startOfDay(startDate).getTime() ===
       today.getTime()
+
+  const isTomorrowSelected =
+    !!startDate &&
+    startOfDay(startDate).getTime() ===
+      tomorrow.getTime()
+
+  /*
+   * The near-term customer slot API is used for tomorrow.
+   * Future scheduled dates remain valid without requiring
+   * a live slot because they can be matched later or assigned
+   * manually by admin.
+   */
+  const canSelectScheduledSlots =
+    bookingType === 'scheduled' &&
+    isTomorrowSelected
 
   const visibleScheduledSlots = useMemo(() => {
     if (!isTodaySelected) {
@@ -213,11 +264,19 @@ export default function BookingScreen({
     scheduledSlots,
   ])
 
-  const selectedSlotIsAvailable =
+  const selectedScheduledSlotIsAvailable =
     visibleScheduledSlots.some(
       slot =>
         `${slot.start}-${slot.end}` ===
           selectedScheduledSlotKey &&
+        slot.available_worker_count > 0,
+    )
+
+  const selectedInstantSlotIsAvailable =
+    instantSlots.some(
+      slot =>
+        `${slot.start}-${slot.end}` ===
+          selectedInstantSlotKey &&
         slot.available_worker_count > 0,
     )
 
@@ -277,6 +336,100 @@ export default function BookingScreen({
     bookingType,
   ])
 
+  /*
+   * Load instant slots based on:
+   * service variant + customer address + requested duration.
+   *
+   * The RPC itself checks live presence, location freshness,
+   * distance, service match and overlapping bookings.
+   */
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInstantSlots() {
+      setInstantSlots([])
+      setInstantAvailabilityError(null)
+
+      if (
+        bookingType !== 'instant' ||
+        !location ||
+        !timeRangeValid
+      ) {
+        setInstantAvailabilityLoading(false)
+        return
+      }
+
+      setInstantAvailabilityLoading(true)
+
+      try {
+        const addressId =
+          await getOrCreateCustomerAddress(
+            location,
+          )
+
+        const result =
+          await getInstantAvailabilitySlots(
+            service.serviceVariantId,
+            addressId,
+            durationHours,
+          )
+
+        if (cancelled) {
+          return
+        }
+
+        setInstantSlots(result.slots)
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+
+        setInstantAvailabilityError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load instant availability.',
+        )
+      } finally {
+        if (!cancelled) {
+          setInstantAvailabilityLoading(false)
+        }
+      }
+    }
+
+    void loadInstantSlots()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    bookingType,
+    location,
+    service.serviceVariantId,
+    durationHours,
+    timeRangeValid,
+    currentTime,
+  ])
+
+  /*
+   * Refresh live instant availability every 30 seconds.
+   */
+  useEffect(() => {
+    if (bookingType !== 'instant') {
+      return
+    }
+
+    const interval = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 30_000)
+
+    return () => clearInterval(interval)
+  }, [bookingType])
+
+  /*
+   * Scheduled availability is limited to tomorrow.
+   * Future dates still remain bookable without a current
+   * worker slot because assignment can happen later/admin.
+   */
   useEffect(() => {
     let cancelled = false
 
@@ -290,6 +443,7 @@ export default function BookingScreen({
         !startDate ||
         !location
       ) {
+        setScheduledAvailabilityLoading(false)
         return
       }
 
@@ -297,6 +451,7 @@ export default function BookingScreen({
         setScheduledAvailabilityError(
           'Select a time range of at least 1 hour.',
         )
+        setScheduledAvailabilityLoading(false)
         return
       }
 
@@ -309,14 +464,7 @@ export default function BookingScreen({
           )
 
         const startOfSelectedDay =
-          new Date(startDate)
-
-        startOfSelectedDay.setHours(
-          0,
-          0,
-          0,
-          0,
-        )
+          startOfDay(startDate)
 
         const endOfSelectedDay =
           new Date(startOfSelectedDay)
@@ -393,42 +541,37 @@ export default function BookingScreen({
 
   useEffect(() => {
     if (
-      bookingType !== 'instant' &&
-      (!isTodaySelected ||
-        !canSelectScheduledSlots)
-    ) {
-      return
-    }
-
-    const interval = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 30_000)
-
-    return () => clearInterval(interval)
-  }, [
-    bookingType,
-    canSelectScheduledSlots,
-    isTodaySelected,
-  ])
-
-  useEffect(() => {
-    if (
       selectedScheduledSlotKey &&
-      !selectedSlotIsAvailable
+      !selectedScheduledSlotIsAvailable
     ) {
       setSelectedScheduledSlotKey(null)
     }
   }, [
     selectedScheduledSlotKey,
-    selectedSlotIsAvailable,
+    selectedScheduledSlotIsAvailable,
+  ])
+
+  useEffect(() => {
+    if (
+      selectedInstantSlotKey &&
+      !selectedInstantSlotIsAvailable
+    ) {
+      setSelectedInstantSlotKey(null)
+    }
+  }, [
+    selectedInstantSlotKey,
+    selectedInstantSlotIsAvailable,
   ])
 
   const instantStartTimeValid =
     bookingType !== 'instant' ||
     (startOfDay(startTime).getTime() ===
       today.getTime() &&
-      startTime.getTime() >
-        currentTime.getTime())
+      startTime.getTime() >=
+        new Date(
+          currentTime.getTime() +
+            15 * 60 * 1000,
+        ).getTime())
 
   useEffect(() => {
     let cancelled = false
@@ -455,7 +598,6 @@ export default function BookingScreen({
       setPricingLoading(true)
 
       try {
-
         const weekdayIndexes =
           bookingType === 'scheduled'
             ? [
@@ -469,7 +611,9 @@ export default function BookingScreen({
               ]
             : selectedWeekdays
                 .map(getWeekdayIndex)
-                .filter(index => index >= 0)
+                .filter(
+                  index => index >= 0,
+                )
 
         const result =
           await calculateMultiOccurrenceBookingPrice(
@@ -541,20 +685,39 @@ export default function BookingScreen({
 
     setBookingType(type)
     setSelectedScheduledSlotKey(null)
+    setSelectedInstantSlotKey(null)
 
     if (type === 'recurring') {
-  if (!startDate) {
-    setStartDate(today)
+      if (!startDate) {
+        setStartDate(new Date(tomorrow))
+      }
+
+      if (!endDate) {
+        const recurringEndDate =
+          new Date(tomorrow)
+
+        recurringEndDate.setDate(
+          recurringEndDate.getDate() + 6,
+        )
+
+        setEndDate(recurringEndDate)
+      }
+    }
   }
 
-  if (!endDate) {
-    const recurringEndDate = new Date(today)
-    recurringEndDate.setDate(
-      recurringEndDate.getDate() + 6,
+  function handleSelectInstantSlot(
+    slot: InstantAvailabilitySlot,
+  ) {
+    if (slot.available_worker_count <= 0) {
+      return
+    }
+
+    setSelectedInstantSlotKey(
+      `${slot.start}-${slot.end}`,
     )
-    setEndDate(recurringEndDate)
-  }
-}
+
+    setStartTime(new Date(slot.start))
+    setEndTime(new Date(slot.end))
   }
 
   function handleSelectScheduledSlot(
@@ -564,19 +727,17 @@ export default function BookingScreen({
       return
     }
 
-    const slotStart = new Date(slot.start)
-    const slotEnd = new Date(slot.end)
-
     setSelectedScheduledSlotKey(
       `${slot.start}-${slot.end}`,
     )
 
-    setStartTime(slotStart)
-    setEndTime(slotEnd)
+    setStartTime(new Date(slot.start))
+    setEndTime(new Date(slot.end))
   }
 
   function handleStartDateChange(date: Date) {
     setSelectedScheduledSlotKey(null)
+    setSelectedInstantSlotKey(null)
     setStartDate(date)
 
     if (endDate && date > endDate) {
@@ -586,16 +747,19 @@ export default function BookingScreen({
 
   function handleEndDateChange(date: Date) {
     setSelectedScheduledSlotKey(null)
+    setSelectedInstantSlotKey(null)
     setEndDate(date)
   }
 
   function handleStartTimeChange(time: Date) {
     setSelectedScheduledSlotKey(null)
+    setSelectedInstantSlotKey(null)
     setStartTime(time)
   }
 
   function handleEndTimeChange(time: Date) {
     setSelectedScheduledSlotKey(null)
+    setSelectedInstantSlotKey(null)
     setEndTime(time)
   }
 
@@ -649,19 +813,20 @@ export default function BookingScreen({
     areaCheckPassed &&
     availabilityResult?.instantAvailable === true
 
-  const canContinue = Boolean(
-    location &&
-      areaCheckPassed &&
-      timeRangeValid &&
-      instantStartTimeValid &&
-      (bookingType === 'instant'
-        ? hasInstantAvailability
-        : hasRequiredDates &&
-          (bookingType === 'scheduled'
-            ? !canSelectScheduledSlots ||
-              selectedSlotIsAvailable
-            : selectedWeekdays.length > 0)),
-  )
+  const canContinue =
+    Boolean(
+      location &&
+        areaCheckPassed &&
+        timeRangeValid &&
+        instantStartTimeValid &&
+        (bookingType === 'instant'
+          ? hasInstantAvailability &&
+            selectedInstantSlotIsAvailable
+          : hasRequiredDates &&
+            (bookingType === 'scheduled'
+              ? true
+              : selectedWeekdays.length > 0)),
+    )
 
   const instantWorkerCount =
     availabilityResult?.nearbyWorkerCount ?? 0
@@ -679,60 +844,60 @@ export default function BookingScreen({
     }
 
     const normalizedSelectedWeekdays =
-  bookingType === 'recurring'
-    ? Array.from(
-        new Set(
-          selectedWeekdays
-            .filter(weekday =>
-              [
-                'Sunday',
-                'Monday',
-                'Tuesday',
-                'Wednesday',
-                'Thursday',
-                'Friday',
-                'Saturday',
-              ].includes(weekday),
+      bookingType === 'recurring'
+        ? Array.from(
+            new Set(
+              selectedWeekdays.filter(
+                weekday =>
+                  [
+                    'Sunday',
+                    'Monday',
+                    'Tuesday',
+                    'Wednesday',
+                    'Thursday',
+                    'Friday',
+                    'Saturday',
+                  ].includes(weekday),
+              ),
             ),
-        ),
-      )
-    : []
+          )
+        : []
 
-const normalizedExcludedDates =
-  bookingType === 'recurring'
-    ? Array.from(
-        new Set(excludedDates),
-      ).sort()
-    : []
+    const normalizedExcludedDates =
+      bookingType === 'recurring'
+        ? Array.from(
+            new Set(excludedDates),
+          ).sort()
+        : []
 
-const draft: BookingDraft = {
-  bookingType,
-  location,
-  startDate: startDate
-    ? startDate.toISOString()
-    : null,
-  endDate: endDate
-    ? endDate.toISOString()
-    : null,
-  startTime: startTime.toISOString(),
-  endTime: endTime.toISOString(),
-  selectedWeekdays:
-    bookingType === 'recurring'
-      ? normalizedSelectedWeekdays
-      : [],
-  excludedDates:
-    bookingType === 'recurring'
-      ? normalizedExcludedDates
-      : [],
+    const draft: BookingDraft = {
+      bookingType,
+      location,
+      startDate: startDate
+        ? startDate.toISOString()
+        : null,
+      endDate: endDate
+        ? endDate.toISOString()
+        : null,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      selectedWeekdays:
+        bookingType === 'recurring'
+          ? normalizedSelectedWeekdays
+          : [],
+      excludedDates:
+        bookingType === 'recurring'
+          ? normalizedExcludedDates
+          : [],
+    }
 
-}
+    if (
+      bookingType === 'recurring' &&
+      normalizedSelectedWeekdays.length === 0
+    ) {
+      return
+    }
 
-if (
-  bookingType === 'recurring' &&
-  normalizedSelectedWeekdays.length === 0
-) {
-  return
-}
     onContinue(draft)
   }
 
@@ -745,8 +910,12 @@ if (
             style={styles.brandLogo}
             resizeMode="contain"
           />
+
           <View style={styles.brandDivider} />
-          <Text style={styles.brandCaption}>BOOKING</Text>
+
+          <Text style={styles.brandCaption}>
+            BOOKING
+          </Text>
         </View>
 
         <View style={styles.headerTop}>
@@ -774,7 +943,9 @@ if (
           <View
             style={[
               styles.progressFill,
-              { width: '25%' },
+              {
+                width: '25%',
+              },
             ]}
           />
         </View>
@@ -805,18 +976,32 @@ if (
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.serviceHero}>
-          <View style={styles.serviceHeroImageWrap}>
+          <View
+            style={
+              styles.serviceHeroImageWrap
+            }
+          >
             {service.imageUrl ? (
               <Image
                 source={{
                   uri: service.imageUrl,
                 }}
-                style={styles.serviceHeroImage}
+                style={
+                  styles.serviceHeroImage
+                }
                 resizeMode="cover"
               />
             ) : (
-              <View style={styles.serviceHeroFallback}>
-                <Text style={styles.serviceHeroIconText}>
+              <View
+                style={
+                  styles.serviceHeroFallback
+                }
+              >
+                <Text
+                  style={
+                    styles.serviceHeroIconText
+                  }
+                >
                   {service.name
                     .trim()
                     .charAt(0)
@@ -826,7 +1011,9 @@ if (
             )}
           </View>
 
-          <View style={styles.serviceHeroContent}>
+          <View
+            style={styles.serviceHeroContent}
+          >
             <Text
               style={styles.serviceHeroName}
               numberOfLines={2}
@@ -834,13 +1021,22 @@ if (
               {service.name}
             </Text>
 
-            {service.hourlyPrice !== null &&
-              service.hourlyPrice !== undefined && (
-                <Text style={styles.serviceHeroPrice}>
+            {service.hourlyPrice !==
+              null &&
+              service.hourlyPrice !==
+                undefined && (
+                <Text
+                  style={
+                    styles.serviceHeroPrice
+                  }
+                >
                   {service.currency ?? ''}
                   {service.hourlyPrice}
+
                   <Text
-                    style={styles.serviceHeroPriceSuffix}
+                    style={
+                      styles.serviceHeroPriceSuffix
+                    }
                   >
                     {' '}
                     / hour
@@ -852,18 +1048,30 @@ if (
 
         <View style={styles.locationCard}>
           <View style={styles.locationIcon}>
-            <Text style={styles.locationIconText}>
+            <Text
+              style={
+                styles.locationIconText
+              }
+            >
               •
             </Text>
           </View>
 
-          <View style={styles.locationContent}>
-            <Text style={styles.locationEyebrow}>
+          <View
+            style={styles.locationContent}
+          >
+            <Text
+              style={
+                styles.locationEyebrow
+              }
+            >
               SERVICE LOCATION
             </Text>
 
             <Text
-              style={styles.locationAddress}
+              style={
+                styles.locationAddress
+              }
               numberOfLines={2}
             >
               {location?.address ??
@@ -872,7 +1080,9 @@ if (
           </View>
         </View>
 
-        <View style={styles.availabilityShell}>
+        <View
+          style={styles.availabilityShell}
+        >
           <ServiceAreaStatusCard
             address={
               location?.address ||
@@ -880,14 +1090,16 @@ if (
             }
             available={
               availabilityResult
-                ?.serviceAreaAvailable === true
+                ?.serviceAreaAvailable ===
+              true
             }
             loading={
               availabilityStatus ===
               'checking'
             }
             error={
-              availabilityStatus === 'error'
+              availabilityStatus ===
+              'error'
                 ? availabilityError
                 : null
             }
@@ -927,7 +1139,8 @@ if (
                   >
                     {hasInstantAvailability
                       ? `${instantWorkerCount} nearby worker${
-                          instantWorkerCount === 1
+                          instantWorkerCount ===
+                          1
                             ? ''
                             : 's'
                         } available`
@@ -974,7 +1187,8 @@ if (
               accessibilityRole="button"
               accessibilityState={{
                 selected:
-                  bookingType === 'instant',
+                  bookingType ===
+                  'instant',
                 disabled:
                   !hasInstantAvailability,
               }}
@@ -998,7 +1212,8 @@ if (
               <View
                 style={[
                   styles.methodIcon,
-                  bookingType === 'instant' &&
+                  bookingType ===
+                    'instant' &&
                     styles.methodIconSelected,
                 ]}
               >
@@ -1029,7 +1244,11 @@ if (
                           styles.methodEyebrowSelected,
                       ]}
                     >
-                      {METHOD_COPY.instant.eyebrow}
+                      {
+                        METHOD_COPY
+                          .instant
+                          .eyebrow
+                      }
                     </Text>
 
                     <Text
@@ -1040,7 +1259,11 @@ if (
                           styles.methodTitleSelected,
                       ]}
                     >
-                      {METHOD_COPY.instant.title}
+                      {
+                        METHOD_COPY
+                          .instant
+                          .title
+                      }
                     </Text>
                   </View>
 
@@ -1076,10 +1299,13 @@ if (
                 </View>
 
                 <Text
-                  style={styles.methodDescription}
+                  style={
+                    styles.methodDescription
+                  }
                 >
                   {
-                    METHOD_COPY.instant
+                    METHOD_COPY
+                      .instant
                       .description
                   }
                 </Text>
@@ -1159,7 +1385,11 @@ if (
                           styles.methodEyebrowSelected,
                       ]}
                     >
-                      {METHOD_COPY.scheduled.eyebrow}
+                      {
+                        METHOD_COPY
+                          .scheduled
+                          .eyebrow
+                      }
                     </Text>
 
                     <Text
@@ -1170,13 +1400,19 @@ if (
                           styles.methodTitleSelected,
                       ]}
                     >
-                      {METHOD_COPY.scheduled.title}
+                      {
+                        METHOD_COPY
+                          .scheduled
+                          .title
+                      }
                     </Text>
                   </View>
                 </View>
 
                 <Text
-                  style={styles.methodDescription}
+                  style={
+                    styles.methodDescription
+                  }
                 >
                   {
                     METHOD_COPY
@@ -1260,7 +1496,11 @@ if (
                           styles.methodEyebrowSelected,
                       ]}
                     >
-                      {METHOD_COPY.recurring.eyebrow}
+                      {
+                        METHOD_COPY
+                          .recurring
+                          .eyebrow
+                      }
                     </Text>
 
                     <Text
@@ -1271,13 +1511,19 @@ if (
                           styles.methodTitleSelected,
                       ]}
                     >
-                      {METHOD_COPY.recurring.title}
+                      {
+                        METHOD_COPY
+                          .recurring
+                          .title
+                      }
                     </Text>
                   </View>
                 </View>
 
                 <Text
-                  style={styles.methodDescription}
+                  style={
+                    styles.methodDescription
+                  }
                 >
                   {
                     METHOD_COPY
@@ -1314,7 +1560,9 @@ if (
               style={styles.infoBanner}
             >
               <View
-                style={styles.infoBannerIcon}
+                style={
+                  styles.infoBannerIcon
+                }
               >
                 <Text
                   style={
@@ -1329,8 +1577,8 @@ if (
                 style={styles.infoBannerText}
               >
                 Instant bookings are for today.
-                Your start time must be in
-                the future.
+                Choose one of the live start
+                times shown below.
               </Text>
             </View>
 
@@ -1344,6 +1592,121 @@ if (
                 handleEndTimeChange
               }
             />
+
+            <View
+              style={
+                styles.availabilitySection
+              }
+            >
+              <View
+                style={
+                  styles.availabilityHeader
+                }
+              >
+                <View
+                  style={
+                    styles.availabilityHeaderText
+                  }
+                >
+                  <Text
+                    style={
+                      styles.availabilityHeading
+                    }
+                  >
+                    Available instant start times
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.availabilitySubheading
+                    }
+                  >
+                    Live worker availability,
+                    refreshed automatically
+                  </Text>
+                </View>
+
+                {selectedInstantSlotIsAvailable && (
+                  <View
+                    style={
+                      styles.slotConfirmedBadge
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.slotConfirmedBadgeText
+                      }
+                    >
+                      Slot selected
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {instantAvailabilityLoading && (
+                <BookingLoadingState />
+              )}
+
+              {instantAvailabilityError && (
+                <BookingErrorState
+                  message={
+                    instantAvailabilityError
+                  }
+                />
+              )}
+
+              {!instantAvailabilityLoading &&
+                !instantAvailabilityError &&
+                instantSlots.length === 0 && (
+                  <View
+                    style={
+                      styles.emptySlotsCard
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.emptySlotsTitle
+                      }
+                    >
+                      No instant slots available
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.emptySlotsText
+                      }
+                    >
+                      No live worker is currently
+                      available for this service,
+                      area, and duration.
+                    </Text>
+                  </View>
+                )}
+
+              {!instantAvailabilityLoading &&
+                !instantAvailabilityError &&
+                instantSlots.map(
+                  (slot, index) => (
+                    <AvailabilitySlot
+                      key={`${slot.start}-${slot.end}-${index}`}
+                      start={slot.start}
+                      end={slot.end}
+                      availableWorkerCount={
+                        slot.available_worker_count
+                      }
+                      selected={
+                        selectedInstantSlotKey ===
+                        `${slot.start}-${slot.end}`
+                      }
+                      onPress={() =>
+                        handleSelectInstantSlot(
+                          slot,
+                        )
+                      }
+                    />
+                  ),
+                )}
+            </View>
 
             <View
               style={styles.durationCard}
@@ -1370,7 +1733,9 @@ if (
               </View>
 
               <View
-                style={styles.durationDivider}
+                style={
+                  styles.durationDivider
+                }
               />
 
               <View
@@ -1407,8 +1772,8 @@ if (
                 <Text
                   style={styles.warningText}
                 >
-                  Instant service can only
-                  start later today.
+                  Instant service can only start
+                  at least 15 minutes from now.
                 </Text>
               </View>
             )}
@@ -1423,8 +1788,7 @@ if (
                       styles.fallbackTitle
                     }
                   >
-                    Instant service is
-                    unavailable
+                    Instant service is unavailable
                   </Text>
 
                   <Text
@@ -1432,9 +1796,8 @@ if (
                       styles.fallbackText
                     }
                   >
-                    No nearby worker is
-                    currently available.
-                    Scheduled booking is
+                    No nearby worker is currently
+                    available. Scheduled booking is
                     available instead.
                   </Text>
 
@@ -1467,15 +1830,17 @@ if (
             <Text
               style={styles.sectionDescription}
             >
-              Select your service dates and
-              preferred time.
+              Choose a date from tomorrow onward.
+              A nearby live worker can be assigned
+              automatically when available; otherwise
+              the request can be assigned by admin.
             </Text>
 
             <DateRangePicker
               startDate={startDate}
               endDate={endDate}
               excludedDates={excludedDates}
-              minDate={today}
+              minDate={tomorrow}
               onStartDateChange={
                 handleStartDateChange
               }
@@ -1500,14 +1865,20 @@ if (
 
             {canSelectScheduledSlots && (
               <View
-                style={styles.availabilitySection}
+                style={
+                  styles.availabilitySection
+                }
               >
                 <View
                   style={
                     styles.availabilityHeader
                   }
                 >
-                  <View>
+                  <View
+                    style={
+                      styles.availabilityHeaderText
+                    }
+                  >
                     <Text
                       style={
                         styles.availabilityHeading
@@ -1581,9 +1952,10 @@ if (
                           styles.emptySlotsText
                         }
                       >
-                        {isTodaySelected
-                          ? 'No future availability remains today for this duration.'
-                          : 'No worker is currently available for this duration on the selected date.'}
+                        No worker slot is currently
+                        available for this duration.
+                        You can still request the
+                        scheduled booking.
                       </Text>
                     </View>
                   )}
@@ -1614,11 +1986,13 @@ if (
               </View>
             )}
 
-            {!canSelectScheduledSlots &&
-              startDate &&
-              endDate && (
+            {startDate &&
+              endDate &&
+              !canSelectScheduledSlots && (
                 <View
-                  style={styles.futureBookingCard}
+                  style={
+                    styles.futureBookingCard
+                  }
                 >
                   <View
                     style={
@@ -1652,10 +2026,10 @@ if (
                         styles.futureBookingText
                       }
                     >
-                      Your request will be
-                      matched with an eligible
-                      worker for the selected
-                      schedule.
+                      Your request will be matched
+                      with an eligible worker for the
+                      selected schedule. Assignment can
+                      also be completed by admin.
                     </Text>
                   </View>
                 </View>
@@ -1668,16 +2042,16 @@ if (
             <Text
               style={styles.sectionDescription}
             >
-              Set a date range, choose the
-              weekdays, and select one daily
-              time window.
+              Choose a date range from tomorrow
+              onward, select the weekdays, and
+              choose one daily time window.
             </Text>
 
             <DateRangePicker
               startDate={startDate}
               endDate={endDate}
               excludedDates={excludedDates}
-              minDate={today}
+              minDate={tomorrow}
               onStartDateChange={
                 handleStartDateChange
               }
@@ -1769,6 +2143,54 @@ if (
                 />
               </View>
             )}
+
+            {startDate &&
+              endDate && (
+                <View
+                  style={
+                    styles.futureBookingCard
+                  }
+                >
+                  <View
+                    style={
+                      styles.futureBookingIcon
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.futureBookingIconText
+                      }
+                    >
+                      F
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.futureBookingContent
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.futureBookingTitle
+                      }
+                    >
+                      Future recurring booking
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.futureBookingText
+                      }
+                    >
+                      Each occurrence will be
+                      matched with an eligible worker
+                      for its scheduled time. Admin can
+                      manually assign when needed.
+                    </Text>
+                  </View>
+                </View>
+              )}
           </BookingSection>
         )}
 
@@ -1778,44 +2200,44 @@ if (
             <Text
               style={styles.sectionDescription}
             >
-              Final pricing is calculated by
-              the booking engine using current
-              service pricing, discounts, fees
-              and applicable tax settings.
+              Final pricing is calculated by the
+              booking engine using current service
+              pricing, discounts, fees and applicable
+              tax settings.
             </Text>
 
             <BookingPriceSummary
-  baseAmount={
-    pricing?.gross_amount
-  }
-  discountAmount={
-    pricing?.discount_amount
-  }
-  serviceDiscountPercent={
-    pricing?.service_discount_percent
-  }
-  serviceDiscountAmount={
-    pricing?.service_discount_amount
-  }
-  discountTierName={
-    pricing?.discount_tier_name
-  }
-  promotionTitle={
-    pricing?.promotion_title
-  }
-    promotionDiscountAmount={
-    pricing?.promotion_discount_amount
-  }
-  recurringDiscountPercent={
-    pricing?.recurring_discount_percent
-  }
-  recurringDiscountAmount={
-    pricing?.recurring_discount_amount
-  }
-  recurringDiscountTierName={
-    pricing?.recurring_discount_tier_name
-  }
-  platformFee={
+              baseAmount={
+                pricing?.gross_amount
+              }
+              discountAmount={
+                pricing?.discount_amount
+              }
+              serviceDiscountPercent={
+                pricing?.service_discount_percent
+              }
+              serviceDiscountAmount={
+                pricing?.service_discount_amount
+              }
+              discountTierName={
+                pricing?.discount_tier_name
+              }
+              promotionTitle={
+                pricing?.promotion_title
+              }
+              promotionDiscountAmount={
+                pricing?.promotion_discount_amount
+              }
+              recurringDiscountPercent={
+                pricing?.recurring_discount_percent
+              }
+              recurringDiscountAmount={
+                pricing?.recurring_discount_amount
+              }
+              recurringDiscountTierName={
+                pricing?.recurring_discount_tier_name
+              }
+              platformFee={
                 pricing?.platform_fee
               }
               taxAmount={
@@ -1824,7 +2246,9 @@ if (
               finalAmount={
                 pricing?.final_amount
               }
-              currency={pricing?.currency}
+              currency={
+                pricing?.currency
+              }
               occurrenceCount={
                 pricing?.occurrence_count
               }
@@ -1834,44 +2258,24 @@ if (
           </BookingSection>
         )}
 
-        <View
-          style={styles.trustCard}
-        >
-          <View
-            style={styles.trustItem}
-          >
-            <View
-              style={styles.trustDot}
-            />
-            <Text
-              style={styles.trustText}
-            >
+        <View style={styles.trustCard}>
+          <View style={styles.trustItem}>
+            <View style={styles.trustDot} />
+            <Text style={styles.trustText}>
               Secure booking
             </Text>
           </View>
 
-          <View
-            style={styles.trustItem}
-          >
-            <View
-              style={styles.trustDot}
-            />
-            <Text
-              style={styles.trustText}
-            >
+          <View style={styles.trustItem}>
+            <View style={styles.trustDot} />
+            <Text style={styles.trustText}>
               Verified workers
             </Text>
           </View>
 
-          <View
-            style={styles.trustItem}
-          >
-            <View
-              style={styles.trustDot}
-            />
-            <Text
-              style={styles.trustText}
-            >
+          <View style={styles.trustItem}>
+            <View style={styles.trustDot} />
+            <Text style={styles.trustText}>
               Live booking status
             </Text>
           </View>
@@ -1890,8 +2294,7 @@ if (
             <Text
               style={styles.footerLabel}
             >
-              {bookingType ===
-              'instant'
+              {bookingType === 'instant'
                 ? 'Service duration'
                 : 'Booking'}
             </Text>
@@ -1899,8 +2302,7 @@ if (
             <Text
               style={styles.footerValue}
             >
-              {bookingType ===
-              'instant'
+              {bookingType === 'instant'
                 ? `${durationHours} hour${
                     durationHours === 1
                       ? ''
@@ -1924,7 +2326,8 @@ if (
             </Text>
           </View>
 
-          {pricing?.final_amount != null &&
+          {pricing?.final_amount !=
+            null &&
             bookingType !== 'instant' && (
               <View
                 style={
@@ -2286,7 +2689,6 @@ const styles = StyleSheet.create({
   },
 
   methodCardSelected: {
-    backgroundColor: '#FFFFFF',
     borderColor: '#062F52',
     borderWidth: 2,
   },
@@ -2444,6 +2846,75 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
+  availabilitySection: {
+    marginTop: 8,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5F2F5',
+  },
+
+  availabilityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+
+  availabilityHeaderText: {
+    flex: 1,
+    paddingRight: 10,
+  },
+
+  availabilityHeading: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#062F52',
+  },
+
+  availabilitySubheading: {
+    marginTop: 2,
+    fontSize: 11,
+    color: '#5E7C8B',
+  },
+
+  slotConfirmedBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: '#DDF7F0',
+  },
+
+  slotConfirmedBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#087F72',
+  },
+
+  emptySlotsCard: {
+    padding: 18,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5F2F5',
+    alignItems: 'center',
+  },
+
+  emptySlotsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#174C68',
+  },
+
+  emptySlotsText: {
+    marginTop: 5,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    color: '#5E7C8B',
+  },
+
   durationCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2546,70 +3017,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#FFFFFF',
-  },
-
-  availabilitySection: {
-    marginTop: 8,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5F2F5',
-  },
-
-  availabilityHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-
-  availabilityHeading: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#062F52',
-  },
-
-  availabilitySubheading: {
-    marginTop: 2,
-    fontSize: 11,
-    color: '#5E7C8B',
-  },
-
-  slotConfirmedBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: '#DDF7F0',
-  },
-
-  slotConfirmedBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#087F72',
-  },
-
-  emptySlotsCard: {
-    padding: 18,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5F2F5',
-    alignItems: 'center',
-  },
-
-  emptySlotsTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#174C68',
-  },
-
-  emptySlotsText: {
-    marginTop: 5,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-    color: '#5E7C8B',
   },
 
   futureBookingCard: {
