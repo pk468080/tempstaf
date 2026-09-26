@@ -25,6 +25,7 @@ type WorkerBookingRow = {
 
   total_working_hours: number | null
   total_amount: number
+  pricing_snapshot: unknown
 
   notes: string | null
 
@@ -63,6 +64,7 @@ const BOOKING_SELECT = `
   scheduled_end,
   total_working_hours,
   total_amount,
+  pricing_snapshot,
   notes,
   worker_accepted_at,
   journey_started_at,
@@ -80,6 +82,21 @@ const BOOKING_SELECT = `
   created_at,
   updated_at
 `
+
+function getBookingCurrency(
+  pricingSnapshot: unknown,
+): string | null {
+  if (
+    pricingSnapshot &&
+    typeof pricingSnapshot === 'object' &&
+    'currency' in pricingSnapshot &&
+    typeof pricingSnapshot.currency === 'string'
+  ) {
+    return pricingSnapshot.currency
+  }
+
+  return null
+}
 
 function mapWorkerBooking(
   row: WorkerBookingRow,
@@ -133,9 +150,7 @@ function mapWorkerBooking(
       Number(
         row.total_amount,
       ),
-
-    currency:
-      null,
+currency: getBookingCurrency(row.pricing_snapshot),
 
     notes:
       row.notes,
