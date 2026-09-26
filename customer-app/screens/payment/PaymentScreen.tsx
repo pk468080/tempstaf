@@ -3,10 +3,12 @@ import {
   Alert,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
+
 import { useEffect, useState } from 'react'
 import RazorpayCheckout from 'react-native-razorpay'
 
@@ -235,14 +237,23 @@ export default function PaymentScreen({
           </View>
         </View>
 
-        <View style={styles.content}>
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.heroCard}>
             <View style={styles.heroIcon}>
               <Text style={styles.heroIconText}>₹</Text>
             </View>
+
             <View style={styles.heroCopy}>
               <Text style={styles.eyebrow}>PAYMENT</Text>
-              <Text style={styles.heroTitle}>Ready to pay</Text>
+
+              <Text style={styles.heroTitle}>
+                Ready to pay
+              </Text>
+
               <Text style={styles.heroSubtitle}>
                 Your payable amount is calculated from the booking
                 data stored on the server.
@@ -251,7 +262,9 @@ export default function PaymentScreen({
           </View>
 
           <View style={styles.amountCard}>
-            <Text style={styles.amountLabel}>Amount payable</Text>
+            <Text style={styles.amountLabel}>
+              Amount payable
+            </Text>
 
             {loading ? (
               <ActivityIndicator
@@ -260,7 +273,10 @@ export default function PaymentScreen({
               />
             ) : (
               <Text style={styles.amount}>
-                {formatMoney(amount, displayCurrency)}
+                {formatMoney(
+                  amount,
+                  displayCurrency,
+                )}
               </Text>
             )}
 
@@ -270,10 +286,12 @@ export default function PaymentScreen({
               label="Occurrences"
               value={String(occurrenceCount)}
             />
+
             <SummaryRow
               label="Working hours"
               value={String(totalWorkingHours)}
             />
+
             <SummaryRow
               label="Booking ID"
               value={bookingId}
@@ -282,12 +300,16 @@ export default function PaymentScreen({
 
           <View style={styles.securityCard}>
             <View style={styles.securityBadge}>
-              <Text style={styles.securityBadgeText}>✓</Text>
+              <Text style={styles.securityBadgeText}>
+                ✓
+              </Text>
             </View>
+
             <View style={styles.securityCopy}>
               <Text style={styles.securityTitle}>
                 Secure Razorpay checkout
               </Text>
+
               <Text style={styles.securityText}>
                 Payment is processed through Razorpay. TempStaff does
                 not treat the mobile screen as the final payment authority.
@@ -297,32 +319,52 @@ export default function PaymentScreen({
 
           {error ? (
             <View style={styles.errorCard}>
-              <Text style={styles.errorTitle}>Payment issue</Text>
-              <Text style={styles.errorText}>{error}</Text>
+              <Text style={styles.errorTitle}>
+                Payment issue
+              </Text>
+
+              <Text style={styles.errorText}>
+                {error}
+              </Text>
             </View>
           ) : null}
-        </View>
+        </ScrollView>
 
         <View style={styles.footer}>
           <Pressable
             style={[
               styles.payButton,
-              (processing || loading || !details) &&
+              (processing ||
+                loading ||
+                !details) &&
                 styles.disabledButton,
             ]}
-            disabled={processing || loading || !details}
-            onPress={() => void handlePayment()}
+            disabled={
+              processing ||
+              loading ||
+              !details
+            }
+            onPress={() =>
+              void handlePayment()
+            }
           >
             {processing ? (
               <View style={styles.processingRow}>
                 <ActivityIndicator color="#FFFFFF" />
+
                 <Text style={styles.payButtonText}>
                   Processing securely...
                 </Text>
               </View>
             ) : (
               <Text style={styles.payButtonText}>
-                Pay {loading ? '' : formatMoney(amount, displayCurrency)}
+                Pay{' '}
+                {loading
+                  ? ''
+                  : formatMoney(
+                      amount,
+                      displayCurrency,
+                    )}
               </Text>
             )}
           </Pressable>
@@ -351,23 +393,32 @@ function ProgressStep({
       <View
         style={[
           styles.progressDot,
-          active && styles.progressDotActive,
-          complete && styles.progressDotComplete,
+          active &&
+            styles.progressDotActive,
+          complete &&
+            styles.progressDotComplete,
         ]}
       >
         <Text
           style={[
             styles.progressDotText,
-            (active || complete) && styles.progressDotTextActive,
+            (active || complete) &&
+              styles.progressDotTextActive,
           ]}
         >
-          {complete ? '✓' : active ? '2' : '3'}
+          {complete
+            ? '✓'
+            : active
+              ? '2'
+              : '3'}
         </Text>
       </View>
+
       <Text
         style={[
           styles.progressLabel,
-          active && styles.progressLabelActive,
+          active &&
+            styles.progressLabelActive,
         ]}
       >
         {label}
@@ -385,8 +436,13 @@ function SummaryRow({
 }) {
   return (
     <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+      <Text style={styles.rowLabel}>
+        {label}
+      </Text>
+
+      <Text style={styles.rowValue}>
+        {value}
+      </Text>
     </View>
   )
 }
@@ -499,7 +555,12 @@ const styles = StyleSheet.create({
 
   content: {
     flex: 1,
+  },
+
+  contentContainer: {
+    flexGrow: 1,
     padding: 20,
+    paddingBottom: 28,
   },
 
   heroCard: {

@@ -120,26 +120,35 @@ Deno.serve(async (req: Request) => {
         ? paymentEntity.id
         : null;
 
-    const { error: eventInsertError } = await supabase
-      .from("razorpay_webhook_events")
-      .insert({
-        event_id: eventId,
-        event_type: eventType,
-        order_id: orderId,
-        payment_id: paymentId,
-        payload,
-      });
+   const { error: eventInsertError } = await supabase
+  .from("razorpay_webhook_events")
+  .insert({
+    event_id: eventId,
+    event_type: eventType,
+    order_id: orderId,
+    payment_id: paymentId,
+    payload,
+  });
 
-    if (eventInsertError) {
-      if (eventInsertError.code === "23505") {
-        return jsonResponse({
-          success: true,
-          duplicate: true,
-        });
-      }
-
-      throw eventInsertError;
-    }
+if (eventInsertError) {
+  /*
+   * Razorpay retries webhook deliveries.
+   *
+   * A duplicate event ID means the event was already recorded.
+   * Do NOT return immediately because the previous attempt may
+   * have failed after recording the event but before payment
+   * finalization completed.
+   *
+   * Continue into the normal reconciliation path. The
+   * finalize_razorpay_payment RPC is idempotent and will safely
+   * handle an already-finalized payment.
+   */
+  if (
+    eventInsertError.code !== "23505"
+  ) {
+    throw eventInsertError;
+  }
+}
 
     if (
       eventType !== "payment.captured" &&
